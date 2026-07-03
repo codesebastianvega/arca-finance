@@ -20,17 +20,15 @@ import { Badge, Button, Card, MetricCard } from "@/components/ui-kit";
 import {
   formatCOP,
   formatDate,
-  getAvailableToday,
   getCardAvailable,
   getDebtTotal,
   getExpenseMonth,
   getIncomeMonth,
-  getNetFlow,
   getSavingsProgress,
   getUpcomingPayments,
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
-import type { FinancialEvent, Transaction } from "@/lib/types";
+import type { Account, FinancialEvent, Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -138,6 +136,106 @@ function getCardUsagePercent(used: number, limit: number) {
   return Math.round((used / limit) * 100);
 }
 
+function getCurrentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function getCurrentMonthName() {
+  return new Date(`${getCurrentMonthKey()}-02T00:00:00`).toLocaleDateString("es-CO", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function isCurrentMonth(value: string) {
+  return value.slice(0, 7) === getCurrentMonthKey();
+}
+
+function getEventTime(event: FinancialEvent) {
+  return new Date(event.eventDate).getTime();
+}
+
+function isOpenEvent(event: FinancialEvent) {
+  return event.status !== "cancelled" && event.status !== "paid" && event.status !== "confirmed";
+}
+
+function isIncomeEvent(event: FinancialEvent) {
+  return event.eventType === "income" && isOpenEvent(event);
+}
+
+function isOutflowEvent(event: FinancialEvent) {
+  return event.eventType !== "income" && isOpenEvent(event);
+}
+
+function sumAccounts(accounts: Account[]) {
+  return accounts.reduce((total, account) => total + account.balance, 0);
+}
+
+function sumEvents(events: FinancialEvent[]) {
+  return events.reduce((total, event) => total + event.amount, 0);
+}
+
+function getPrimaryCashAccount(accounts: Account[]) {
+  return [...accounts].sort((a, b) => b.balance - a.balance)[0];
+}
+
+function getAccountName(accounts: Account[], accountId?: string) {
+  return accounts.find((account) => account.id === accountId)?.name;
+}
+
+function buildMonthlyPaymentPlan(events: FinancialEvent[], accounts: Account[]) {
+  const currentMonthEvents = events.filter((event) => isCurrentMonth(event.eventDate));
+  const incomeEvents = currentMonthEvents
+    .filter(isIncomeEvent)
+    .sort((a, b) => getEventTime(a) - getEventTime(b));
+  const outflowEvents = currentMonthEvents
+    .filter((event) => isOutflowEvent(event) && event.amount > 0)
+    .sort((a, b) => getEventTime(a) - getEventTime(b));
+  const primaryCashAccount = getPrimaryCashAccount(accounts);
+  let projectedCash = sumAccounts(accounts);
+  let incomeIndex = 0;
+
+  return outflowEvents.map((event) => {
+    const incomeBeforePayment: FinancialEvent[] = [];
+    const cashBeforeIncome = projectedCash;
+
+    while (incomeIndex < incomeEvents.length && getEventTime(incomeEvents[incomeIndex]) <= getEventTime(event)) {
+      const income = incomeEvents[incomeIndex];
+      incomeBeforePayment.push(income);
+      projectedCash += income.amount;
+      incomeIndex += 1;
+    }
+
+    const covered = projectedCash >= event.amount;
+    const shortfall = Math.max(0, event.amount - projectedCash);
+    const accountName = getAccountName(accounts, event.accountId) ?? primaryCashAccount?.name;
+    const fundingLabel =
+      cashBeforeIncome >= event.amount
+        ? accountName
+          ? `Caja actual: ${accountName}`
+          : "Caja actual"
+        : incomeBeforePayment.length
+          ? `Reservar de: ${incomeBeforePayment[incomeBeforePayment.length - 1].title}`
+          : accountName
+            ? `Intentar con: ${accountName}`
+            : "Sin fuente sugerida";
+
+    if (covered) {
+      projectedCash -= event.amount;
+    }
+
+    return {
+      event,
+      accountName,
+      covered,
+      fundingLabel,
+      projectedCashAfter: projectedCash,
+      shortfall,
+    };
+  });
+}
+
 function SectionHeader({
   eyebrow,
   title,
@@ -229,71 +327,128 @@ function DashboardView({
   cards,
   debts,
   events,
-  goals,
   projections,
   transactions,
 }: DashboardData) {
-  const availableToday = getAvailableToday(accounts, goals, debts, cards);
-  const incomeMonth = getIncomeMonth(transactions);
-  const expenseMonth = getExpenseMonth(transactions);
-  const flowMonth = getNetFlow(transactions);
+  const currentMonthTransactions = transactions.filter((tx) => isCurrentMonth(tx.date));
+  const currentMonthEvents = events.filter((event) => isCurrentMonth(event.eventDate));
+  const incomeEvents = currentMonthEvents.filter(isIncomeEvent);
+  const outflowEvents = currentMonthEvents.filter((event) => isOutflowEvent(event) && event.amount > 0);
+  const cashNow = sumAccounts(accounts);
+  const incomeMonth = sumEvents(incomeEvents) + getIncomeMonth(currentMonthTransactions);
+  const expenseMonth = sumEvents(outflowEvents) + getExpenseMonth(currentMonthTransactions);
+  const availableAfterCommitments = cashNow + incomeMonth - expenseMonth;
+  const pressureToCover = Math.max(0, expenseMonth - cashNow);
   const debtTotal = getDebtTotal(debts, cards);
-  const upcomingEvents = events
-    .filter((event) => event.eventType !== "income" && ["scheduled", "pending", "overdue"].includes(event.status))
-    .slice(0, 8);
+  const paymentPlan = buildMonthlyPaymentPlan(events, accounts).slice(0, 10);
   const flowData = projections.length
     ? projections.map((item) => ({ name: getMonthLabel(item.month), value: item.closingBalance }))
     : fallbackFlowData;
   const sourceData = business.map((item) => ({ name: item.name, value: item.income }));
+  const accountTotalForBars = Math.max(cashNow, 1);
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr]">
-        <Card className="overflow-hidden p-5 md:p-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-black/55">Resumen del mes</p>
-              <h3 className="mt-1 text-2xl font-semibold text-[#111111]">Caja real y presion futura</h3>
-            </div>
-            <p className="max-w-xl text-sm leading-6 text-black/60">
-              Arca cruza saldos, pagos proximos y metas para mostrar cuanto margen queda antes de gastar.
+      <Card className="overflow-hidden p-5 md:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Dashboard - {getCurrentMonthName()}</p>
+            <h3 className="mt-2 max-w-3xl text-3xl font-semibold leading-tight text-[#111111] md:text-5xl">
+              Caja disponible, compromisos y decisiones del mes.
+            </h3>
+          </div>
+          <div className="rounded-2xl bg-black/3 p-4 xl:w-80">
+            <p className="text-sm font-medium text-[#111111]">Lectura rapida</p>
+            <p className="mt-2 text-sm leading-6 text-black/60">
+              Necesitas cubrir {formatCOP(expenseMonth)} este mes. Con caja actual faltan{" "}
+              {formatCOP(pressureToCover)} antes de contar ingresos programados.
             </p>
           </div>
+        </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label="Disponible tras compromisos"
-              value={formatCOP(availableToday)}
-              tone={availableToday >= 0 ? "success" : "danger"}
-            />
-            <MetricCard label="Ingresos del mes" value={formatCOP(incomeMonth)} tone="neutral" />
-            <MetricCard label="Salidas del mes" value={formatCOP(expenseMonth)} tone="danger" />
-            <MetricCard
-              label="Flujo neto"
-              value={formatCOP(flowMonth)}
-              tone={flowMonth >= 0 ? "success" : "danger"}
-            />
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <MetricCard label="Dinero actual" value={formatCOP(cashNow)} tone={cashNow > 0 ? "success" : "warning"} />
+          <MetricCard label="Ingresos estimados" value={formatCOP(incomeMonth)} tone="success" />
+          <MetricCard label="Necesario del mes" value={formatCOP(expenseMonth)} tone="danger" />
+          <MetricCard
+            label="Disponible tras compromisos"
+            value={formatCOP(availableAfterCommitments)}
+            tone={availableAfterCommitments >= 0 ? "success" : "danger"}
+          />
+          <MetricCard label="Deuda total" value={formatCOP(debtTotal)} tone={debtTotal > 0 ? "danger" : "success"} />
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="p-5">
+          <SectionHeader
+            eyebrow="Caja actual"
+            title="Donde esta la plata hoy"
+            action={<Badge tone="neutral">{accounts.length} cuentas</Badge>}
+          />
+          <div className="mt-5 space-y-4">
+            {accounts.length ? (
+              accounts
+                .slice()
+                .sort((a, b) => b.balance - a.balance)
+                .map((account) => {
+                  const width = Math.max(4, Math.round((account.balance / accountTotalForBars) * 100));
+
+                  return (
+                    <div key={account.id}>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <div>
+                          <p className="font-medium text-[#111111]">{account.name}</p>
+                          <p className="text-black/50">{account.type}</p>
+                        </div>
+                        <p className="font-semibold text-[#111111]">{formatCOP(account.balance)}</p>
+                      </div>
+                      <div className="mt-2 h-2 rounded-full bg-black/6">
+                        <div className="h-2 rounded-full bg-[#163a5f]" style={{ width: `${width}%` }} />
+                      </div>
+                    </div>
+                  );
+                })
+            ) : (
+              <EmptyState label="Aun no hay cuentas. Carga al menos una cuenta para tener dinero actual." />
+            )}
           </div>
         </Card>
 
-        <Card className="p-5 md:p-6">
+        <Card className="p-5">
           <SectionHeader
-            eyebrow="Accion rapida"
-            title="Registro manual"
-            action={
-              <Link
-                href="/?view=register"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
-              >
-                <Plus className="h-4 w-4" />
-                Registrar
-              </Link>
-            }
+            eyebrow="Flujo del mes"
+            title="Entradas vs salidas"
+            action={<Badge tone={availableAfterCommitments >= 0 ? "success" : "danger"}>{formatCOP(availableAfterCommitments)}</Badge>}
           />
-          <div className="mt-4 space-y-3 text-sm text-black/70">
-            <div className="rounded-2xl bg-black/3 p-3">&quot;Gaste 38 mil de Nequi en almuerzo&quot;</div>
-            <div className="rounded-2xl bg-black/3 p-3">&quot;Compre con tarjeta Nu mercado por 180 mil&quot;</div>
-            <div className="rounded-2xl bg-black/3 p-3">&quot;Recibi pago de SIE Travel&quot;</div>
+          <div className="mt-5 space-y-4">
+            <div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-[#111111]">Ingresos estimados</span>
+                <span>{formatCOP(incomeMonth)}</span>
+              </div>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-black/6">
+                <div className="h-3 rounded-full bg-[var(--success)]" style={{ width: "100%" }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-[#111111]">Compromisos del mes</span>
+                <span>{formatCOP(expenseMonth)}</span>
+              </div>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-black/6">
+                <div
+                  className="h-3 rounded-full bg-[var(--danger)]"
+                  style={{ width: `${Math.min(100, Math.round((expenseMonth / Math.max(incomeMonth + cashNow, 1)) * 100))}%` }}
+                />
+              </div>
+            </div>
+            <div className="rounded-2xl bg-black/3 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Formula</p>
+              <p className="mt-2 text-sm leading-6 text-black/65">
+                Caja actual + ingresos del mes - compromisos del mes = disponible tras compromisos.
+              </p>
+            </div>
           </div>
         </Card>
       </div>
@@ -303,28 +458,42 @@ function DashboardView({
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="p-5 xl:col-span-2">
           <SectionHeader
-            eyebrow="Proximos pagos"
-            title="Lo que aprieta el mes"
-            action={<Badge tone="danger">{upcomingEvents.length} pendientes</Badge>}
+            eyebrow="Plan de pagos"
+            title="Lo que aprieta y con que pagarlo"
+            action={<Badge tone="danger">{paymentPlan.length} compromisos</Badge>}
           />
           <div className="mt-4 divide-y divide-black/8">
-            {upcomingEvents.length ? (
-              upcomingEvents.map((event) => (
-                <div key={event.id} className="flex items-center justify-between gap-4 py-3">
-                  <div>
+            {paymentPlan.length ? (
+              paymentPlan.map((item) => (
+                <div key={item.event.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_180px_220px] lg:items-center">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-[#111111]">{event.title}</p>
-                      <Badge tone={event.status === "overdue" ? "danger" : "warning"}>{event.status}</Badge>
+                      <p className="font-medium text-[#111111]">{item.event.title}</p>
+                      <Badge tone={item.event.status === "overdue" ? "danger" : item.covered ? "success" : "danger"}>
+                        {item.covered ? "cubierto" : "falta caja"}
+                      </Badge>
                     </div>
                     <p className="mt-1 text-sm text-black/55">
-                      {event.eventType} - {formatDate(event.eventDate)}
+                      Vence {formatDate(item.event.eventDate)} - {item.event.eventType}
                     </p>
                   </div>
-                  <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Monto</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(item.event.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Pagar con</p>
+                    <p className="mt-1 text-sm font-medium text-[#111111]">{item.fundingLabel}</p>
+                    <p className="mt-1 text-xs text-black/50">
+                      {item.covered
+                        ? `Caja proyectada despues: ${formatCOP(item.projectedCashAfter)}`
+                        : `Faltan ${formatCOP(item.shortfall)}`}
+                    </p>
+                  </div>
                 </div>
               ))
             ) : (
-              <EmptyState label="No hay pagos pendientes cargados en calendario." />
+              <EmptyState label="No hay compromisos del mes cargados en calendario." />
             )}
           </div>
         </Card>

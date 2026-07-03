@@ -113,6 +113,7 @@ export interface FinancialEvent {
   amount: number;
   eventType: FinancialEventType;
   status: string;
+  accountId?: string;
   unit?: BusinessUnitKey;
   notes?: string;
 }
