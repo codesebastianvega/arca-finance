@@ -25,6 +25,9 @@ import {
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard },
   { label: "Cuentas", icon: Wallet },
