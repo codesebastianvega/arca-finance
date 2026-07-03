@@ -40,6 +40,14 @@ Copiar `.env.example` a `.env.local` y completar:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+Si ya tienes el proyecto Supabase creado, puedes pegar esos valores directo en `.env.local`.
+
+## Supabase
+
+- `supabase/schema.sql` contiene la base de tablas y policies iniciales.
+- Pega ese SQL en el editor de Supabase para crear la estructura.
+- La app usa Supabase si encuentra las variables de entorno; si no, cae a mock local.
+
 ## Estructura inicial
 
 - `src/app/page.tsx` dashboard principal

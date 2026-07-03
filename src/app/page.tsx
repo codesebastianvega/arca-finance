@@ -12,14 +12,6 @@ import {
 import { ArcaCharts } from "@/components/arca-charts";
 import { Badge, Button, Card, MetricCard } from "@/components/ui-kit";
 import {
-  accounts,
-  cards,
-  business,
-  debts,
-  goals,
-  transactions,
-} from "@/lib/mock-data";
-import {
   formatCOP,
   formatDate,
   getAvailableToday,
@@ -31,6 +23,7 @@ import {
   getSavingsProgress,
   getUpcomingPayments,
 } from "@/lib/finance";
+import { loadDashboardData } from "@/lib/dashboard-data";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard },
@@ -58,14 +51,15 @@ const sourceData = [
   { name: "Aluna", value: 1350000 },
 ];
 
-const availableToday = getAvailableToday(accounts, goals, debts, cards);
-const incomeMonth = getIncomeMonth(transactions);
-const expenseMonth = getExpenseMonth(transactions);
-const flowMonth = getNetFlow(transactions);
-const debtTotal = getDebtTotal(debts, cards);
-const upcoming = getUpcomingPayments(transactions);
+export default async function Home() {
+  const { source, accounts, cards, business, debts, goals, transactions } = await loadDashboardData();
+  const availableToday = getAvailableToday(accounts, goals, debts, cards);
+  const incomeMonth = getIncomeMonth(transactions);
+  const expenseMonth = getExpenseMonth(transactions);
+  const flowMonth = getNetFlow(transactions);
+  const debtTotal = getDebtTotal(debts, cards);
+  const upcoming = getUpcomingPayments(transactions);
 
-export default function Home() {
   return (
     <main className="min-h-screen p-4 md:p-6">
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-black/8 bg-[var(--surface)] shadow-[0_18px_50px_rgba(17,17,17,0.08)] md:min-h-[calc(100vh-3rem)]">
@@ -96,17 +90,17 @@ export default function Home() {
             ))}
           </nav>
 
-          <Card className="mt-auto p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Estado MCP</p>
-            <p className="mt-2 text-sm leading-6 text-black/70">
-              Preparado para conectar una IA que registre gastos, deudas y compras
-              con lenguaje natural.
-            </p>
-            <Badge className="mt-4" tone="success">
-              ready for Supabase
-            </Badge>
-          </Card>
-        </aside>
+            <Card className="mt-auto p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-black/55">Estado MCP</p>
+              <p className="mt-2 text-sm leading-6 text-black/70">
+                Preparado para conectar una IA que registre gastos, deudas y compras
+                con lenguaje natural.
+              </p>
+              <Badge className="mt-4" tone={source === "supabase" ? "success" : "warning"}>
+                {source === "supabase" ? "Supabase conectado" : "Usando mock local"}
+              </Badge>
+            </Card>
+          </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-black/8 px-4 py-4 md:px-6">
@@ -118,6 +112,9 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-3">
               <Badge tone="warning">COP</Badge>
+              <Badge tone={source === "supabase" ? "success" : "warning"}>
+                {source === "supabase" ? "Supabase" : "Mock"}
+              </Badge>
               <Button variant="secondary" className="hidden sm:inline-flex">
                 Ver resumen
               </Button>
