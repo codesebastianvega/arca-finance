@@ -14,7 +14,7 @@ import {
   PiggyBank,
   Wallet,
 } from "lucide-react";
-import { createTransaction } from "@/app/actions";
+import { createAccount, createCreditCard, createDebt, createSavingsGoal, createTransaction } from "@/app/actions";
 import { ArcaCharts } from "@/components/arca-charts";
 import { Badge, Button, Card, MetricCard } from "@/components/ui-kit";
 import {
@@ -319,6 +319,25 @@ function DashboardView({
 }
 
 function RegisterView({ accounts, business }: DashboardData) {
+  if (!accounts.length) {
+    return (
+      <Card className="p-6">
+        <SectionHeader eyebrow="Antes de registrar" title="Primero crea al menos una cuenta o billetera" />
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-black/65">
+          Arca necesita saber de donde entra o sale la plata. Crea Nequi, efectivo, banco o la cuenta que uses,
+          y despues registra movimientos sobre esa cuenta.
+        </p>
+        <Link
+          href="/?view=accounts"
+          className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+        >
+          <Plus className="h-4 w-4" />
+          Crear cuenta
+        </Link>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
       <Card className="p-5 md:p-6">
@@ -420,23 +439,62 @@ function RegisterView({ accounts, business }: DashboardData) {
 
 function AccountsView({ accounts }: DashboardData) {
   return (
-    <Card className="p-5">
-      <SectionHeader eyebrow="Cuentas" title="Donde esta la plata" action={<Badge tone="neutral">{accounts.length} activas</Badge>} />
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {accounts.map((account) => (
-          <div key={account.id} className="rounded-2xl border border-black/8 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-[#111111]">{account.name}</p>
-                <p className="text-sm text-black/55">{account.type}</p>
+    <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <Card className="p-5">
+        <SectionHeader eyebrow="Nueva cuenta" title="Crear billetera o banco" />
+        <form action={createAccount} className="mt-5 space-y-4">
+          <label className="block space-y-2">
+            <span className={labelClass}>Nombre</span>
+            <input name="name" className={fieldClass} placeholder="Nequi, Efectivo, Bancolombia..." required />
+          </label>
+          <label className="block space-y-2">
+            <span className={labelClass}>Tipo</span>
+            <select name="type" className={fieldClass} defaultValue="wallet" required>
+              <option value="wallet">Billetera</option>
+              <option value="bank">Banco</option>
+              <option value="cash">Efectivo</option>
+              <option value="savings">Ahorro</option>
+              <option value="other">Otra</option>
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className={labelClass}>Saldo actual</span>
+            <input name="balance" type="number" step="100" className={fieldClass} defaultValue="0" required />
+          </label>
+          <input name="color" type="hidden" value="#163a5f" />
+          <Button type="submit" className="w-full">
+            <Plus className="h-4 w-4" />
+            Guardar cuenta
+          </Button>
+        </form>
+      </Card>
+
+      <Card className="p-5">
+        <SectionHeader
+          eyebrow="Cuentas"
+          title="Donde esta la plata"
+          action={<Badge tone="neutral">{accounts.length} activas</Badge>}
+        />
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {accounts.length ? (
+            accounts.map((account) => (
+              <div key={account.id} className="rounded-2xl border border-black/8 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#111111]">{account.name}</p>
+                    <p className="text-sm text-black/55">{account.type}</p>
+                  </div>
+                  <Landmark className="h-5 w-5 text-black/45" />
+                </div>
+                <p className="mt-4 text-2xl font-semibold text-[#111111]">{formatCOP(account.balance)}</p>
               </div>
-              <Landmark className="h-5 w-5 text-black/45" />
-            </div>
-            <p className="mt-4 text-2xl font-semibold text-[#111111]">{formatCOP(account.balance)}</p>
-          </div>
-        ))}
-      </div>
-    </Card>
+            ))
+          ) : (
+            <EmptyState label="Aun no hay cuentas. Empieza creando la cuenta desde donde manejas tu plata hoy." />
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -475,37 +533,95 @@ function DebtsView({ debts, transactions }: DashboardData) {
   const debtTransactions = transactions.filter((tx) => tx.kind === "debt_payment");
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <Card className="p-5">
+        <SectionHeader eyebrow="Nueva deuda" title="Cargar obligacion real" />
+        <form action={createDebt} className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className={labelClass}>Nombre</span>
+            <input name="name" className={fieldClass} placeholder="Solventa, prestamo familiar..." required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Entidad</span>
+            <input name="lender" className={fieldClass} placeholder="Banco, persona, app..." required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Saldo pendiente</span>
+            <input name="balance" type="number" min="1" step="100" className={fieldClass} required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Cuota</span>
+            <input name="installment" type="number" min="0" step="100" className={fieldClass} defaultValue="0" required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Proximo pago</span>
+            <input name="nextDueDate" type="date" className={fieldClass} required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Meses restantes</span>
+            <input name="remainingMonths" type="number" min="0" step="1" className={fieldClass} placeholder="0 si no aplica" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Prioridad</span>
+            <select name="priority" className={fieldClass} defaultValue="medium" required>
+              <option value="high">Alta</option>
+              <option value="medium">Media</option>
+              <option value="low">Baja</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Tipo</span>
+            <input name="debtType" className={fieldClass} defaultValue="personal" required />
+          </label>
+          <label className="space-y-2 md:col-span-2">
+            <span className={labelClass}>Notas</span>
+            <input name="notes" className={fieldClass} placeholder="Mora, acuerdo, condiciones..." />
+          </label>
+          <div className="md:col-span-2">
+            <Button type="submit" className="w-full">
+              <Plus className="h-4 w-4" />
+              Guardar deuda
+            </Button>
+          </div>
+        </form>
+      </Card>
+
       <Card className="p-5">
         <SectionHeader eyebrow="Deudas" title="Obligaciones activas" />
         <div className="mt-4 space-y-3">
-          {debts.map((debt) => (
-            <div key={debt.id} className="rounded-2xl border border-black/8 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-[#111111]">{debt.name}</p>
-                  <p className="text-sm text-black/55">
-                    {debt.lender} - vence {formatDate(debt.nextDueDate)}
-                  </p>
+          {debts.length ? (
+            debts.map((debt) => (
+              <div key={debt.id} className="rounded-2xl border border-black/8 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-[#111111]">{debt.name}</p>
+                    <p className="text-sm text-black/55">
+                      {debt.lender} - vence {formatDate(debt.nextDueDate)}
+                    </p>
+                  </div>
+                  <Badge tone={debt.priority === "high" ? "danger" : "warning"}>{debt.status}</Badge>
                 </div>
-                <Badge tone={debt.priority === "high" ? "danger" : "warning"}>{debt.status}</Badge>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Saldo</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.balance)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cuota</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.installment)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Saldo</p>
-                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.balance)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cuota</p>
-                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.installment)}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <EmptyState label="Aun no hay deudas cargadas. Agrega cada obligacion con saldo, cuota, plazo y vencimiento." />
+          )}
         </div>
       </Card>
 
-      <MovementsView eyebrow="Pagos" title="Pagos de deuda registrados" transactions={debtTransactions} />
+      <div className="xl:col-span-2">
+        <MovementsView eyebrow="Pagos" title="Pagos de deuda registrados" transactions={debtTransactions} />
+      </div>
     </div>
   );
 }
@@ -514,41 +630,87 @@ function CardsView({ cards, transactions }: DashboardData) {
   const cardTransactions = transactions.filter((tx) => tx.kind === "card_payment");
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <Card className="p-5">
+        <SectionHeader eyebrow="Nueva tarjeta" title="Cargar tarjeta de credito" />
+        <form action={createCreditCard} className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className={labelClass}>Nombre</span>
+            <input name="name" className={fieldClass} placeholder="Nu, Bancolombia Visa..." required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Emisor</span>
+            <input name="issuer" className={fieldClass} placeholder="Nu, Bancolombia..." required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Cupo</span>
+            <input name="limit" type="number" min="0" step="100" className={fieldClass} required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Usado</span>
+            <input name="used" type="number" min="0" step="100" className={fieldClass} defaultValue="0" required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Dia corte</span>
+            <input name="cutOffDate" type="number" min="1" max="31" className={fieldClass} required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Dia pago</span>
+            <input name="payDueDate" type="number" min="1" max="31" className={fieldClass} required />
+          </label>
+          <label className="space-y-2 md:col-span-2">
+            <span className={labelClass}>Pago minimo actual</span>
+            <input name="minimumPayment" type="number" min="0" step="100" className={fieldClass} defaultValue="0" required />
+          </label>
+          <div className="md:col-span-2">
+            <Button type="submit" className="w-full">
+              <Plus className="h-4 w-4" />
+              Guardar tarjeta
+            </Button>
+          </div>
+        </form>
+      </Card>
+
       <Card className="p-5">
         <SectionHeader eyebrow="Tarjetas" title="Cupos y fechas de pago" />
         <div className="mt-4 space-y-3">
-          {cards.map((card) => (
-            <div key={card.id} className="rounded-2xl border border-black/8 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-[#111111]">{card.name}</p>
-                  <p className="text-sm text-black/55">
-                    Corte {card.cutOffDate} - pago {card.payDueDate}
-                  </p>
+          {cards.length ? (
+            cards.map((card) => (
+              <div key={card.id} className="rounded-2xl border border-black/8 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-[#111111]">{card.name}</p>
+                    <p className="text-sm text-black/55">
+                      Corte {card.cutOffDate} - pago {card.payDueDate}
+                    </p>
+                  </div>
+                  <Badge tone="warning">{card.status}</Badge>
                 </div>
-                <Badge tone="warning">{card.status}</Badge>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cupo</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.limit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Usado</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.used)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Minimo</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.minimumPayment)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cupo</p>
-                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.limit)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Usado</p>
-                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.used)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Minimo</p>
-                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.minimumPayment)}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <EmptyState label="Aun no hay tarjetas. Carga cupo, usado, corte, pago y minimo actual." />
+          )}
         </div>
       </Card>
 
-      <MovementsView eyebrow="Pagos" title="Pagos de tarjeta registrados" transactions={cardTransactions} />
+      <div className="xl:col-span-2">
+        <MovementsView eyebrow="Pagos" title="Pagos de tarjeta registrados" transactions={cardTransactions} />
+      </div>
     </div>
   );
 }
@@ -559,32 +721,67 @@ function SavingsView({ goals, transactions }: DashboardData) {
   );
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <Card className="p-5">
+        <SectionHeader eyebrow="Nueva meta" title="Definir objetivo de ahorro" />
+        <form action={createSavingsGoal} className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="space-y-2 md:col-span-2">
+            <span className={labelClass}>Nombre</span>
+            <input name="name" className={fieldClass} placeholder="Fondo de tranquilidad, viaje, inversion..." required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Meta</span>
+            <input name="target" type="number" min="1" step="100" className={fieldClass} required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Actual</span>
+            <input name="current" type="number" min="0" step="100" className={fieldClass} defaultValue="0" required />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Fecha objetivo</span>
+            <input name="dueDate" type="date" className={fieldClass} />
+          </label>
+          <input name="color" type="hidden" value="#16735b" />
+          <div className="md:col-span-2">
+            <Button type="submit" className="w-full">
+              <Plus className="h-4 w-4" />
+              Guardar meta
+            </Button>
+          </div>
+        </form>
+      </Card>
+
       <Card className="p-5">
         <SectionHeader eyebrow="Ahorro" title="Metas activas" />
         <div className="mt-4 space-y-5">
-          {goals.map((goal) => {
-            const progress = getSavingsProgress(goal);
+          {goals.length ? (
+            goals.map((goal) => {
+              const progress = getSavingsProgress(goal);
 
-            return (
-              <div key={goal.id}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-[#111111]">{goal.name}</span>
-                  <span className="text-black/55">{progress}%</span>
+              return (
+                <div key={goal.id}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-[#111111]">{goal.name}</span>
+                    <span className="text-black/55">{progress}%</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-black/6">
+                    <div className="h-2 rounded-full" style={{ width: `${progress}%`, backgroundColor: goal.color }} />
+                  </div>
+                  <p className="mt-2 text-sm text-black/55">
+                    {formatCOP(goal.current)} de {formatCOP(goal.target)}
+                  </p>
                 </div>
-                <div className="mt-2 h-2 rounded-full bg-black/6">
-                  <div className="h-2 rounded-full" style={{ width: `${progress}%`, backgroundColor: goal.color }} />
-                </div>
-                <p className="mt-2 text-sm text-black/55">
-                  {formatCOP(goal.current)} de {formatCOP(goal.target)}
-                </p>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <EmptyState label="Aun no hay metas. Define una meta para que Proyeccion tenga norte." />
+          )}
         </div>
       </Card>
 
-      <MovementsView eyebrow="Movimientos" title="Aportes y retiros" transactions={savingsTransactions} />
+      <div className="xl:col-span-2">
+        <MovementsView eyebrow="Movimientos" title="Aportes y retiros" transactions={savingsTransactions} />
+      </div>
     </div>
   );
 }
@@ -616,24 +813,80 @@ function CalendarView({ events, transactions }: DashboardData) {
   );
 }
 
-function ProjectionsView({ projections }: DashboardData) {
+function ProjectionsView({ accounts, cards, debts, goals, projections }: DashboardData) {
+  const primaryGoal = goals[0];
+  const cash = accounts.reduce((total, account) => total + account.balance, 0);
+  const monthlyDebtPressure =
+    debts.reduce((total, debt) => total + debt.installment, 0) +
+    cards.reduce((total, card) => total + card.minimumPayment, 0);
+  const totalDebt = getDebtTotal(debts, cards);
+
   return (
-    <Card className="p-5">
-      <SectionHeader eyebrow="Proyeccion" title="Cierre esperado por mes" />
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {projections.map((item) => (
-          <div key={item.id} className="rounded-2xl border border-black/8 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-black/45">{getMonthLabel(item.month)}</p>
-            <p className="mt-2 text-lg font-semibold text-[#111111]">{formatCOP(item.closingBalance)}</p>
-            <p className="mt-1 text-sm text-black/55">Ingresos {formatCOP(item.expectedIncome)}</p>
-            <p className="text-sm text-black/55">
-              Salidas {formatCOP(item.expectedExpenses + item.debtPayments + item.cardPayments)}
-            </p>
-            {item.notes ? <p className="mt-2 text-sm text-black/50">{item.notes}</p> : null}
+    <div className="space-y-4">
+      <Card className="overflow-hidden p-6 md:p-8">
+        <p className="text-xs uppercase tracking-[0.22em] text-black/55">Muro financiero</p>
+        <h3 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-[#111111] md:text-5xl">
+          {primaryGoal ? primaryGoal.name : "Define la meta que va a ordenar tus decisiones de plata."}
+        </h3>
+        <p className="mt-5 max-w-2xl text-sm leading-6 text-black/65">
+          Esta vista debe responder si vas acercandote a la vida financiera que quieres, no solo listar numeros.
+          Los supuestos se alimentan de cuentas, deudas, tarjetas, ingresos y gastos reales.
+        </p>
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <MetricCard label="Caja actual" value={formatCOP(cash)} tone={cash >= 0 ? "success" : "danger"} />
+          <MetricCard label="Deuda total" value={formatCOP(totalDebt)} tone={totalDebt > 0 ? "danger" : "success"} />
+          <MetricCard
+            label="Presion mensual"
+            value={formatCOP(monthlyDebtPressure)}
+            tone={monthlyDebtPressure > 0 ? "warning" : "success"}
+          />
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="p-5">
+          <SectionHeader eyebrow="Supuestos" title="Lo que sostiene la proyeccion" />
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="font-medium text-[#111111]">Cuentas reales</p>
+              <p className="mt-1 text-sm text-black/55">{accounts.length} cargadas - {formatCOP(cash)}</p>
+            </div>
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="font-medium text-[#111111]">Deudas y tarjetas</p>
+              <p className="mt-1 text-sm text-black/55">
+                {debts.length + cards.length} obligaciones - {formatCOP(monthlyDebtPressure)} al mes
+              </p>
+            </div>
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="font-medium text-[#111111]">Meta principal</p>
+              <p className="mt-1 text-sm text-black/55">
+                {primaryGoal ? `${formatCOP(primaryGoal.current)} de ${formatCOP(primaryGoal.target)}` : "Pendiente por definir"}
+              </p>
+            </div>
           </div>
-        ))}
+        </Card>
+
+        <Card className="p-5">
+          <SectionHeader eyebrow="Escenarios" title="Cierre esperado" />
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {projections.length ? (
+              projections.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-2xl border border-black/8 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-black/45">{getMonthLabel(item.month)}</p>
+                  <p className="mt-2 text-lg font-semibold text-[#111111]">{formatCOP(item.closingBalance)}</p>
+                  <p className="mt-1 text-sm text-black/55">Ingresos {formatCOP(item.expectedIncome)}</p>
+                  <p className="text-sm text-black/55">
+                    Salidas {formatCOP(item.expectedExpenses + item.debtPayments + item.cardPayments)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <EmptyState label="Aun no hay escenarios. Primero carga cuentas, deudas, tarjetas, ingresos y gastos fijos." />
+            )}
+          </div>
+        </Card>
       </div>
-    </Card>
+    </div>
   );
 }
 

@@ -46,6 +46,7 @@ Si ya tienes el proyecto Supabase creado, puedes pegar esos valores directo en `
 
 - `supabase/schema.sql` contiene la base de tablas y policies iniciales.
 - `supabase/seed.sql` contiene la fotografia financiera inicial julio-diciembre 2026.
+- `supabase/reset-data.sql` borra la data operativa/demo y deja catalogos minimos en cero.
 - Pega ese SQL en el editor de Supabase para crear la estructura.
 - La app usa Supabase si encuentra las variables de entorno; si no, cae a mock local.
 - `docs/seed-modeling-notes.md` documenta supuestos y separaciones importantes.

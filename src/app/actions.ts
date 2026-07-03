@@ -25,6 +25,43 @@ const transactionSchema = z.object({
   dueDate: z.string().trim().optional(),
 });
 
+const accountSchema = z.object({
+  name: z.string().trim().min(2),
+  type: z.enum(["cash", "bank", "wallet", "savings", "other"]),
+  balance: z.coerce.number().default(0),
+  color: z.string().trim().default("#163a5f"),
+});
+
+const debtSchema = z.object({
+  name: z.string().trim().min(2),
+  lender: z.string().trim().min(2),
+  debtType: z.string().trim().min(2).default("personal"),
+  balance: z.coerce.number().positive(),
+  installment: z.coerce.number().min(0),
+  nextDueDate: z.string().trim().min(10),
+  remainingMonths: z.coerce.number().int().min(0).optional(),
+  priority: z.enum(["high", "medium", "low"]),
+  notes: z.string().trim().optional(),
+});
+
+const creditCardSchema = z.object({
+  name: z.string().trim().min(2),
+  issuer: z.string().trim().min(2),
+  limit: z.coerce.number().min(0),
+  used: z.coerce.number().min(0),
+  cutOffDate: z.coerce.number().int().min(1).max(31),
+  payDueDate: z.coerce.number().int().min(1).max(31),
+  minimumPayment: z.coerce.number().min(0),
+});
+
+const savingsGoalSchema = z.object({
+  name: z.string().trim().min(2),
+  target: z.coerce.number().positive(),
+  current: z.coerce.number().min(0).default(0),
+  dueDate: z.string().trim().optional(),
+  color: z.string().trim().default("#16735b"),
+});
+
 const outflowKinds = new Set(["expense", "debt_payment", "card_payment", "saving_contribution"]);
 const inflowKinds = new Set(["income", "saving_withdrawal"]);
 
@@ -134,4 +171,187 @@ export async function createTransaction(formData: FormData) {
 
   revalidatePath("/");
   redirect("/?view=dashboard&saved=1");
+}
+
+export async function createAccount(formData: FormData) {
+  const input = accountSchema.parse({
+    name: formData.get("name"),
+    type: formData.get("type"),
+    balance: formData.get("balance"),
+    color: formData.get("color") || "#163a5f",
+  });
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { error } = await supabase.from("accounts").insert({
+    name: input.name,
+    type: input.type,
+    balance: input.balance,
+    color: input.color,
+    active: true,
+  });
+
+  if (error) {
+    throw new Error(`No se pudo crear la cuenta: ${error.message}`);
+  }
+
+  revalidatePath("/");
+  redirect("/?view=accounts&saved=1");
+}
+
+export async function createDebt(formData: FormData) {
+  const input = debtSchema.parse({
+    name: formData.get("name"),
+    lender: formData.get("lender"),
+    debtType: formData.get("debtType") || "personal",
+    balance: formData.get("balance"),
+    installment: formData.get("installment"),
+    nextDueDate: formData.get("nextDueDate"),
+    remainingMonths: formData.get("remainingMonths") || undefined,
+    priority: formData.get("priority"),
+    notes: formData.get("notes") || undefined,
+  });
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { data: debt, error } = await supabase
+    .from("debts")
+    .insert({
+      name: input.name,
+      lender: input.lender,
+      debt_type: input.debtType,
+      balance: input.balance,
+      installment: input.installment,
+      next_due_date: input.nextDueDate,
+      remaining_months: input.remainingMonths ?? null,
+      status: "active",
+      priority: input.priority,
+      notes: input.notes ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(`No se pudo crear la deuda: ${error.message}`);
+  }
+
+  if (input.installment > 0) {
+    const { error: eventError } = await supabase.from("financial_events").insert({
+      event_date: input.nextDueDate,
+      title: `Pago ${input.name}`,
+      amount: input.installment,
+      event_type: "debt_payment",
+      status: "scheduled",
+      business_unit_key: "personal",
+      related_table: "debts",
+      related_id: debt?.id ?? null,
+      notes: input.notes ?? null,
+    });
+
+    if (eventError) {
+      throw new Error(`Deuda creada, pero no se pudo crear el evento: ${eventError.message}`);
+    }
+  }
+
+  revalidatePath("/");
+  redirect("/?view=debts&saved=1");
+}
+
+export async function createCreditCard(formData: FormData) {
+  const input = creditCardSchema.parse({
+    name: formData.get("name"),
+    issuer: formData.get("issuer"),
+    limit: formData.get("limit"),
+    used: formData.get("used"),
+    cutOffDate: formData.get("cutOffDate"),
+    payDueDate: formData.get("payDueDate"),
+    minimumPayment: formData.get("minimumPayment"),
+  });
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { data: card, error } = await supabase
+    .from("credit_cards")
+    .insert({
+      name: input.name,
+      issuer: input.issuer,
+      limit_value: input.limit,
+      used: input.used,
+      cut_off_date: input.cutOffDate,
+      pay_due_date: input.payDueDate,
+      minimum_payment: input.minimumPayment,
+      status: "active",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(`No se pudo crear la tarjeta: ${error.message}`);
+  }
+
+  if (input.minimumPayment > 0) {
+    const today = new Date();
+    const dueDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), input.payDueDate));
+
+    const { error: eventError } = await supabase.from("financial_events").insert({
+      event_date: dueDate.toISOString().slice(0, 10),
+      title: `Pago ${input.name}`,
+      amount: input.minimumPayment,
+      event_type: "card_payment",
+      status: "scheduled",
+      business_unit_key: "personal",
+      related_table: "credit_cards",
+      related_id: card?.id ?? null,
+    });
+
+    if (eventError) {
+      throw new Error(`Tarjeta creada, pero no se pudo crear el evento: ${eventError.message}`);
+    }
+  }
+
+  revalidatePath("/");
+  redirect("/?view=cards&saved=1");
+}
+
+export async function createSavingsGoal(formData: FormData) {
+  const input = savingsGoalSchema.parse({
+    name: formData.get("name"),
+    target: formData.get("target"),
+    current: formData.get("current"),
+    dueDate: formData.get("dueDate") || undefined,
+    color: formData.get("color") || "#16735b",
+  });
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { error } = await supabase.from("savings_goals").insert({
+    name: input.name,
+    target: input.target,
+    current: input.current,
+    due_date: input.dueDate || null,
+    color: input.color,
+  });
+
+  if (error) {
+    throw new Error(`No se pudo crear la meta: ${error.message}`);
+  }
+
+  revalidatePath("/");
+  redirect("/?view=savings&saved=1");
 }
