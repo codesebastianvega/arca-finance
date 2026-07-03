@@ -317,14 +317,14 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
     return {
       source: "supabase",
-      accounts: (accountsResult.data ?? []).map(mapAccount),
-      business: (businessResult.data ?? []).map(mapBusiness),
-      cards: (cardsResult.data ?? []).map(mapCard),
-      debts: (debtsResult.data ?? []).map(mapDebt),
-      events: (eventsResult.data ?? []).map(mapEvent),
-      goals: (goalsResult.data ?? []).map(mapGoal),
-      projections: (projectionsResult.data ?? []).map(mapProjection),
-      transactions: (transactionsResult.data ?? []).map(mapTransaction),
+      accounts: (accountsResult.data ?? []).map((row) => mapAccount(row as SupabaseAccountRow)),
+      business: (businessResult.data ?? []).map((row) => mapBusiness(row as SupabaseBusinessRow)),
+      cards: (cardsResult.data ?? []).map((row) => mapCard(row as SupabaseCardRow)),
+      debts: (debtsResult.data ?? []).map((row) => mapDebt(row as SupabaseDebtRow)),
+      events: (eventsResult.data ?? []).map((row) => mapEvent(row as SupabaseEventRow)),
+      goals: (goalsResult.data ?? []).map((row) => mapGoal(row as SupabaseGoalRow)),
+      projections: (projectionsResult.data ?? []).map((row) => mapProjection(row as SupabaseProjectionRow)),
+      transactions: (transactionsResult.data ?? []).map((row) => mapTransaction(row as SupabaseTransactionRow)),
     };
   } catch {
     return {

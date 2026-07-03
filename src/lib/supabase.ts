@@ -1,7 +1,24 @@
 import { createClient } from "@supabase/supabase-js";
 
-let browserClient: ReturnType<typeof createClient> | null = null;
-let serverClient: ReturnType<typeof createClient> | null = null;
+type GenericTable = {
+  Row: Record<string, unknown>;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
+  Relationships: [];
+};
+
+type GenericDatabase = {
+  public: {
+    Tables: Record<string, GenericTable>;
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+
+let browserClient: ReturnType<typeof createClient<GenericDatabase>> | null = null;
+let serverClient: ReturnType<typeof createClient<GenericDatabase>> | null = null;
 
 export function getSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,7 +29,7 @@ export function getSupabaseBrowserClient() {
   }
 
   if (!browserClient) {
-    browserClient = createClient(url, anonKey);
+    browserClient = createClient<GenericDatabase>(url, anonKey);
   }
 
   return browserClient;
@@ -34,7 +51,7 @@ export function getSupabaseServerClient() {
   }
 
   if (!serverClient) {
-    serverClient = createClient(url, serviceRoleKey, {
+    serverClient = createClient<GenericDatabase>(url, serviceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
