@@ -25,10 +25,12 @@ restart identity cascade;
 
 insert into public.business_units (name, key, income, expense, pending) values
   ('Personal', 'personal', 0, 0, 0),
-  ('Empresa', 'empresa', 0, 0, 0),
-  ('Deuxio', 'deuxio', 0, 0, 0),
+  ('El Recreo', 'el_recreo', 0, 0, 0),
   ('SIE Travel', 'sie', 0, 0, 0),
-  ('Aluna', 'aluna', 0, 0, 0);
+  ('Uxio', 'uxio', 0, 0, 0),
+  ('Aluna', 'aluna', 0, 0, 0),
+  ('Arca', 'arca', 0, 0, 0),
+  ('Freelance', 'freelance', 0, 0, 0);
 
 insert into public.expense_categories (name, group_name) values
   ('Alimentacion', 'vida'),
@@ -47,9 +49,11 @@ insert into public.expense_categories (name, group_name) values
 
 insert into public.income_sources (name, business_unit_key, type) values
   ('Ingreso personal', 'personal', 'manual'),
-  ('Empresa', 'empresa', 'manual'),
-  ('Deuxio', 'deuxio', 'manual'),
+  ('Nomina El Recreo', 'el_recreo', 'payroll'),
   ('SIE Travel', 'sie', 'manual'),
-  ('Aluna', 'aluna', 'manual');
+  ('Uxio', 'uxio', 'manual'),
+  ('Aluna', 'aluna', 'manual'),
+  ('Arca', 'arca', 'manual'),
+  ('Freelance', 'freelance', 'manual');
 
 commit;

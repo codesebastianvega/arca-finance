@@ -129,7 +129,17 @@ function toAccountType(value: string): AccountType {
 }
 
 function toBusinessUnitKey(value: string): BusinessUnitKey {
-  if (value === "personal" || value === "empresa" || value === "deuxio" || value === "sie" || value === "aluna") {
+  if (
+    value === "personal" ||
+    value === "empresa" ||
+    value === "deuxio" ||
+    value === "el_recreo" ||
+    value === "uxio" ||
+    value === "sie" ||
+    value === "aluna" ||
+    value === "arca" ||
+    value === "freelance"
+  ) {
     return value;
   }
 

@@ -20,7 +20,7 @@ const transactionSchema = z.object({
   concept: z.string().trim().min(2),
   accountId: z.string().uuid(),
   category: z.string().trim().min(2),
-  unit: z.enum(["personal", "empresa", "deuxio", "sie", "aluna"]),
+  unit: z.enum(["personal", "empresa", "deuxio", "el_recreo", "uxio", "sie", "aluna", "arca", "freelance"]),
   date: z.string().trim().min(10),
   dueDate: z.string().trim().optional(),
 });

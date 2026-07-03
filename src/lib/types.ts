@@ -11,7 +11,16 @@ export type TransactionKind =
 
 export type TransactionStatus = "pending" | "paid" | "confirmed" | "cancelled" | "overdue" | "scheduled";
 
-export type BusinessUnitKey = "personal" | "empresa" | "deuxio" | "sie" | "aluna";
+export type BusinessUnitKey =
+  | "personal"
+  | "empresa"
+  | "deuxio"
+  | "el_recreo"
+  | "uxio"
+  | "sie"
+  | "aluna"
+  | "arca"
+  | "freelance";
 
 export type FinancialEventType =
   | "income"

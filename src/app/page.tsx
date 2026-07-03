@@ -130,6 +130,14 @@ function getSignedAmount(tx: Transaction) {
   return `${sign}${formatCOP(tx.amount)}`;
 }
 
+function getCardUsagePercent(used: number, limit: number) {
+  if (!limit) {
+    return 0;
+  }
+
+  return Math.round((used / limit) * 100);
+}
+
 function SectionHeader({
   eyebrow,
   title,
@@ -199,7 +207,9 @@ function DashboardView({
   const expenseMonth = getExpenseMonth(transactions);
   const flowMonth = getNetFlow(transactions);
   const debtTotal = getDebtTotal(debts, cards);
-  const upcoming = getUpcomingPayments(transactions).slice(0, 8);
+  const upcomingEvents = events
+    .filter((event) => event.eventType !== "income" && ["scheduled", "pending", "overdue"].includes(event.status))
+    .slice(0, 8);
   const flowData = projections.length
     ? projections.map((item) => ({ name: getMonthLabel(item.month), value: item.closingBalance }))
     : fallbackFlowData;
@@ -264,10 +274,27 @@ function DashboardView({
           <SectionHeader
             eyebrow="Proximos pagos"
             title="Lo que aprieta el mes"
-            action={<Badge tone="danger">{upcoming.length} pendientes</Badge>}
+            action={<Badge tone="danger">{upcomingEvents.length} pendientes</Badge>}
           />
-          <div className="mt-4">
-            <MovementList transactions={upcoming} />
+          <div className="mt-4 divide-y divide-black/8">
+            {upcomingEvents.length ? (
+              upcomingEvents.map((event) => (
+                <div key={event.id} className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-[#111111]">{event.title}</p>
+                      <Badge tone={event.status === "overdue" ? "danger" : "warning"}>{event.status}</Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-black/55">
+                      {event.eventType} - {formatDate(event.eventDate)}
+                    </p>
+                  </div>
+                  <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
+                </div>
+              ))
+            ) : (
+              <EmptyState label="No hay pagos pendientes cargados en calendario." />
+            )}
           </div>
         </Card>
 
@@ -699,6 +726,26 @@ function CardsView({ cards, transactions }: DashboardData) {
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Minimo</p>
                     <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.minimumPayment)}</p>
                   </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-black/55">Uso del cupo</span>
+                    <span className="font-medium text-[#111111]">
+                      {getCardUsagePercent(card.used, card.limit)}% / max sugerido 75%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-black/6">
+                    <div
+                      className={cn(
+                        "h-2 rounded-full",
+                        getCardUsagePercent(card.used, card.limit) > 75 ? "bg-[var(--danger)]" : "bg-[var(--success)]"
+                      )}
+                      style={{ width: `${Math.min(100, getCardUsagePercent(card.used, card.limit))}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-black/50">
+                    El corte cierra lo consumido del ciclo. La fecha de pago es el ultimo dia para pagar sin afectar mora.
+                  </p>
                 </div>
               </div>
             ))
