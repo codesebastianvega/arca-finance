@@ -184,42 +184,44 @@ function getAccountName(accounts: Account[], accountId?: string) {
   return accounts.find((account) => account.id === accountId)?.name;
 }
 
-function buildMonthlyPaymentPlan(events: FinancialEvent[], accounts: Account[]) {
-  const currentMonthEvents = events.filter((event) => isCurrentMonth(event.eventDate));
-  const incomeEvents = currentMonthEvents
-    .filter(isIncomeEvent)
-    .sort((a, b) => getEventTime(a) - getEventTime(b));
-  const outflowEvents = currentMonthEvents
-    .filter((event) => isOutflowEvent(event) && event.amount > 0)
-    .sort((a, b) => getEventTime(a) - getEventTime(b));
+function isTimelineEvent(event: FinancialEvent) {
+  if (!isOpenEvent(event)) {
+    return false;
+  }
+
+  if (isCurrentMonth(event.eventDate)) {
+    return event.amount > 0;
+  }
+
+  return event.status === "overdue" && event.amount > 0;
+}
+
+function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[]) {
+  const timelineEvents = events.filter(isTimelineEvent).sort((a, b) => getEventTime(a) - getEventTime(b));
   const primaryCashAccount = getPrimaryCashAccount(accounts);
   let projectedCash = sumAccounts(accounts);
-  let incomeIndex = 0;
 
-  return outflowEvents.map((event) => {
-    const incomeBeforePayment: FinancialEvent[] = [];
-    const cashBeforeIncome = projectedCash;
+  return timelineEvents.map((event) => {
+    const isIncome = isIncomeEvent(event);
+    const projectedCashBefore = projectedCash;
 
-    while (incomeIndex < incomeEvents.length && getEventTime(incomeEvents[incomeIndex]) <= getEventTime(event)) {
-      const income = incomeEvents[incomeIndex];
-      incomeBeforePayment.push(income);
-      projectedCash += income.amount;
-      incomeIndex += 1;
+    if (isIncome) {
+      projectedCash += event.amount;
+
+      return {
+        event,
+        type: "income" as const,
+        covered: true,
+        fundingLabel: getAccountName(accounts, event.accountId) ?? primaryCashAccount?.name ?? "Cuenta por definir",
+        projectedCashBefore,
+        projectedCashAfter: projectedCash,
+        shortfall: 0,
+      };
     }
 
-    const covered = projectedCash >= event.amount;
-    const shortfall = Math.max(0, event.amount - projectedCash);
+    const covered = projectedCashBefore >= event.amount;
+    const shortfall = Math.max(0, event.amount - projectedCashBefore);
     const accountName = getAccountName(accounts, event.accountId) ?? primaryCashAccount?.name;
-    const fundingLabel =
-      cashBeforeIncome >= event.amount
-        ? accountName
-          ? `Caja actual: ${accountName}`
-          : "Caja actual"
-        : incomeBeforePayment.length
-          ? `Reservar de: ${incomeBeforePayment[incomeBeforePayment.length - 1].title}`
-          : accountName
-            ? `Intentar con: ${accountName}`
-            : "Sin fuente sugerida";
 
     if (covered) {
       projectedCash -= event.amount;
@@ -227,9 +229,10 @@ function buildMonthlyPaymentPlan(events: FinancialEvent[], accounts: Account[]) 
 
     return {
       event,
-      accountName,
+      type: "payment" as const,
       covered,
-      fundingLabel,
+      fundingLabel: accountName ? `Pagar desde: ${accountName}` : "Cuenta por definir",
+      projectedCashBefore,
       projectedCashAfter: projectedCash,
       shortfall,
     };
@@ -332,15 +335,18 @@ function DashboardView({
 }: DashboardData) {
   const currentMonthTransactions = transactions.filter((tx) => isCurrentMonth(tx.date));
   const currentMonthEvents = events.filter((event) => isCurrentMonth(event.eventDate));
+  const overdueOutflowEvents = events.filter(
+    (event) => !isCurrentMonth(event.eventDate) && event.status === "overdue" && isOutflowEvent(event) && event.amount > 0
+  );
   const incomeEvents = currentMonthEvents.filter(isIncomeEvent);
   const outflowEvents = currentMonthEvents.filter((event) => isOutflowEvent(event) && event.amount > 0);
   const cashNow = sumAccounts(accounts);
   const incomeMonth = sumEvents(incomeEvents) + getIncomeMonth(currentMonthTransactions);
-  const expenseMonth = sumEvents(outflowEvents) + getExpenseMonth(currentMonthTransactions);
+  const expenseMonth = sumEvents(outflowEvents) + sumEvents(overdueOutflowEvents) + getExpenseMonth(currentMonthTransactions);
   const availableAfterCommitments = cashNow + incomeMonth - expenseMonth;
   const pressureToCover = Math.max(0, expenseMonth - cashNow);
   const debtTotal = getDebtTotal(debts, cards);
-  const paymentPlan = buildMonthlyPaymentPlan(events, accounts).slice(0, 10);
+  const cashTimeline = buildMonthlyCashTimeline(events, accounts).slice(0, 14);
   const flowData = projections.length
     ? projections.map((item) => ({ name: getMonthLabel(item.month), value: item.closingBalance }))
     : fallbackFlowData;
@@ -458,34 +464,52 @@ function DashboardView({
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="p-5 xl:col-span-2">
           <SectionHeader
-            eyebrow="Plan de pagos"
-            title="Lo que aprieta y con que pagarlo"
-            action={<Badge tone="danger">{paymentPlan.length} compromisos</Badge>}
+            eyebrow="Linea de caja"
+            title="Ingresos y pagos en orden"
+            action={<Badge tone="warning">{cashTimeline.length} eventos</Badge>}
           />
           <div className="mt-4 divide-y divide-black/8">
-            {paymentPlan.length ? (
-              paymentPlan.map((item) => (
+            {cashTimeline.length ? (
+              cashTimeline.map((item) => (
                 <div key={item.event.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_180px_220px] lg:items-center">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-[#111111]">{item.event.title}</p>
-                      <Badge tone={item.event.status === "overdue" ? "danger" : item.covered ? "success" : "danger"}>
-                        {item.covered ? "cubierto" : "falta caja"}
+                      <Badge
+                        tone={
+                          item.type === "income"
+                            ? "success"
+                            : item.event.status === "overdue"
+                              ? "danger"
+                              : item.covered
+                                ? "success"
+                                : "danger"
+                        }
+                      >
+                        {item.type === "income" ? "entra plata" : item.covered ? "se puede pagar" : "falta caja"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-black/55">
-                      Vence {formatDate(item.event.eventDate)} - {item.event.eventType}
+                      {item.type === "income" ? "Entra" : item.event.status === "overdue" ? "Vencido" : "Vence"}{" "}
+                      {formatDate(item.event.eventDate)} - {item.event.eventType}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Monto</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(item.event.amount)}</p>
+                    <p className="mt-1 font-semibold text-[#111111]">
+                      {item.type === "income" ? "+" : "-"}
+                      {formatCOP(item.event.amount)}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Pagar con</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">
+                      {item.type === "income" ? "Recibir en" : "Accion sugerida"}
+                    </p>
                     <p className="mt-1 text-sm font-medium text-[#111111]">{item.fundingLabel}</p>
                     <p className="mt-1 text-xs text-black/50">
-                      {item.covered
+                      {item.type === "income"
+                        ? `Caja proyectada: ${formatCOP(item.projectedCashAfter)}`
+                        : item.covered
                         ? `Caja proyectada despues: ${formatCOP(item.projectedCashAfter)}`
                         : `Faltan ${formatCOP(item.shortfall)}`}
                     </p>
@@ -493,7 +517,7 @@ function DashboardView({
                 </div>
               ))
             ) : (
-              <EmptyState label="No hay compromisos del mes cargados en calendario." />
+              <EmptyState label="No hay ingresos ni compromisos del mes cargados en calendario." />
             )}
           </div>
         </Card>
