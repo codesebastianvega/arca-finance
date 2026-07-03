@@ -24,7 +24,13 @@ export function getIncomeMonth(transactions: Transaction[]) {
 }
 
 export function getExpenseMonth(transactions: Transaction[]) {
-  return sum(transactions.filter((item) => item.kind === "expense" && item.status !== "cancelled").map((item) => item.amount));
+  const outflowKinds: Transaction["kind"][] = ["expense", "debt_payment", "card_payment", "saving_contribution"];
+
+  return sum(
+    transactions
+      .filter((item) => outflowKinds.includes(item.kind) && item.status !== "cancelled")
+      .map((item) => item.amount)
+  );
 }
 
 export function getAvailableToday(accounts: Account[], goals: SavingsGoal[], debts: Debt[], cards: CreditCard[]) {

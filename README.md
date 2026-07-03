@@ -45,8 +45,10 @@ Si ya tienes el proyecto Supabase creado, puedes pegar esos valores directo en `
 ## Supabase
 
 - `supabase/schema.sql` contiene la base de tablas y policies iniciales.
+- `supabase/seed.sql` contiene la fotografia financiera inicial julio-diciembre 2026.
 - Pega ese SQL en el editor de Supabase para crear la estructura.
 - La app usa Supabase si encuentra las variables de entorno; si no, cae a mock local.
+- `docs/seed-modeling-notes.md` documenta supuestos y separaciones importantes.
 
 ## Estructura inicial
 

@@ -2,7 +2,19 @@ import "server-only";
 
 import { accounts as mockAccounts, business as mockBusiness, cards as mockCards, debts as mockDebts, goals as mockGoals, transactions as mockTransactions } from "./mock-data";
 import { getSupabaseServerClient } from "./supabase";
-import type { Account, AccountType, BusinessSummary, BusinessUnitKey, CreditCard, Debt, SavingsGoal, Transaction } from "./types";
+import type {
+  Account,
+  AccountType,
+  BusinessSummary,
+  BusinessUnitKey,
+  CreditCard,
+  Debt,
+  FinancialEvent,
+  FinancialEventType,
+  MonthlyProjection,
+  SavingsGoal,
+  Transaction,
+} from "./types";
 
 type DashboardData = {
   source: "mock" | "supabase";
@@ -10,7 +22,9 @@ type DashboardData = {
   business: BusinessSummary[];
   cards: CreditCard[];
   debts: Debt[];
+  events: FinancialEvent[];
   goals: SavingsGoal[];
+  projections: MonthlyProjection[];
   transactions: Transaction[];
 };
 
@@ -77,6 +91,31 @@ type SupabaseTransactionRow = {
   date: string;
 };
 
+type SupabaseProjectionRow = {
+  id: string;
+  month: string;
+  opening_balance: number | string;
+  expected_income: number | string;
+  expected_expenses: number | string;
+  debt_payments: number | string;
+  card_payments: number | string;
+  planned_savings: number | string;
+  closing_balance: number | string;
+  scenario: string;
+  notes?: string | null;
+};
+
+type SupabaseEventRow = {
+  id: string;
+  event_date: string;
+  title: string;
+  amount: number | string;
+  event_type: string;
+  status: string;
+  business_unit_key?: string | null;
+  notes?: string | null;
+};
+
 function toNumber(value: unknown) {
   return typeof value === "number" ? value : Number(value ?? 0);
 }
@@ -95,6 +134,21 @@ function toBusinessUnitKey(value: string): BusinessUnitKey {
   }
 
   return "personal";
+}
+
+function toFinancialEventType(value: string): FinancialEventType {
+  if (
+    value === "income" ||
+    value === "expense" ||
+    value === "debt_payment" ||
+    value === "card_payment" ||
+    value === "saving" ||
+    value === "transfer"
+  ) {
+    return value;
+  }
+
+  return "expense";
 }
 
 function mapAccount(row: SupabaseAccountRow): Account {
@@ -171,6 +225,35 @@ function mapTransaction(row: SupabaseTransactionRow): Transaction {
   };
 }
 
+function mapProjection(row: SupabaseProjectionRow): MonthlyProjection {
+  return {
+    id: row.id,
+    month: row.month,
+    openingBalance: toNumber(row.opening_balance),
+    expectedIncome: toNumber(row.expected_income),
+    expectedExpenses: toNumber(row.expected_expenses),
+    debtPayments: toNumber(row.debt_payments),
+    cardPayments: toNumber(row.card_payments),
+    plannedSavings: toNumber(row.planned_savings),
+    closingBalance: toNumber(row.closing_balance),
+    scenario: row.scenario,
+    notes: row.notes ?? undefined,
+  };
+}
+
+function mapEvent(row: SupabaseEventRow): FinancialEvent {
+  return {
+    id: row.id,
+    eventDate: row.event_date,
+    title: row.title,
+    amount: toNumber(row.amount),
+    eventType: toFinancialEventType(row.event_type),
+    status: row.status,
+    unit: row.business_unit_key ? toBusinessUnitKey(row.business_unit_key) : undefined,
+    notes: row.notes ?? undefined,
+  };
+}
+
 export async function loadDashboardData(): Promise<DashboardData> {
   const supabase = getSupabaseServerClient();
 
@@ -181,18 +264,31 @@ export async function loadDashboardData(): Promise<DashboardData> {
       business: mockBusiness,
       cards: mockCards,
       debts: mockDebts,
+      events: [],
       goals: mockGoals,
+      projections: [],
       transactions: mockTransactions,
     };
   }
 
   try {
-    const [accountsResult, businessResult, cardsResult, debtsResult, goalsResult, transactionsResult] = await Promise.all([
+    const [
+      accountsResult,
+      businessResult,
+      cardsResult,
+      debtsResult,
+      eventsResult,
+      goalsResult,
+      projectionsResult,
+      transactionsResult,
+    ] = await Promise.all([
       supabase.from("accounts").select("*").order("created_at", { ascending: true }),
       supabase.from("business_units").select("*").order("created_at", { ascending: true }),
       supabase.from("credit_cards").select("*").order("created_at", { ascending: true }),
       supabase.from("debts").select("*").order("created_at", { ascending: true }),
+      supabase.from("financial_events").select("*").order("event_date", { ascending: true }),
       supabase.from("savings_goals").select("*").order("created_at", { ascending: true }),
+      supabase.from("monthly_projections").select("*").order("month", { ascending: true }),
       supabase.from("transactions").select("*").order("date", { ascending: false }),
     ]);
 
@@ -201,7 +297,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
       businessResult.error ||
       cardsResult.error ||
       debtsResult.error ||
+      eventsResult.error ||
       goalsResult.error ||
+      projectionsResult.error ||
       transactionsResult.error
     ) {
       return {
@@ -210,7 +308,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
         business: mockBusiness,
         cards: mockCards,
         debts: mockDebts,
+        events: [],
         goals: mockGoals,
+        projections: [],
         transactions: mockTransactions,
       };
     }
@@ -221,7 +321,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
       business: (businessResult.data ?? []).map(mapBusiness),
       cards: (cardsResult.data ?? []).map(mapCard),
       debts: (debtsResult.data ?? []).map(mapDebt),
+      events: (eventsResult.data ?? []).map(mapEvent),
       goals: (goalsResult.data ?? []).map(mapGoal),
+      projections: (projectionsResult.data ?? []).map(mapProjection),
       transactions: (transactionsResult.data ?? []).map(mapTransaction),
     };
   } catch {
@@ -231,7 +333,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
       business: mockBusiness,
       cards: mockCards,
       debts: mockDebts,
+      events: [],
       goals: mockGoals,
+      projections: [],
       transactions: mockTransactions,
     };
   }

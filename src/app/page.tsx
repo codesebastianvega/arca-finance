@@ -36,7 +36,7 @@ const navItems = [
   { label: "Calendario", icon: CalendarDays },
 ];
 
-const flowData = [
+const fallbackFlowData = [
   { name: "Ago", value: 4800000 },
   { name: "Sep", value: 5100000 },
   { name: "Oct", value: 4620000 },
@@ -44,21 +44,29 @@ const flowData = [
   { name: "Dic", value: 5960000 },
 ];
 
-const sourceData = [
-  { name: "Empresa", value: 4200000 },
-  { name: "Deuxio", value: 860000 },
-  { name: "Sie Travel", value: 1240000 },
-  { name: "Aluna", value: 1350000 },
-];
+function getMonthLabel(value: string) {
+  return new Date(value).toLocaleDateString("es-CO", {
+    month: "short",
+    timeZone: "UTC",
+  });
+}
 
 export default async function Home() {
-  const { source, accounts, cards, business, debts, goals, transactions } = await loadDashboardData();
+  const { source, accounts, business, cards, debts, events, goals, projections, transactions } =
+    await loadDashboardData();
+
   const availableToday = getAvailableToday(accounts, goals, debts, cards);
   const incomeMonth = getIncomeMonth(transactions);
   const expenseMonth = getExpenseMonth(transactions);
   const flowMonth = getNetFlow(transactions);
   const debtTotal = getDebtTotal(debts, cards);
   const upcoming = getUpcomingPayments(transactions);
+  const futureEvents = events.slice(0, 8);
+  const augustProjection = projections.find((item) => item.month.startsWith("2026-08"));
+  const flowData = projections.length
+    ? projections.map((item) => ({ name: getMonthLabel(item.month), value: item.closingBalance }))
+    : fallbackFlowData;
+  const sourceData = business.map((item) => ({ name: item.name, value: item.income }));
 
   return (
     <main className="min-h-screen p-4 md:p-6">
@@ -68,7 +76,7 @@ export default async function Home() {
             <p className="text-xs uppercase tracking-[0.3em] text-black/45">Arca</p>
             <h1 className="mt-2 text-2xl font-semibold text-[#111111]">Control claro de caja.</h1>
             <p className="mt-3 text-sm leading-6 text-black/60">
-              Registro manual, proyección, deudas, tarjetas y operación por unidad.
+              Registro manual, proyeccion, deudas, tarjetas y operacion por unidad.
             </p>
           </div>
 
@@ -90,17 +98,17 @@ export default async function Home() {
             ))}
           </nav>
 
-            <Card className="mt-auto p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-black/55">Estado MCP</p>
-              <p className="mt-2 text-sm leading-6 text-black/70">
-                Preparado para conectar una IA que registre gastos, deudas y compras
-                con lenguaje natural.
-              </p>
-              <Badge className="mt-4" tone={source === "supabase" ? "success" : "warning"}>
-                {source === "supabase" ? "Supabase conectado" : "Usando mock local"}
-              </Badge>
-            </Card>
-          </aside>
+          <Card className="mt-auto p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Estado MCP</p>
+            <p className="mt-2 text-sm leading-6 text-black/70">
+              Preparado para conectar una IA que registre gastos, deudas y compras
+              con lenguaje natural.
+            </p>
+            <Badge className="mt-4" tone={source === "supabase" ? "success" : "warning"}>
+              {source === "supabase" ? "Supabase conectado" : "Usando mock local"}
+            </Badge>
+          </Card>
+        </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-black/8 px-4 py-4 md:px-6">
@@ -131,11 +139,13 @@ export default async function Home() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-black/55">Resumen del mes</p>
-                    <h3 className="mt-1 text-2xl font-semibold text-[#111111]">Caja real y presión futura</h3>
+                    <h3 className="mt-1 text-2xl font-semibold text-[#111111]">
+                      Caja real y presion futura
+                    </h3>
                   </div>
                   <p className="max-w-xl text-sm leading-6 text-black/60">
-                    Arca combina saldos, pagos próximos y metas bloqueadas para decirte
-                    cuánto puedes gastar sin desordenar el mes.
+                    Arca combina saldos, pagos proximos y metas bloqueadas para decirte
+                    cuanto puedes gastar sin desordenar el mes.
                   </p>
                 </div>
 
@@ -143,26 +153,30 @@ export default async function Home() {
                   <MetricCard label="Disponible hoy" value={formatCOP(availableToday)} tone="success" />
                   <MetricCard label="Ingresos del mes" value={formatCOP(incomeMonth)} tone="neutral" />
                   <MetricCard label="Gastos del mes" value={formatCOP(expenseMonth)} tone="danger" />
-                  <MetricCard label="Flujo neto" value={formatCOP(flowMonth)} tone={flowMonth >= 0 ? "success" : "danger"} />
+                  <MetricCard
+                    label="Flujo neto"
+                    value={formatCOP(flowMonth)}
+                    tone={flowMonth >= 0 ? "success" : "danger"}
+                  />
                 </div>
               </Card>
 
               <Card className="p-5 md:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Acción rápida</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Accion rapida</p>
                     <h3 className="mt-1 text-lg font-semibold text-[#111111]">Registro conversacional</h3>
                   </div>
                 </div>
                 <div className="mt-4 space-y-3 text-sm text-black/70">
                   <div className="rounded-2xl bg-black/3 p-3">
-                    “Gasté 38 mil de Nequi en almuerzo”
+                    &quot;Gaste 38 mil de Nequi en almuerzo&quot;
                   </div>
                   <div className="rounded-2xl bg-black/3 p-3">
-                    “Compré tarjeta Nu en mercado por 180 mil a 3 cuotas”
+                    &quot;Compre tarjeta Nu en mercado por 180 mil a 3 cuotas&quot;
                   </div>
                   <div className="rounded-2xl bg-black/3 p-3">
-                    “Saqué una deuda con Solventa por 900 mil”
+                    &quot;Saque una deuda con Solventa por 900 mil&quot;
                   </div>
                 </div>
                 <Button className="mt-5 w-full">
@@ -180,7 +194,7 @@ export default async function Home() {
               <Card className="p-5 xl:col-span-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Próximos pagos</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Proximos pagos</p>
                     <h3 className="mt-1 text-lg font-semibold text-[#111111]">Lo que aprieta el mes</h3>
                   </div>
                   <Badge tone="danger">{upcoming.length} pendientes</Badge>
@@ -191,7 +205,7 @@ export default async function Home() {
                       <div>
                         <p className="font-medium text-[#111111]">{item.concept}</p>
                         <p className="text-sm text-black/55">
-                          {item.category} · vence {formatDate(item.dueDate ?? item.date)}
+                          {item.category} - vence {formatDate(item.dueDate ?? item.date)}
                         </p>
                       </div>
                       <p className="font-semibold text-[#111111]">{formatCOP(item.amount)}</p>
@@ -216,7 +230,7 @@ export default async function Home() {
                         <div>
                           <p className="font-medium text-[#111111]">{card.name}</p>
                           <p className="text-sm text-black/55">
-                            Corte {card.cutOffDate} · pago {card.payDueDate}
+                            Corte {card.cutOffDate} - pago {card.payDueDate}
                           </p>
                         </div>
                         <Badge tone="warning">cupo</Badge>
@@ -225,8 +239,60 @@ export default async function Home() {
                         Disponible {formatCOP(getCardAvailable(card))}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-[#111111]">
-                        Mínimo {formatCOP(card.minimumPayment)}
+                        Minimo {formatCOP(card.minimumPayment)}
                       </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+              <Card className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Proyeccion</p>
+                    <h3 className="mt-1 text-lg font-semibold text-[#111111]">Julio a diciembre</h3>
+                  </div>
+                  {augustProjection ? (
+                    <Badge tone="success">Agosto inicia {formatCOP(augustProjection.openingBalance)}</Badge>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {projections.slice(0, 6).map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-black/8 p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-black/45">
+                        {getMonthLabel(item.month)}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-[#111111]">
+                        {formatCOP(item.closingBalance)}
+                      </p>
+                      <p className="mt-1 text-sm text-black/55">
+                        Ingresos {formatCOP(item.expectedIncome)}
+                      </p>
+                      <p className="text-sm text-black/55">
+                        Salidas {formatCOP(item.expectedExpenses + item.debtPayments + item.cardPayments)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-black/55">Calendario</p>
+                  <h3 className="mt-1 text-lg font-semibold text-[#111111]">Eventos futuros</h3>
+                </div>
+                <div className="mt-4 divide-y divide-black/8">
+                  {futureEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between gap-4 py-3">
+                      <div>
+                        <p className="font-medium text-[#111111]">{event.title}</p>
+                        <p className="text-sm text-black/55">
+                          {event.eventType} - {formatDate(event.eventDate)}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
                     </div>
                   ))}
                 </div>
@@ -243,7 +309,10 @@ export default async function Home() {
                 </div>
                 <div className="mt-4 grid gap-3">
                   {business.map((unit) => (
-                    <div key={unit.id} className="grid gap-3 rounded-2xl border border-black/8 p-4 md:grid-cols-[1.5fr_1fr_1fr] md:items-center">
+                    <div
+                      key={unit.id}
+                      className="grid gap-3 rounded-2xl border border-black/8 p-4 md:grid-cols-[1.5fr_1fr_1fr] md:items-center"
+                    >
                       <div>
                         <p className="font-medium text-[#111111]">{unit.name}</p>
                         <p className="text-sm text-black/55">Cobros pendientes {formatCOP(unit.pending)}</p>
@@ -300,13 +369,16 @@ export default async function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-black/55">Cuentas</p>
-                    <h3 className="mt-1 text-lg font-semibold text-[#111111]">Dónde está la plata</h3>
+                    <h3 className="mt-1 text-lg font-semibold text-[#111111]">Donde esta la plata</h3>
                   </div>
-                  <Badge tone="neutral">4 activas</Badge>
+                  <Badge tone="neutral">{accounts.length} activas</Badge>
                 </div>
                 <div className="mt-4 space-y-3">
                   {accounts.map((account) => (
-                    <div key={account.id} className="flex items-center justify-between rounded-2xl border border-black/8 p-4">
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between rounded-2xl border border-black/8 p-4"
+                    >
                       <div>
                         <p className="font-medium text-[#111111]">{account.name}</p>
                         <p className="text-sm text-black/55">{account.type}</p>
@@ -320,7 +392,7 @@ export default async function Home() {
               <Card className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Últimos movimientos</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-black/55">Ultimos movimientos</p>
                     <h3 className="mt-1 text-lg font-semibold text-[#111111]">Registro reciente</h3>
                   </div>
                 </div>
@@ -330,7 +402,7 @@ export default async function Home() {
                       <div>
                         <p className="font-medium text-[#111111]">{tx.concept}</p>
                         <p className="text-sm text-black/55">
-                          {tx.category} · {tx.unit}
+                          {tx.category} - {tx.unit}
                         </p>
                       </div>
                       <div className="text-right">

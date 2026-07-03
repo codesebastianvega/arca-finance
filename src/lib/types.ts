@@ -13,6 +13,14 @@ export type TransactionStatus = "pending" | "paid" | "confirmed" | "cancelled" |
 
 export type BusinessUnitKey = "personal" | "empresa" | "deuxio" | "sie" | "aluna";
 
+export type FinancialEventType =
+  | "income"
+  | "expense"
+  | "debt_payment"
+  | "card_payment"
+  | "saving"
+  | "transfer";
+
 export interface Account {
   id: string;
   name: string;
@@ -73,4 +81,29 @@ export interface BusinessSummary {
   income: number;
   expense: number;
   pending: number;
+}
+
+export interface MonthlyProjection {
+  id: string;
+  month: string;
+  openingBalance: number;
+  expectedIncome: number;
+  expectedExpenses: number;
+  debtPayments: number;
+  cardPayments: number;
+  plannedSavings: number;
+  closingBalance: number;
+  scenario: string;
+  notes?: string;
+}
+
+export interface FinancialEvent {
+  id: string;
+  eventDate: string;
+  title: string;
+  amount: number;
+  eventType: FinancialEventType;
+  status: string;
+  unit?: BusinessUnitKey;
+  notes?: string;
 }
