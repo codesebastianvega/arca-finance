@@ -30,7 +30,7 @@ import {
   getUpcomingPayments,
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
-import type { Transaction } from "@/lib/types";
+import type { FinancialEvent, Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -186,6 +186,37 @@ function MovementList({ transactions }: { transactions: Transaction[] }) {
             </p>
           </div>
           <p className="text-right font-semibold text-[#111111]">{getSignedAmount(tx)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EventList({ events, emptyLabel }: { events: FinancialEvent[]; emptyLabel: string }) {
+  if (!events.length) {
+    return <EmptyState label={emptyLabel} />;
+  }
+
+  return (
+    <div className="divide-y divide-black/8">
+      {events.slice(0, 14).map((event) => (
+        <div key={event.id} className="grid gap-3 py-3 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium text-[#111111]">{event.title}</p>
+              <Badge tone={event.status === "overdue" ? "danger" : event.eventType === "income" ? "success" : "warning"}>
+                {event.status}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-black/55">
+              {event.eventType} - {formatDate(event.eventDate)}
+              {event.unit ? ` - ${event.unit}` : ""}
+            </p>
+          </div>
+          <p className="text-right font-semibold text-[#111111]">
+            {event.eventType === "income" ? "" : "-"}
+            {formatCOP(event.amount)}
+          </p>
         </div>
       ))}
     </div>
@@ -553,6 +584,55 @@ function MovementsView({
         <MovementList transactions={transactions} />
       </div>
     </Card>
+  );
+}
+
+function CashflowView({
+  events,
+  transactions,
+  type,
+}: {
+  events: FinancialEvent[];
+  transactions: Transaction[];
+  type: "income" | "expense";
+}) {
+  const isIncome = type === "income";
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <Card className="p-5">
+        <SectionHeader
+          eyebrow={isIncome ? "Ingresos esperados" : "Compromisos esperados"}
+          title={isIncome ? "Plata por entrar" : "Plata por salir"}
+          action={<Badge tone={isIncome ? "success" : "warning"}>{events.length} programados</Badge>}
+        />
+        <div className="mt-4">
+          <EventList
+            events={events}
+            emptyLabel={isIncome ? "Aun no hay ingresos esperados cargados." : "Aun no hay gastos o pagos esperados cargados."}
+          />
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <SectionHeader
+          eyebrow={isIncome ? "Recibidos" : "Pagados"}
+          title={isIncome ? "Movimientos reales" : "Salidas registradas"}
+          action={
+            <Link
+              href="/?view=register"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+            >
+              <Plus className="h-4 w-4" />
+              Registrar
+            </Link>
+          }
+        />
+        <div className="mt-4">
+          <MovementList transactions={transactions} />
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -975,6 +1055,10 @@ function renderView(view: ViewKey, data: DashboardData) {
   const expenseTransactions = data.transactions.filter((tx) =>
     ["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind)
   );
+  const incomeEvents = data.events.filter((event) => event.eventType === "income");
+  const expenseEvents = data.events.filter((event) =>
+    ["expense", "debt_payment", "card_payment", "saving"].includes(event.eventType)
+  );
 
   switch (view) {
     case "register":
@@ -982,9 +1066,9 @@ function renderView(view: ViewKey, data: DashboardData) {
     case "accounts":
       return <AccountsView {...data} />;
     case "income":
-      return <MovementsView eyebrow="Ingresos" title="Dinero que entra" transactions={incomeTransactions} />;
+      return <CashflowView type="income" events={incomeEvents} transactions={incomeTransactions} />;
     case "expenses":
-      return <MovementsView eyebrow="Gastos" title="Dinero que sale" transactions={expenseTransactions} />;
+      return <CashflowView type="expense" events={expenseEvents} transactions={expenseTransactions} />;
     case "debts":
       return <DebtsView {...data} />;
     case "cards":
