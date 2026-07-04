@@ -84,14 +84,6 @@ const viewTitles: Record<ViewKey, string> = {
   business: "Unidades de negocio",
 };
 
-const fallbackFlowData = [
-  { name: "Ago", value: 4800000 },
-  { name: "Sep", value: 5100000 },
-  { name: "Oct", value: 4620000 },
-  { name: "Nov", value: 5380000 },
-  { name: "Dic", value: 5960000 },
-];
-
 const fieldClass =
   "h-11 w-full rounded-xl border border-black/10 bg-white/70 px-3 text-sm text-[#111111] outline-none transition focus:border-[#163a5f]/50 focus:ring-2 focus:ring-[#163a5f]/10";
 
@@ -177,12 +169,81 @@ function sumEvents(events: FinancialEvent[]) {
   return events.reduce((total, event) => total + event.amount, 0);
 }
 
-function getPrimaryCashAccount(accounts: Account[]) {
-  return [...accounts].sort((a, b) => b.balance - a.balance)[0];
-}
-
 function getAccountName(accounts: Account[], accountId?: string) {
   return accounts.find((account) => account.id === accountId)?.name;
+}
+
+function getBusinessName(business: DashboardData["business"], unit?: string) {
+  return business.find((item) => item.id === unit)?.name ?? unit ?? "Sin fuente";
+}
+
+function getMonthKey(value: string) {
+  return value.slice(0, 7);
+}
+
+function addMonthsToMonthKey(monthKey: string, offset: number) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1 + offset, 1);
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthLabelFromKey(monthKey: string) {
+  return getMonthLabel(`${monthKey}-01`);
+}
+
+function getTotalBalance(accountBalances: Map<string, number>, unassignedCash: number) {
+  return [...accountBalances.values()].reduce((total, value) => total + value, 0) + unassignedCash;
+}
+
+function choosePaymentSource(accountBalances: Map<string, number>, accounts: Account[], event: FinancialEvent) {
+  if (event.accountId) {
+    const balance = accountBalances.get(event.accountId) ?? 0;
+    const accountName = getAccountName(accounts, event.accountId) ?? "Cuenta definida";
+
+    return {
+      accountId: event.accountId,
+      label: `Pagar desde: ${accountName}`,
+      canPayFromSingleAccount: balance >= event.amount,
+    };
+  }
+
+  const candidate = accounts
+    .map((account) => ({ account, balance: accountBalances.get(account.id) ?? 0 }))
+    .filter((item) => item.balance >= event.amount)
+    .sort((a, b) => b.balance - a.balance)[0];
+
+  if (candidate) {
+    return {
+      accountId: candidate.account.id,
+      label: `Pagar desde: ${candidate.account.name}`,
+      canPayFromSingleAccount: true,
+    };
+  }
+
+  return {
+    accountId: undefined,
+    label: "Ninguna cuenta alcanza sola",
+    canPayFromSingleAccount: false,
+  };
+}
+
+function deductAcrossAccounts(accountBalances: Map<string, number>, accounts: Account[], amount: number) {
+  let remaining = amount;
+  const rankedAccounts = accounts
+    .map((account) => ({ account, balance: accountBalances.get(account.id) ?? 0 }))
+    .filter((item) => item.balance > 0)
+    .sort((a, b) => b.balance - a.balance);
+
+  rankedAccounts.forEach(({ account, balance }) => {
+    if (remaining <= 0) {
+      return;
+    }
+
+    const deduction = Math.min(balance, remaining);
+    accountBalances.set(account.id, balance - deduction);
+    remaining -= deduction;
+  });
 }
 
 function isTimelineEvent(event: FinancialEvent) {
@@ -199,15 +260,19 @@ function isTimelineEvent(event: FinancialEvent) {
 
 function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[]) {
   const timelineEvents = events.filter(isTimelineEvent).sort((a, b) => getEventTime(a) - getEventTime(b));
-  const primaryCashAccount = getPrimaryCashAccount(accounts);
-  let projectedCash = sumAccounts(accounts);
+  const accountBalances = new Map(accounts.map((account) => [account.id, account.balance]));
+  let unassignedCash = 0;
 
   return timelineEvents.map((event) => {
     const isIncome = isIncomeEvent(event);
-    const projectedCashBefore = projectedCash;
+    const projectedCashBefore = getTotalBalance(accountBalances, unassignedCash);
 
     if (isIncome) {
-      projectedCash += event.amount;
+      if (event.accountId) {
+        accountBalances.set(event.accountId, (accountBalances.get(event.accountId) ?? 0) + event.amount);
+      } else {
+        unassignedCash += event.amount;
+      }
 
       return {
         event,
@@ -215,29 +280,80 @@ function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[])
         covered: true,
         fundingLabel: getAccountName(accounts, event.accountId) ?? "Cuenta por definir",
         projectedCashBefore,
-        projectedCashAfter: projectedCash,
+        projectedCashAfter: getTotalBalance(accountBalances, unassignedCash),
         shortfall: 0,
       };
     }
 
     const covered = projectedCashBefore >= event.amount;
     const shortfall = Math.max(0, event.amount - projectedCashBefore);
-    const accountName = getAccountName(accounts, event.accountId) ?? primaryCashAccount?.name;
+    const paymentSource = choosePaymentSource(accountBalances, accounts, event);
 
-    if (covered) {
-      projectedCash -= event.amount;
+    if (covered && paymentSource.accountId && paymentSource.canPayFromSingleAccount) {
+      accountBalances.set(paymentSource.accountId, (accountBalances.get(paymentSource.accountId) ?? 0) - event.amount);
+    } else if (covered) {
+      deductAcrossAccounts(accountBalances, accounts, event.amount);
     }
 
     return {
       event,
       type: "payment" as const,
       covered,
-      fundingLabel: accountName ? `Pagar desde: ${accountName}` : "Cuenta por definir",
+      canPayFromSingleAccount: paymentSource.canPayFromSingleAccount,
+      fundingLabel: covered
+        ? paymentSource.canPayFromSingleAccount
+          ? paymentSource.label
+          : "Requiere mover o combinar cuentas"
+        : "Esperar ingreso o renegociar",
       projectedCashBefore,
-      projectedCashAfter: projectedCash,
+      projectedCashAfter: getTotalBalance(accountBalances, unassignedCash),
       shortfall,
     };
   });
+}
+
+function buildProjectedBalanceData(events: FinancialEvent[], accounts: Account[]) {
+  const startMonth = getCurrentMonthKey();
+  let balance = sumAccounts(accounts);
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const monthKey = addMonthsToMonthKey(startMonth, index);
+    const monthEvents = events.filter((event) => {
+      if (!isOpenEvent(event) || event.amount <= 0) {
+        return false;
+      }
+
+      if (index === 0 && event.status === "overdue" && getMonthKey(event.eventDate) < monthKey) {
+        return true;
+      }
+
+      return getMonthKey(event.eventDate) === monthKey;
+    });
+
+    balance += sumEvents(monthEvents.filter((event) => event.eventType === "income"));
+    balance -= sumEvents(monthEvents.filter((event) => event.eventType !== "income"));
+
+    return {
+      name: getMonthLabelFromKey(monthKey),
+      value: balance,
+    };
+  });
+}
+
+function buildIncomeSourceData(events: FinancialEvent[], business: DashboardData["business"]) {
+  const grouped = new Map<string, number>();
+
+  events
+    .filter((event) => isCurrentMonth(event.eventDate) && isIncomeEvent(event))
+    .forEach((event) => {
+      const name = getBusinessName(business, event.unit);
+      grouped.set(name, (grouped.get(name) ?? 0) + event.amount);
+    });
+
+  return [...grouped.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value);
 }
 
 function SectionHeader({
@@ -331,7 +447,6 @@ function DashboardView({
   cards,
   debts,
   events,
-  projections,
   transactions,
 }: DashboardData) {
   const currentMonthTransactions = transactions.filter((tx) => isCurrentMonth(tx.date));
@@ -348,10 +463,8 @@ function DashboardView({
   const pressureToCover = Math.max(0, expenseMonth - cashNow);
   const debtTotal = getDebtTotal(debts, cards);
   const cashTimeline = buildMonthlyCashTimeline(events, accounts).slice(0, 14);
-  const flowData = projections.length
-    ? projections.map((item) => ({ name: getMonthLabel(item.month), value: item.closingBalance }))
-    : fallbackFlowData;
-  const sourceData = business.map((item) => ({ name: item.name, value: item.income }));
+  const flowData = buildProjectedBalanceData(events, accounts);
+  const sourceData = buildIncomeSourceData(events, business);
   const accountTotalForBars = Math.max(cashNow, 1);
 
   return (
@@ -475,19 +588,34 @@ function DashboardView({
                 <div key={item.event.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_180px_220px] lg:items-center">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-[#111111]">{item.event.title}</p>
+                      <p
+                        className={cn(
+                          "font-medium",
+                          item.event.status === "overdue" || (!item.covered && item.type === "payment")
+                            ? "text-[var(--danger)]"
+                            : "text-[#111111]"
+                        )}
+                      >
+                        {item.event.title}
+                      </p>
                       <Badge
                         tone={
                           item.type === "income"
                             ? "success"
-                            : item.event.status === "overdue"
+                            : item.event.status === "overdue" || !item.covered
                               ? "danger"
-                              : item.covered
+                              : item.canPayFromSingleAccount
                                 ? "success"
-                                : "danger"
+                                : "warning"
                         }
                       >
-                        {item.type === "income" ? "entra plata" : item.covered ? "se puede pagar" : "falta caja"}
+                        {item.type === "income"
+                          ? "entra plata"
+                          : !item.covered
+                            ? "falta caja"
+                            : item.canPayFromSingleAccount
+                              ? "se puede pagar"
+                              : "requiere mover"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-black/55">
@@ -497,7 +625,16 @@ function DashboardView({
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Monto</p>
-                    <p className="mt-1 font-semibold text-[#111111]">
+                    <p
+                      className={cn(
+                        "mt-1 font-semibold",
+                        item.type === "income"
+                          ? "text-[var(--success)]"
+                        : item.event.status === "overdue" || !item.covered
+                            ? "text-[var(--danger)]"
+                            : "text-[#111111]"
+                      )}
+                    >
                       {item.type === "income" ? "+" : "-"}
                       {formatCOP(item.event.amount)}
                     </p>
@@ -507,12 +644,23 @@ function DashboardView({
                       {item.type === "income" ? "Recibir en" : "Accion sugerida"}
                     </p>
                     <p className="mt-1 text-sm font-medium text-[#111111]">{item.fundingLabel}</p>
-                    <p className="mt-1 text-xs text-black/50">
+                    <p
+                      className={cn(
+                        "mt-1 text-xs",
+                        !item.covered && item.type === "payment"
+                          ? "font-semibold text-[var(--danger)]"
+                          : item.type === "payment" && !item.canPayFromSingleAccount
+                            ? "font-medium text-[var(--warning)]"
+                            : "text-black/50"
+                      )}
+                    >
                       {item.type === "income"
                         ? `Caja proyectada: ${formatCOP(item.projectedCashAfter)}`
                         : item.covered
-                        ? `Caja proyectada despues: ${formatCOP(item.projectedCashAfter)}`
-                        : `Faltan ${formatCOP(item.shortfall)}`}
+                          ? item.canPayFromSingleAccount
+                            ? `Caja proyectada despues: ${formatCOP(item.projectedCashAfter)}`
+                            : `Caja total alcanza, pero no en una sola cuenta`
+                          : `Faltan ${formatCOP(item.shortfall)}`}
                     </p>
                   </div>
                 </div>
@@ -548,12 +696,16 @@ function DashboardView({
             {events.slice(0, 5).map((event) => (
               <div key={event.id} className="flex items-center justify-between gap-4 py-3">
                 <div>
-                  <p className="font-medium text-[#111111]">{event.title}</p>
-                  <p className="text-sm text-black/55">
+                  <p className={cn("font-medium", event.status === "overdue" ? "text-[var(--danger)]" : "text-[#111111]")}>
+                    {event.title}
+                  </p>
+                  <p className={cn("text-sm", event.status === "overdue" ? "text-[var(--danger)]" : "text-black/55")}>
                     {event.eventType} - {formatDate(event.eventDate)}
                   </p>
                 </div>
-                <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
+                <p className={cn("font-semibold", event.status === "overdue" ? "text-[var(--danger)]" : "text-[#111111]")}>
+                  {formatCOP(event.amount)}
+                </p>
               </div>
             ))}
           </div>
