@@ -11,8 +11,19 @@ export function formatCOP(value: number) {
   return currency.format(value).replace("COP", "").trim();
 }
 
+export function parseCalendarDate(value: string) {
+  const [datePart] = value.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return new Date(value);
+  }
+
+  return new Date(year, month - 1, day);
+}
+
 export function formatDate(value: string) {
-  return format(new Date(value), "d MMM");
+  return format(parseCalendarDate(value), "d MMM");
 }
 
 export function sum(values: number[]) {

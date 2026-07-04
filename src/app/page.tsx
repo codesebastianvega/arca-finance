@@ -26,6 +26,7 @@ import {
   getIncomeMonth,
   getSavingsProgress,
   getUpcomingPayments,
+  parseCalendarDate,
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
 import type { Account, FinancialEvent, Transaction } from "@/lib/types";
@@ -153,7 +154,7 @@ function isCurrentMonth(value: string) {
 }
 
 function getEventTime(event: FinancialEvent) {
-  return new Date(event.eventDate).getTime();
+  return parseCalendarDate(event.eventDate).getTime();
 }
 
 function isOpenEvent(event: FinancialEvent) {
