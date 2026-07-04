@@ -67,8 +67,8 @@ export function MetricCard({
     <Card className="p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-black/55">{label}</p>
       <div className="mt-2 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-2xl font-semibold text-[#111111]">{value}</p>
+      <div className="min-w-0">
+          <p className="break-words text-xl font-semibold text-[#111111] xl:text-2xl">{value}</p>
           {delta ? <p className="mt-1 text-sm text-black/55">{delta}</p> : null}
         </div>
         <Badge tone={tone}>{tone}</Badge>

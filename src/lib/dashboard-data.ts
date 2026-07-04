@@ -114,6 +114,8 @@ type SupabaseEventRow = {
   status: string;
   business_unit_key?: string | null;
   account_id?: string | null;
+  related_table?: string | null;
+  related_id?: string | null;
   notes?: string | null;
 };
 
@@ -261,6 +263,8 @@ function mapEvent(row: SupabaseEventRow): FinancialEvent {
     eventType: toFinancialEventType(row.event_type),
     status: row.status,
     accountId: row.account_id ?? undefined,
+    relatedTable: row.related_table ?? undefined,
+    relatedId: row.related_id ?? undefined,
     unit: row.business_unit_key ? toBusinessUnitKey(row.business_unit_key) : undefined,
     notes: row.notes ?? undefined,
   };

@@ -10,11 +10,20 @@ import {
   Landmark,
   LayoutDashboard,
   ListChecks,
+  MoveRight,
   Plus,
   PiggyBank,
   Wallet,
 } from "lucide-react";
-import { createAccount, createCreditCard, createDebt, createSavingsGoal, createTransaction } from "@/app/actions";
+import {
+  createAccount,
+  createCreditCard,
+  createDebt,
+  createSavingsGoal,
+  createTransaction,
+  createTransfer,
+  settleFinancialEvent,
+} from "@/app/actions";
 import { ArcaCharts } from "@/components/arca-charts";
 import { Badge, Button, Card, MetricCard } from "@/components/ui-kit";
 import {
@@ -39,6 +48,7 @@ type DashboardData = Awaited<ReturnType<typeof loadDashboardData>>;
 type ViewKey =
   | "dashboard"
   | "register"
+  | "transfers"
   | "accounts"
   | "income"
   | "expenses"
@@ -46,12 +56,14 @@ type ViewKey =
   | "cards"
   | "savings"
   | "calendar"
+  | "history"
   | "projections"
   | "business";
 
 type HomeProps = {
   searchParams: Promise<{
     saved?: string;
+    month?: string;
     view?: string;
   }>;
 };
@@ -59,6 +71,7 @@ type HomeProps = {
 const navItems: { label: string; view: ViewKey; icon: typeof LayoutDashboard }[] = [
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
   { label: "Registrar", view: "register", icon: Plus },
+  { label: "Transferir", view: "transfers", icon: MoveRight },
   { label: "Cuentas", view: "accounts", icon: Wallet },
   { label: "Ingresos", view: "income", icon: ArrowDownLeft },
   { label: "Gastos", view: "expenses", icon: ArrowUpRight },
@@ -66,6 +79,7 @@ const navItems: { label: string; view: ViewKey; icon: typeof LayoutDashboard }[]
   { label: "Tarjetas", view: "cards", icon: CreditCard },
   { label: "Ahorro", view: "savings", icon: PiggyBank },
   { label: "Calendario", view: "calendar", icon: CalendarDays },
+  { label: "Historial", view: "history", icon: ListChecks },
   { label: "Proyeccion", view: "projections", icon: ListChecks },
   { label: "Negocios", view: "business", icon: Building2 },
 ];
@@ -73,6 +87,7 @@ const navItems: { label: string; view: ViewKey; icon: typeof LayoutDashboard }[]
 const viewTitles: Record<ViewKey, string> = {
   dashboard: "Dashboard operativo",
   register: "Registrar movimiento",
+  transfers: "Transferencias",
   accounts: "Cuentas y billeteras",
   income: "Ingresos",
   expenses: "Gastos",
@@ -80,6 +95,7 @@ const viewTitles: Record<ViewKey, string> = {
   cards: "Tarjetas",
   savings: "Ahorro",
   calendar: "Calendario financiero",
+  history: "Historial",
   projections: "Proyeccion mensual",
   business: "Unidades de negocio",
 };
@@ -133,16 +149,20 @@ function getCurrentMonthKey() {
   return new Date().toISOString().slice(0, 7);
 }
 
-function getCurrentMonthName() {
-  return new Date(`${getCurrentMonthKey()}-02T00:00:00`).toLocaleDateString("es-CO", {
+function normalizeMonth(value?: string) {
+  return value && /^\d{4}-\d{2}$/.test(value) ? value : getCurrentMonthKey();
+}
+
+function getMonthName(monthKey: string) {
+  return new Date(`${monthKey}-02T00:00:00`).toLocaleDateString("es-CO", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
   });
 }
 
-function isCurrentMonth(value: string) {
-  return value.slice(0, 7) === getCurrentMonthKey();
+function isSelectedMonth(value: string, monthKey: string) {
+  return value.slice(0, 7) === monthKey;
 }
 
 function getEventTime(event: FinancialEvent) {
@@ -190,6 +210,27 @@ function addMonthsToMonthKey(monthKey: string, offset: number) {
 
 function getMonthLabelFromKey(monthKey: string) {
   return getMonthLabel(`${monthKey}-01`);
+}
+
+function getMonthHref(view: ViewKey, monthKey: string) {
+  return `/?view=${view}&month=${monthKey}`;
+}
+
+function MonthSwitcher({ activeView, selectedMonth }: { activeView: ViewKey; selectedMonth: string }) {
+  const previousMonth = addMonthsToMonthKey(selectedMonth, -1);
+  const nextMonth = addMonthsToMonthKey(selectedMonth, 1);
+
+  return (
+    <div className="inline-flex items-center rounded-xl border border-black/8 bg-black/3 p-1">
+      <Link className="rounded-lg px-3 py-1.5 text-sm text-black/65 hover:bg-black/5" href={getMonthHref(activeView, previousMonth)}>
+        Anterior
+      </Link>
+      <span className="min-w-36 px-3 py-1.5 text-center text-sm font-medium text-[#111111]">{getMonthName(selectedMonth)}</span>
+      <Link className="rounded-lg px-3 py-1.5 text-sm text-black/65 hover:bg-black/5" href={getMonthHref(activeView, nextMonth)}>
+        Siguiente
+      </Link>
+    </div>
+  );
 }
 
 function getTotalBalance(accountBalances: Map<string, number>, unassignedCash: number) {
@@ -254,20 +295,20 @@ function formatAllocation(allocations: { accountName: string; amount: number }[]
   return allocations.map((item) => `${item.accountName}: ${formatCOP(item.amount)}`).join(" + ");
 }
 
-function isTimelineEvent(event: FinancialEvent) {
+function isTimelineEvent(event: FinancialEvent, monthKey: string) {
   if (!isOpenEvent(event)) {
     return false;
   }
 
-  if (isCurrentMonth(event.eventDate)) {
+  if (isSelectedMonth(event.eventDate, monthKey)) {
     return event.amount > 0;
   }
 
-  return event.status === "overdue" && event.amount > 0;
+  return monthKey === getCurrentMonthKey() && event.status === "overdue" && event.amount > 0;
 }
 
-function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[]) {
-  const timelineEvents = events.filter(isTimelineEvent).sort((a, b) => getEventTime(a) - getEventTime(b));
+function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[], monthKey: string) {
+  const timelineEvents = events.filter((event) => isTimelineEvent(event, monthKey)).sort((a, b) => getEventTime(a) - getEventTime(b));
   const accountBalances = new Map(accounts.map((account) => [account.id, account.balance]));
   let unassignedCash = 0;
 
@@ -359,8 +400,7 @@ function getUpcomingNotifications(events: FinancialEvent[]) {
     .slice(0, 8);
 }
 
-function buildProjectedBalanceData(events: FinancialEvent[], accounts: Account[]) {
-  const startMonth = getCurrentMonthKey();
+function buildProjectedBalanceData(events: FinancialEvent[], accounts: Account[], startMonth: string) {
   let balance = sumAccounts(accounts);
 
   return Array.from({ length: 6 }, (_, index) => {
@@ -387,11 +427,11 @@ function buildProjectedBalanceData(events: FinancialEvent[], accounts: Account[]
   });
 }
 
-function buildIncomeSourceData(events: FinancialEvent[], business: DashboardData["business"]) {
+function buildIncomeSourceData(events: FinancialEvent[], business: DashboardData["business"], monthKey: string) {
   const grouped = new Map<string, number>();
 
   events
-    .filter((event) => isCurrentMonth(event.eventDate) && isIncomeEvent(event))
+    .filter((event) => isSelectedMonth(event.eventDate, monthKey) && isIncomeEvent(event))
     .forEach((event) => {
       const name = getBusinessName(business, event.unit);
       grouped.set(name, (grouped.get(name) ?? 0) + event.amount);
@@ -495,11 +535,17 @@ function DashboardView({
   debts,
   events,
   transactions,
-}: DashboardData) {
-  const currentMonthTransactions = transactions.filter((tx) => isCurrentMonth(tx.date));
-  const currentMonthEvents = events.filter((event) => isCurrentMonth(event.eventDate));
+  selectedMonth,
+}: DashboardData & { selectedMonth: string }) {
+  const currentMonthTransactions = transactions.filter((tx) => isSelectedMonth(tx.date, selectedMonth));
+  const currentMonthEvents = events.filter((event) => isSelectedMonth(event.eventDate, selectedMonth));
   const overdueOutflowEvents = events.filter(
-    (event) => !isCurrentMonth(event.eventDate) && event.status === "overdue" && isOutflowEvent(event) && event.amount > 0
+    (event) =>
+      selectedMonth === getCurrentMonthKey() &&
+      !isSelectedMonth(event.eventDate, selectedMonth) &&
+      event.status === "overdue" &&
+      isOutflowEvent(event) &&
+      event.amount > 0
   );
   const incomeEvents = currentMonthEvents.filter(isIncomeEvent);
   const outflowEvents = currentMonthEvents.filter((event) => isOutflowEvent(event) && event.amount > 0);
@@ -509,12 +555,12 @@ function DashboardView({
   const availableAfterCommitments = cashNow + incomeMonth - expenseMonth;
   const pressureToCover = Math.max(0, expenseMonth - cashNow);
   const debtTotal = getDebtTotal(debts, cards);
-  const cashTimeline = buildMonthlyCashTimeline(events, accounts);
+  const cashTimeline = buildMonthlyCashTimeline(events, accounts, selectedMonth);
   const notifications = getUpcomingNotifications(events);
   const transferSuggestions = cashTimeline.filter((item) => item.type === "payment" && item.needsTransfer);
   const transferSuggestionTotal = transferSuggestions.reduce((total, item) => total + item.event.amount, 0);
-  const flowData = buildProjectedBalanceData(events, accounts);
-  const sourceData = buildIncomeSourceData(events, business);
+  const flowData = buildProjectedBalanceData(events, accounts, selectedMonth);
+  const sourceData = buildIncomeSourceData(events, business, selectedMonth);
   const accountTotalForBars = Math.max(cashNow, 1);
 
   return (
@@ -522,7 +568,7 @@ function DashboardView({
       <Card className="overflow-hidden p-5 md:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Dashboard - {getCurrentMonthName()}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Dashboard - {getMonthName(selectedMonth)}</p>
             <h3 className="mt-2 max-w-3xl text-3xl font-semibold leading-tight text-[#111111] md:text-5xl">
               Caja disponible, compromisos y decisiones del mes.
             </h3>
@@ -759,6 +805,25 @@ function DashboardView({
                             : `Caja total alcanza, pero no en una sola cuenta`
                           : `Faltan ${formatCOP(item.shortfall)}`}
                     </p>
+                    {accounts.length ? (
+                      <form action={settleFinancialEvent} className="mt-3 flex flex-wrap gap-2">
+                        <input name="eventId" type="hidden" value={item.event.id} />
+                        <select
+                          name="accountId"
+                          className="h-9 min-w-0 flex-1 rounded-lg border border-black/10 bg-white/70 px-2 text-xs text-[#111111]"
+                          defaultValue={item.event.accountId ?? accounts[0]?.id}
+                        >
+                          {accounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))}
+                        </select>
+                        <Button size="sm" type="submit" variant={item.type === "income" ? "primary" : "secondary"}>
+                          {item.type === "income" ? "Recibir" : "Pagar"}
+                        </Button>
+                      </form>
+                    ) : null}
                   </div>
                 </div>
               ))
@@ -932,6 +997,74 @@ function RegisterView({ accounts, business }: DashboardData) {
           <p>Si el estado es pagado o confirmado, Arca actualiza el saldo de la cuenta.</p>
           <p>Si queda pendiente, programado o vencido, Arca lo agrega al calendario financiero.</p>
           <p>Los formularios especializados de deuda, tarjeta y ahorro quedan como siguiente iteracion.</p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function TransfersView({ accounts, transactions }: DashboardData) {
+  const transferTransactions = transactions.filter((tx) => tx.kind === "transfer");
+
+  if (accounts.length < 2) {
+    return (
+      <Card className="p-6">
+        <SectionHeader eyebrow="Transferencias" title="Necesitas al menos dos cuentas" />
+        <p className="mt-3 text-sm leading-6 text-black/65">
+          Crea dos cuentas o billeteras para poder mover plata entre ellas y dejar historial.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <Card className="p-5">
+        <SectionHeader eyebrow="Nueva transferencia" title="Mover plata entre cuentas" />
+        <form action={createTransfer} className="mt-5 space-y-4">
+          <label className="block space-y-2">
+            <span className={labelClass}>Desde</span>
+            <select name="fromAccountId" className={fieldClass} required>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} - {formatCOP(account.balance)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className={labelClass}>Hacia</span>
+            <select name="toAccountId" className={fieldClass} required>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className={labelClass}>Monto</span>
+            <input name="amount" type="number" min="1" step="100" className={fieldClass} required />
+          </label>
+          <label className="block space-y-2">
+            <span className={labelClass}>Fecha</span>
+            <input name="date" type="date" className={fieldClass} defaultValue={getToday()} required />
+          </label>
+          <label className="block space-y-2">
+            <span className={labelClass}>Concepto</span>
+            <input name="concept" className={fieldClass} defaultValue="Transferencia entre cuentas" required />
+          </label>
+          <Button type="submit" className="w-full">
+            <MoveRight className="h-4 w-4" />
+            Aplicar transferencia
+          </Button>
+        </form>
+      </Card>
+
+      <Card className="p-5">
+        <SectionHeader eyebrow="Historial" title="Transferencias registradas" />
+        <div className="mt-4">
+          <MovementList transactions={transferTransactions.slice(0, 12)} />
         </div>
       </Card>
     </div>
@@ -1356,15 +1489,16 @@ function SavingsView({ goals, transactions }: DashboardData) {
   );
 }
 
-function CalendarView({ events, transactions }: DashboardData) {
-  const upcoming = getUpcomingPayments(transactions);
+function CalendarView({ events, transactions, selectedMonth }: DashboardData & { selectedMonth: string }) {
+  const monthEvents = events.filter((event) => isSelectedMonth(event.eventDate, selectedMonth));
+  const upcoming = getUpcomingPayments(transactions).filter((tx) => isSelectedMonth(tx.date, selectedMonth));
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
       <Card className="p-5">
         <SectionHeader eyebrow="Calendario" title="Eventos financieros" />
         <div className="mt-4 divide-y divide-black/8">
-          {events.map((event) => (
+          {monthEvents.map((event) => (
             <div key={event.id} className="flex items-center justify-between gap-4 py-3">
               <div>
                 <p className="font-medium text-[#111111]">{event.title}</p>
@@ -1379,6 +1513,38 @@ function CalendarView({ events, transactions }: DashboardData) {
       </Card>
 
       <MovementsView eyebrow="Pendientes" title="Movimientos por pagar/cobrar" transactions={upcoming} />
+    </div>
+  );
+}
+
+function HistoryView({ transactions, selectedMonth }: DashboardData & { selectedMonth: string }) {
+  const monthTransactions = transactions.filter((tx) => isSelectedMonth(tx.date, selectedMonth));
+  const confirmed = monthTransactions.filter((tx) => tx.status === "paid" || tx.status === "confirmed");
+  const pending = monthTransactions.filter((tx) => tx.status !== "paid" && tx.status !== "confirmed");
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+      <Card className="p-5">
+        <SectionHeader
+          eyebrow="Historial"
+          title={`Movimientos cerrados - ${getMonthName(selectedMonth)}`}
+          action={<Badge tone="success">{confirmed.length}</Badge>}
+        />
+        <div className="mt-4">
+          <MovementList transactions={confirmed} />
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <SectionHeader
+          eyebrow="Pendientes"
+          title="Movimientos no cerrados"
+          action={<Badge tone={pending.length ? "warning" : "success"}>{pending.length}</Badge>}
+        />
+        <div className="mt-4">
+          <MovementList transactions={pending} />
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1493,19 +1659,21 @@ function BusinessView({ business }: DashboardData) {
   );
 }
 
-function renderView(view: ViewKey, data: DashboardData) {
-  const incomeTransactions = data.transactions.filter((tx) => tx.kind === "income");
+function renderView(view: ViewKey, data: DashboardData, selectedMonth: string) {
+  const incomeTransactions = data.transactions.filter((tx) => tx.kind === "income" && isSelectedMonth(tx.date, selectedMonth));
   const expenseTransactions = data.transactions.filter((tx) =>
-    ["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind)
+    ["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind) && isSelectedMonth(tx.date, selectedMonth)
   );
-  const incomeEvents = data.events.filter((event) => event.eventType === "income");
+  const incomeEvents = data.events.filter((event) => event.eventType === "income" && isSelectedMonth(event.eventDate, selectedMonth));
   const expenseEvents = data.events.filter((event) =>
-    ["expense", "debt_payment", "card_payment", "saving"].includes(event.eventType)
+    ["expense", "debt_payment", "card_payment", "saving"].includes(event.eventType) && isSelectedMonth(event.eventDate, selectedMonth)
   );
 
   switch (view) {
     case "register":
       return <RegisterView {...data} />;
+    case "transfers":
+      return <TransfersView {...data} />;
     case "accounts":
       return <AccountsView {...data} />;
     case "income":
@@ -1519,19 +1687,22 @@ function renderView(view: ViewKey, data: DashboardData) {
     case "savings":
       return <SavingsView {...data} />;
     case "calendar":
-      return <CalendarView {...data} />;
+      return <CalendarView {...data} selectedMonth={selectedMonth} />;
+    case "history":
+      return <HistoryView {...data} selectedMonth={selectedMonth} />;
     case "projections":
       return <ProjectionsView {...data} />;
     case "business":
       return <BusinessView {...data} />;
     default:
-      return <DashboardView {...data} />;
+      return <DashboardView {...data} selectedMonth={selectedMonth} />;
   }
 }
 
 export default async function Home({ searchParams }: HomeProps) {
   const params = await searchParams;
   const activeView = getView(params.view);
+  const selectedMonth = normalizeMonth(params.month);
   const data = await loadDashboardData();
 
   return (
@@ -1561,7 +1732,7 @@ export default async function Home({ searchParams }: HomeProps) {
               return (
                 <Link
                   key={item.view}
-                  href={`/?view=${item.view}`}
+                  href={getMonthHref(item.view, selectedMonth)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
                     isActive ? "bg-[#163a5f] text-white" : "text-black/70 hover:bg-black/5 hover:text-black"
@@ -1594,12 +1765,13 @@ export default async function Home({ searchParams }: HomeProps) {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {params.saved === "1" ? <Badge tone="success">Movimiento guardado</Badge> : null}
+                <MonthSwitcher activeView={activeView} selectedMonth={selectedMonth} />
                 <Badge tone="warning">COP</Badge>
                 <Badge tone={data.source === "supabase" ? "success" : "warning"}>
                   {data.source === "supabase" ? "Supabase" : "Mock"}
                 </Badge>
                 <Link
-                  href="/?view=register"
+                  href={getMonthHref("register", selectedMonth)}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
                 >
                   <Plus className="h-4 w-4" />
@@ -1612,7 +1784,7 @@ export default async function Home({ searchParams }: HomeProps) {
               {navItems.map((item) => (
                 <Link
                   key={item.view}
-                  href={`/?view=${item.view}`}
+                  href={getMonthHref(item.view, selectedMonth)}
                   className={cn(
                     "inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm",
                     item.view === activeView ? "bg-[#163a5f] text-white" : "bg-black/5 text-black/70"
@@ -1625,7 +1797,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </nav>
           </header>
 
-          <div className="shell-grid flex-1 overflow-y-auto p-4 md:p-6">{renderView(activeView, data)}</div>
+          <div className="shell-grid flex-1 overflow-y-auto p-4 md:p-6">{renderView(activeView, data, selectedMonth)}</div>
         </section>
       </div>
     </main>

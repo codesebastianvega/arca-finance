@@ -62,8 +62,34 @@ const savingsGoalSchema = z.object({
   color: z.string().trim().default("#16735b"),
 });
 
+const transferSchema = z.object({
+  fromAccountId: z.string().uuid(),
+  toAccountId: z.string().uuid(),
+  amount: z.coerce.number().positive(),
+  concept: z.string().trim().min(2),
+  date: z.string().trim().min(10),
+});
+
+const settleEventSchema = z.object({
+  eventId: z.string().uuid(),
+  accountId: z.string().uuid(),
+});
+
 const outflowKinds = new Set(["expense", "debt_payment", "card_payment", "saving_contribution"]);
 const inflowKinds = new Set(["income", "saving_withdrawal"]);
+
+type FinancialEventRow = {
+  id: string;
+  event_date: string;
+  title: string;
+  amount: number | string;
+  event_type: string;
+  status: string;
+  business_unit_key?: string | null;
+  account_id?: string | null;
+  related_table?: string | null;
+  related_id?: string | null;
+};
 
 function getBalanceDelta(kind: string, amount: number) {
   if (inflowKinds.has(kind)) {
@@ -79,6 +105,32 @@ function getBalanceDelta(kind: string, amount: number) {
 
 function shouldAffectAccount(status: string) {
   return status === "paid" || status === "confirmed";
+}
+
+async function readAccountBalance(supabase: NonNullable<ReturnType<typeof getSupabaseServerClient>>, accountId: string) {
+  const { data, error } = await supabase.from("accounts").select("balance").eq("id", accountId).single();
+
+  if (error) {
+    throw new Error(`No se pudo leer la cuenta: ${error.message}`);
+  }
+
+  return Number(data?.balance ?? 0);
+}
+
+async function updateAccountBalance(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServerClient>>,
+  accountId: string,
+  delta: number
+) {
+  const currentBalance = await readAccountBalance(supabase, accountId);
+  const { error } = await supabase
+    .from("accounts")
+    .update({ balance: currentBalance + delta, updated_at: new Date().toISOString() })
+    .eq("id", accountId);
+
+  if (error) {
+    throw new Error(`No se pudo actualizar el saldo: ${error.message}`);
+  }
 }
 
 export async function createTransaction(formData: FormData) {
@@ -128,25 +180,7 @@ export async function createTransaction(formData: FormData) {
     const delta = getBalanceDelta(input.kind, input.amount);
 
     if (delta !== 0) {
-      const { data: account, error: accountError } = await supabase
-        .from("accounts")
-        .select("balance")
-        .eq("id", input.accountId)
-        .single();
-
-      if (accountError) {
-        throw new Error(`Movimiento creado, pero no se pudo leer la cuenta: ${accountError.message}`);
-      }
-
-      const currentBalance = Number(account?.balance ?? 0);
-      const { error: updateError } = await supabase
-        .from("accounts")
-        .update({ balance: currentBalance + delta, updated_at: new Date().toISOString() })
-        .eq("id", input.accountId);
-
-      if (updateError) {
-        throw new Error(`Movimiento creado, pero no se pudo actualizar el saldo: ${updateError.message}`);
-      }
+      await updateAccountBalance(supabase, input.accountId, delta);
     }
   }
 
@@ -354,4 +388,163 @@ export async function createSavingsGoal(formData: FormData) {
 
   revalidatePath("/");
   redirect("/?view=savings&saved=1");
+}
+
+export async function createTransfer(formData: FormData) {
+  const input = transferSchema.parse({
+    fromAccountId: formData.get("fromAccountId"),
+    toAccountId: formData.get("toAccountId"),
+    amount: formData.get("amount"),
+    concept: formData.get("concept"),
+    date: formData.get("date"),
+  });
+
+  if (input.fromAccountId === input.toAccountId) {
+    throw new Error("La cuenta origen y destino deben ser diferentes.");
+  }
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  await updateAccountBalance(supabase, input.fromAccountId, -input.amount);
+  await updateAccountBalance(supabase, input.toAccountId, input.amount);
+
+  const transferId = crypto.randomUUID();
+  const { error } = await supabase.from("transactions").insert([
+    {
+      kind: "transfer",
+      status: "confirmed",
+      amount: input.amount,
+      concept: `${input.concept} - salida`,
+      account_id: input.fromAccountId,
+      category: "Transferencia",
+      unit: "personal",
+      date: input.date,
+      metadata: {
+        source: "arca-ui",
+        transfer_id: transferId,
+        transfer_direction: "out",
+        to_account_id: input.toAccountId,
+      },
+    },
+    {
+      kind: "transfer",
+      status: "confirmed",
+      amount: input.amount,
+      concept: `${input.concept} - entrada`,
+      account_id: input.toAccountId,
+      category: "Transferencia",
+      unit: "personal",
+      date: input.date,
+      metadata: {
+        source: "arca-ui",
+        transfer_id: transferId,
+        transfer_direction: "in",
+        from_account_id: input.fromAccountId,
+      },
+    },
+  ]);
+
+  if (error) {
+    throw new Error(`Transferencia aplicada, pero no se pudo registrar el historial: ${error.message}`);
+  }
+
+  revalidatePath("/");
+  redirect("/?view=transfers&saved=1");
+}
+
+export async function settleFinancialEvent(formData: FormData) {
+  const input = settleEventSchema.parse({
+    eventId: formData.get("eventId"),
+    accountId: formData.get("accountId"),
+  });
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { data: event, error: eventError } = await supabase
+    .from("financial_events")
+    .select("*")
+    .eq("id", input.eventId)
+    .single();
+
+  if (eventError) {
+    throw new Error(`No se pudo leer el evento: ${eventError.message}`);
+  }
+
+  const eventRow = event as FinancialEventRow;
+
+  if (eventRow.status === "paid" || eventRow.status === "confirmed") {
+    revalidatePath("/");
+    redirect("/?view=dashboard&saved=1");
+  }
+
+  const amount = Number(eventRow.amount ?? 0);
+  const eventType = String(eventRow.event_type);
+  const isIncome = eventType === "income";
+  const txKind = eventType === "saving" ? "saving_contribution" : eventType;
+  const settledStatus = isIncome ? "confirmed" : "paid";
+
+  await updateAccountBalance(supabase, input.accountId, isIncome ? amount : -amount);
+
+  const { data: transaction, error: txError } = await supabase
+    .from("transactions")
+    .insert({
+      kind: txKind,
+      status: settledStatus,
+      amount,
+      concept: String(eventRow.title),
+      account_id: input.accountId,
+      category: isIncome ? "Ingreso" : "Pago programado",
+      unit: eventRow.business_unit_key ?? "personal",
+      date: eventRow.event_date,
+      due_date: eventRow.event_date,
+      metadata: {
+        source: "financial_event_settlement",
+        event_id: input.eventId,
+        related_table: eventRow.related_table,
+        related_id: eventRow.related_id,
+      },
+    })
+    .select("id")
+    .single();
+
+  if (txError) {
+    throw new Error(`Saldo actualizado, pero no se pudo crear el movimiento: ${txError.message}`);
+  }
+
+  const { error: updateEventError } = await supabase
+    .from("financial_events")
+    .update({
+      status: settledStatus,
+      account_id: input.accountId,
+      related_table: eventRow.related_table ?? "transactions",
+      related_id: eventRow.related_id ?? transaction?.id ?? null,
+    })
+    .eq("id", input.eventId);
+
+  if (updateEventError) {
+    throw new Error(`Movimiento creado, pero no se pudo cerrar el evento: ${updateEventError.message}`);
+  }
+
+  if (!isIncome && eventRow.related_table === "debts" && eventRow.related_id) {
+    const { data: debt } = await supabase.from("debts").select("balance").eq("id", eventRow.related_id).single();
+    const remaining = Math.max(0, Number(debt?.balance ?? 0) - amount);
+    await supabase.from("debts").update({ balance: remaining, status: remaining === 0 ? "paid" : "active" }).eq("id", eventRow.related_id);
+  }
+
+  if (!isIncome && eventRow.related_table === "credit_cards" && eventRow.related_id) {
+    const { data: card } = await supabase.from("credit_cards").select("used").eq("id", eventRow.related_id).single();
+    const used = Math.max(0, Number(card?.used ?? 0) - amount);
+    await supabase.from("credit_cards").update({ used }).eq("id", eventRow.related_id);
+  }
+
+  revalidatePath("/");
+  redirect("/?view=dashboard&saved=1");
 }

@@ -114,6 +114,8 @@ export interface FinancialEvent {
   eventType: FinancialEventType;
   status: string;
   accountId?: string;
+  relatedTable?: string;
+  relatedId?: string;
   unit?: BusinessUnitKey;
   notes?: string;
 }
