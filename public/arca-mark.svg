@@ -1,0 +1,8 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Arca mark</title>
+  <desc id="desc">Monograma de Arca inspirado en caja fuerte y flujo de caja.</desc>
+  <rect x="8" y="8" width="80" height="80" rx="22" fill="#0F3554"/>
+  <path d="M27 65L42.6 31H53.4L69 65H58.5L55.9 58.8H39.8L37.2 65H27ZM43 50.7H52.8L47.9 38.8L43 50.7Z" fill="#FFFAF2"/>
+  <path d="M27 70H69" stroke="#A27734" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="48" cy="48" r="34" stroke="#FFFAF2" stroke-opacity="0.18" stroke-width="2"/>
+</svg>

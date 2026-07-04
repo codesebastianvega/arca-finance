@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type React from "react";
 import {
   AlertTriangle,
@@ -1043,14 +1044,14 @@ function DashboardView({
       <Card className="overflow-hidden p-5 md:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Dashboard - {getMonthName(selectedMonth)}</p>
-            <h3 className="mt-2 max-w-3xl text-3xl font-semibold leading-tight text-[#111111] md:text-5xl">
-              Caja disponible, compromisos y decisiones del mes.
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Dashboard - {getMonthName(selectedMonth)}</p>
+            <h3 className="mt-2 max-w-2xl text-3xl font-semibold leading-[1.08] text-[var(--foreground)] md:text-4xl">
+              Caja clara para decidir el mes.
             </h3>
           </div>
-          <div className="rounded-2xl bg-black/3 p-4 xl:w-80">
-            <p className="text-sm font-medium text-[#111111]">Lectura rapida</p>
-            <p className="mt-2 text-sm leading-6 text-black/60">
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4 xl:w-96">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Lectura rapida</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
               Necesitas cubrir {formatCOP(expenseMonth)} este mes. Con caja actual faltan{" "}
               {formatCOP(pressureToCover)} antes de contar ingresos programados.
             </p>
@@ -1107,10 +1108,10 @@ function DashboardView({
             title="Mover plata antes de pagar"
             action={<Badge tone={transferSuggestions.length ? "warning" : "success"}>{transferSuggestions.length}</Badge>}
           />
-          <div className="mt-4 rounded-2xl bg-black/3 p-4">
-            <p className="text-sm text-black/55">Pagos que podrian exigir combinar cuentas</p>
-            <p className="mt-1 text-2xl font-semibold text-[#111111]">{formatCOP(transferSuggestionTotal)}</p>
-            <p className="mt-2 text-sm leading-6 text-black/60">
+          <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4">
+            <p className="text-sm text-[var(--muted)]">Pagos que podrian exigir combinar cuentas</p>
+            <p className="mt-1 text-2xl font-semibold text-[var(--foreground)]">{formatCOP(transferSuggestionTotal)}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
               Usa la vista Transferir para mover saldo entre cuentas y dejar auditoria antes de marcar pagos que requieren combinar caja.
             </p>
           </div>
@@ -1142,7 +1143,7 @@ function DashboardView({
                         <p className="font-semibold text-[#111111]">{formatCOP(account.balance)}</p>
                       </div>
                       <div className="mt-2 h-2 rounded-full bg-black/6">
-                        <div className="h-2 rounded-full bg-[#163a5f]" style={{ width: `${width}%` }} />
+                        <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${width}%` }} />
                       </div>
                     </div>
                   );
@@ -1373,7 +1374,7 @@ function RegisterView({ accounts, business }: DashboardData) {
         </p>
         <Link
           href="/?view=accounts"
-          className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+          className="arca-primary-action arca-focus mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium"
         >
           <Plus className="h-4 w-4" />
           Crear cuenta
@@ -1626,18 +1627,18 @@ function AccountsView({ accounts }: DashboardData) {
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {accounts.length ? (
             accounts.map((account) => (
-              <div key={account.id} className={cn("overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-[0_14px_34px_rgba(17,17,17,0.12)]", getAccountSkin(account))}>
+              <div key={account.id} className={cn("overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-[var(--on-accent)] shadow-[0_14px_34px_rgba(16,16,16,0.14)]", getAccountSkin(account))}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-medium">{account.name}</p>
-                    <p className="text-sm text-white/65">{getAccountRole(account)}</p>
+                    <p className="text-sm text-[rgba(255,250,242,0.72)]">{getAccountRole(account)}</p>
                   </div>
                   <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
-                    <Landmark className="h-5 w-5 text-white/80" />
+                    <Landmark className="h-5 w-5 text-[rgba(255,250,242,0.84)]" />
                   </div>
                 </div>
                 <p className="mt-5 text-2xl font-semibold">{formatCOP(account.balance)}</p>
-                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/55">Disponible hoy</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[rgba(255,250,242,0.66)]">Disponible hoy</p>
               </div>
             ))
           ) : (
@@ -1666,7 +1667,7 @@ function MovementsView({
         action={
           <Link
             href="/?view=register"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+            className="arca-primary-action arca-focus inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium"
           >
             <Plus className="h-4 w-4" />
             Registrar
@@ -1754,7 +1755,7 @@ function CashflowView({
             action={
               <Link
                 href="/?view=register"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+                className="arca-primary-action arca-focus inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium"
               >
                 <Plus className="h-4 w-4" />
                 Registrar
@@ -2591,22 +2592,22 @@ function CardsView({
 
               return (
                 <div key={card.id} className="grid gap-3 rounded-2xl border border-black/8 bg-white/45 p-3 md:grid-cols-[minmax(280px,0.9fr)_1fr]">
-                  <div className={cn("relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]", skin.bg)}>
+                  <div className={cn("relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-[var(--on-accent)] shadow-[0_18px_40px_rgba(16,16,16,0.2)]", skin.bg)}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-white/65">{skin.label}</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-[rgba(255,250,242,0.72)]">{skin.label}</p>
                         <p className="mt-2 text-xl font-semibold">{card.name}</p>
-                        <p className="mt-1 text-sm text-white/70">{card.issuer}</p>
+                        <p className="mt-1 text-sm text-[rgba(255,250,242,0.76)]">{card.issuer}</p>
                       </div>
                       <div className={cn("h-9 w-12 rounded-lg opacity-90", skin.chip)} />
                     </div>
                     <div className="mt-8 grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-white/55">Disponible</p>
+                        <p className="text-xs uppercase tracking-[0.14em] text-[rgba(255,250,242,0.66)]">Disponible</p>
                         <p className="mt-1 text-2xl font-semibold">{formatCOP(getCardAvailable(card))}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs uppercase tracking-[0.14em] text-white/55">Usado</p>
+                        <p className="text-xs uppercase tracking-[0.14em] text-[rgba(255,250,242,0.66)]">Usado</p>
                         <p className="mt-1 text-xl font-semibold">{usage}%</p>
                       </div>
                     </div>
@@ -2890,7 +2891,7 @@ function BudgetView({ events, transactions, selectedMonth }: DashboardData & { s
                     <p className="font-semibold text-[#111111]">{formatCOP(amount)}</p>
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-black/6">
-                    <div className="h-2 rounded-full bg-[#163a5f]" style={{ width: `${bucket.percent}%` }} />
+                    <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${bucket.percent}%` }} />
                   </div>
                 </div>
               );
@@ -3217,19 +3218,19 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <main className="min-h-screen p-4 md:p-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-black/8 bg-[var(--surface)] shadow-[0_18px_50px_rgba(17,17,17,0.08)] md:min-h-[calc(100vh-3rem)]">
-        <aside className="hidden w-72 shrink-0 flex-col border-r border-black/8 bg-[rgba(244,236,226,0.72)] p-5 lg:flex">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_18px_50px_rgba(16,16,16,0.1)] md:min-h-[calc(100vh-3rem)]">
+        <aside className="hidden w-72 shrink-0 flex-col border-r border-[var(--line)] bg-[rgba(238,227,213,0.82)] p-5 lg:flex">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-black/45">Arca</p>
-            <h1 className="mt-2 text-2xl font-semibold text-[#111111]">Control claro de caja.</h1>
-            <p className="mt-3 text-sm leading-6 text-black/60">
+            <Image src="/arca-logo.svg" alt="Arca Finance" width={184} height={48} priority className="h-auto w-36" />
+            <h1 className="mt-5 text-2xl font-semibold text-[var(--foreground)]">Control claro de caja.</h1>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
               Registro manual, proyeccion, deudas, tarjetas y operacion por unidad.
             </p>
           </div>
 
           <Link
             href="/?view=register"
-            className="mt-6 inline-flex h-11 w-full items-center justify-start gap-2 rounded-xl bg-[#163a5f] px-5 text-sm font-medium text-white hover:bg-[#102d49]"
+            className="arca-primary-action arca-focus mt-6 inline-flex h-11 w-full items-center justify-start gap-2 rounded-xl px-5 text-sm font-medium"
           >
             <Plus className="h-4 w-4" />
             Registrar movimiento
@@ -3244,8 +3245,8 @@ export default async function Home({ searchParams }: HomeProps) {
                   key={item.view}
                   href={getMonthHref(item.view, selectedMonth)}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
-                    isActive ? "bg-[#163a5f] text-white" : "text-black/70 hover:bg-black/5 hover:text-black"
+                    "arca-focus flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                    isActive ? "arca-primary-action" : "text-[var(--muted)] hover:bg-black/5 hover:text-[var(--foreground)]"
                   )}
                 >
                   <item.icon className="h-4 w-4" />
@@ -3256,8 +3257,8 @@ export default async function Home({ searchParams }: HomeProps) {
           </nav>
 
           <Card className="mt-auto p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-black/55">Estado datos</p>
-            <p className="mt-2 text-sm leading-6 text-black/70">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Estado datos</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
               {data.source === "supabase"
                 ? "Los registros manuales escriben en Supabase y actualizan saldos cuando el movimiento queda pagado."
                 : data.issue ?? "Arca no esta mostrando datos inventados. Revisa la conexion para cargar datos reales."}
@@ -3269,11 +3270,16 @@ export default async function Home({ searchParams }: HomeProps) {
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-black/8 px-4 py-4 md:px-6">
+          <header className="border-b border-[var(--line)] px-4 py-4 md:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-black/45">Arca Finance</p>
-                <h2 className="mt-1 text-xl font-semibold text-[#111111] md:text-2xl">{viewTitles[activeView]}</h2>
+                <div className="flex items-center gap-3">
+                  <Image src="/arca-mark.svg" alt="" width={96} height={96} priority className="h-8 w-8 rounded-lg" />
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Arca Finance</p>
+                    <h2 className="mt-1 text-xl font-semibold text-[var(--foreground)] md:text-2xl">{viewTitles[activeView]}</h2>
+                  </div>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {params.saved === "1" ? <Badge tone="success">Movimiento guardado</Badge> : null}
@@ -3282,7 +3288,7 @@ export default async function Home({ searchParams }: HomeProps) {
                 <Badge tone={dataTone}>{dataLabel}</Badge>
                 <Link
                   href={getMonthHref("register", selectedMonth)}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+                  className="arca-primary-action arca-focus inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium"
                 >
                   <Plus className="h-4 w-4" />
                   Registrar
@@ -3296,8 +3302,8 @@ export default async function Home({ searchParams }: HomeProps) {
                   key={item.view}
                   href={getMonthHref(item.view, selectedMonth)}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm",
-                    item.view === activeView ? "bg-[#163a5f] text-white" : "bg-black/5 text-black/70"
+                    "arca-focus inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm",
+                    item.view === activeView ? "arca-primary-action" : "bg-black/5 text-[var(--muted)]"
                   )}
                 >
                   <item.icon className="h-4 w-4" />

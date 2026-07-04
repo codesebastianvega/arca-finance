@@ -2,8 +2,23 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Arca",
+  applicationName: "Arca Finance",
+  title: {
+    default: "Arca Finance",
+    template: "%s | Arca Finance",
+  },
   description: "Control financiero personal y operativo con claridad.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/arca-mark.svg",
+  },
+  openGraph: {
+    title: "Arca Finance",
+    description: "Control financiero personal y operativo con claridad.",
+    siteName: "Arca Finance",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

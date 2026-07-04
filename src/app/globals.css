@@ -1,17 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3efe8;
-  --foreground: #111111;
-  --surface: #fffaf3;
-  --surface-2: #f4ece2;
-  --line: rgba(17, 17, 17, 0.08);
-  --muted: #5f5a52;
-  --accent: #163a5f;
-  --accent-2: #8f6d3b;
-  --success: #16735b;
-  --warning: #b86a1e;
-  --danger: #a43d31;
+  --background: #f6f0e7;
+  --foreground: #101010;
+  --surface: #fffaf2;
+  --surface-2: #eee3d5;
+  --surface-strong: #ffffff;
+  --line: rgba(16, 16, 16, 0.12);
+  --line-strong: rgba(16, 16, 16, 0.2);
+  --muted: #51483c;
+  --muted-2: #756a5e;
+  --accent: #0f3554;
+  --accent-hover: #09263f;
+  --on-accent: #fffaf2;
+  --accent-2: #a27734;
+  --accent-2-strong: #7a561f;
+  --success: #0d6b51;
+  --success-bg: #dbeee7;
+  --warning: #96520e;
+  --warning-bg: #f8e6cf;
+  --danger: #9e2f24;
+  --danger-bg: #f5deda;
+  --focus: rgba(15, 53, 84, 0.32);
 }
 
 @theme inline {
@@ -28,8 +38,8 @@
 html {
   height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(22, 58, 95, 0.08), transparent 28%),
-    radial-gradient(circle at top right, rgba(143, 109, 59, 0.1), transparent 24%),
+    radial-gradient(circle at top left, rgba(15, 53, 84, 0.1), transparent 28%),
+    radial-gradient(circle at top right, rgba(162, 119, 52, 0.12), transparent 24%),
     var(--background);
 }
 
@@ -46,7 +56,7 @@ a {
 }
 
 ::selection {
-  background: rgba(22, 58, 95, 0.18);
+  background: rgba(15, 53, 84, 0.2);
 }
 
 .shell-grid {
@@ -59,4 +69,38 @@ a {
 .noise {
   background-image: radial-gradient(rgba(17, 17, 17, 0.06) 1px, transparent 1px);
   background-size: 18px 18px;
+}
+
+.arca-primary-action {
+  background: var(--accent);
+  color: var(--on-accent) !important;
+  box-shadow: 0 12px 28px rgba(15, 53, 84, 0.18);
+}
+
+.arca-primary-action:hover {
+  background: var(--accent-hover);
+}
+
+.arca-primary-action svg,
+.arca-primary-action span {
+  color: currentColor;
+}
+
+.arca-focus {
+  outline: none;
+}
+
+.arca-focus:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.arca-surface {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.arca-panel {
+  background: color-mix(in srgb, var(--surface) 84%, white 16%);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(16, 16, 16, 0.04);
 }
