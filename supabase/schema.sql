@@ -108,7 +108,12 @@ create table if not exists public.debts (
 );
 
 alter table public.debts add column if not exists debt_type text not null default 'personal';
+alter table public.debts add column if not exists principal_amount numeric;
+alter table public.debts add column if not exists annual_interest_rate numeric;
+alter table public.debts add column if not exists interest_type text not null default 'unknown';
+alter table public.debts add column if not exists term_months integer;
 alter table public.debts add column if not exists remaining_months integer;
+alter table public.debts add column if not exists estimated_total_payment numeric;
 alter table public.debts add column if not exists notes text;
 
 create table if not exists public.debt_payments (
@@ -133,10 +138,23 @@ create table if not exists public.credit_cards (
   cut_off_date integer not null,
   pay_due_date integer not null,
   minimum_payment numeric not null default 0,
+  annual_interest_rate numeric,
+  interest_type text not null default 'unknown',
+  estimated_payoff_months integer,
+  estimated_total_payment numeric,
+  payment_strategy text not null default 'minimum',
+  notes text,
   status text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.credit_cards add column if not exists annual_interest_rate numeric;
+alter table public.credit_cards add column if not exists interest_type text not null default 'unknown';
+alter table public.credit_cards add column if not exists estimated_payoff_months integer;
+alter table public.credit_cards add column if not exists estimated_total_payment numeric;
+alter table public.credit_cards add column if not exists payment_strategy text not null default 'minimum';
+alter table public.credit_cards add column if not exists notes text;
 
 create table if not exists public.credit_card_purchases (
   id uuid primary key default gen_random_uuid(),

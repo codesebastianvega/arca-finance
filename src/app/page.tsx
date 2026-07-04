@@ -41,7 +41,7 @@ import {
   parseCalendarDate,
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
-import type { Account, BusinessUnitKey, Debt, FinancialEvent, Transaction } from "@/lib/types";
+import type { Account, BusinessUnitKey, CreditCard as CreditCardRecord, Debt, FinancialEvent, Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +70,7 @@ type HomeProps = {
     month?: string;
     view?: string;
     debt?: string;
+    card?: string;
   }>;
 };
 
@@ -346,6 +347,79 @@ function getDaysFromToday(value: string) {
   const date = parseCalendarDate(value).getTime();
 
   return Math.round((date - today) / (24 * 60 * 60 * 1000));
+}
+
+function getMonthlyRate(annualInterestRate?: number) {
+  if (!annualInterestRate || annualInterestRate <= 0) {
+    return 0;
+  }
+
+  return Math.pow(1 + annualInterestRate / 100, 1 / 12) - 1;
+}
+
+function estimatePayoff({
+  balance,
+  monthlyPayment,
+  annualInterestRate,
+  overrideMonths,
+  overrideTotal,
+}: {
+  balance: number;
+  monthlyPayment: number;
+  annualInterestRate?: number;
+  overrideMonths?: number;
+  overrideTotal?: number;
+}) {
+  if (overrideTotal && overrideTotal > 0) {
+    return {
+      months: overrideMonths ?? (monthlyPayment > 0 ? Math.ceil(overrideTotal / monthlyPayment) : 0),
+      total: overrideTotal,
+      interest: Math.max(0, overrideTotal - balance),
+      warning: undefined,
+    };
+  }
+
+  if (balance <= 0) {
+    return { months: 0, total: 0, interest: 0, warning: undefined };
+  }
+
+  if (monthlyPayment <= 0) {
+    return {
+      months: overrideMonths ?? 0,
+      total: overrideMonths ? balance : 0,
+      interest: 0,
+      warning: "Falta cuota para estimar amortizacion.",
+    };
+  }
+
+  const monthlyRate = getMonthlyRate(annualInterestRate);
+
+  if (monthlyRate <= 0) {
+    const months = overrideMonths ?? Math.ceil(balance / monthlyPayment);
+    const total = months * monthlyPayment;
+
+    return { months, total, interest: Math.max(0, total - balance), warning: undefined };
+  }
+
+  const monthlyInterest = balance * monthlyRate;
+
+  if (monthlyPayment <= monthlyInterest) {
+    return {
+      months: overrideMonths ?? 0,
+      total: 0,
+      interest: 0,
+      warning: "La cuota no cubre el interes mensual estimado.",
+    };
+  }
+
+  const months = overrideMonths ?? Math.ceil(-Math.log(1 - (monthlyRate * balance) / monthlyPayment) / Math.log(1 + monthlyRate));
+  const total = months * monthlyPayment;
+
+  return { months, total, interest: Math.max(0, total - balance), warning: undefined };
+}
+
+function formatRate(rate?: number) {
+  return rate == null ? "Sin tasa" : `${rate}% EA`;
 }
 
 function getMonthLabelFromKey(monthKey: string) {
@@ -1583,9 +1657,18 @@ function DebtDetailModal({
 
   const stats = getDebtPaymentStats(debt, events, transactions);
   const daysToDue = getDaysFromToday(debt.nextDueDate);
+  const payoff = estimatePayoff({
+    balance: debt.balance,
+    monthlyPayment: debt.installment,
+    annualInterestRate: debt.annualInterestRate,
+    overrideMonths: debt.remainingMonths ?? debt.termMonths,
+    overrideTotal: debt.estimatedTotalPayment,
+  });
+  const knownPrincipal = debt.principalAmount ?? stats.estimatedTotal;
+  const projectedTotalWithPaid = stats.paidAmount + payoff.total;
+  const projectedInterest = Math.max(0, projectedTotalWithPaid - knownPrincipal);
   const projectedEndDate =
-    stats.estimatedRemainingInstallments > 0 ? addMonthsToDateString(debt.nextDueDate, stats.estimatedRemainingInstallments - 1) : debt.nextDueDate;
-  const nextOpenEvent = stats.openEvents[0];
+    payoff.months > 0 ? addMonthsToDateString(debt.nextDueDate, payoff.months - 1) : debt.nextDueDate;
   const monthlyPressure = debt.installment > 0 ? getPercent(debt.installment, Math.max(debt.balance, debt.installment)) : 0;
 
   return (
@@ -1619,10 +1702,22 @@ function DebtDetailModal({
             <MetricCard label="Cuotas pagadas" value={`${stats.paidInstallments}`} delta="segun pagos registrados" tone="success" />
             <MetricCard
               label="Cuotas pendientes"
-              value={`${stats.estimatedRemainingInstallments}`}
+              value={`${payoff.months || stats.estimatedRemainingInstallments}`}
               delta={debt.remainingMonths ? "dato cargado" : "estimadas por saldo/cuota"}
               tone="warning"
             />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <MetricCard label="Capital inicial" value={formatCOP(knownPrincipal)} tone="neutral" />
+            <MetricCard label="Tasa cargada" value={formatRate(debt.annualInterestRate)} delta={debt.interestType ?? "tipo pendiente"} tone="warning" />
+            <MetricCard
+              label="Total final estimado"
+              value={payoff.total ? formatCOP(projectedTotalWithPaid) : "Por calcular"}
+              delta={payoff.warning}
+              tone={payoff.warning ? "danger" : "warning"}
+            />
+            <MetricCard label="Costo financiero" value={formatCOP(projectedInterest)} delta="interes y costo sobre capital" tone={projectedInterest > 0 ? "danger" : "success"} />
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -1665,10 +1760,11 @@ function DebtDetailModal({
                   <p className="mt-1 font-semibold text-[#111111]">{monthlyPressure}%</p>
                 </div>
                 <div>
-                  <p className="text-sm text-black/55">Evento abierto</p>
-                  <p className="mt-1 font-semibold text-[#111111]">{nextOpenEvent ? formatCOP(nextOpenEvent.amount) : "Sin evento"}</p>
+                  <p className="text-sm text-black/55">Total por pagar desde hoy</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{payoff.total ? formatCOP(payoff.total) : "Sin estimacion"}</p>
                 </div>
               </div>
+              {payoff.warning ? <p className="mt-3 text-sm font-medium text-[var(--danger)]">{payoff.warning}</p> : null}
               <div className="mt-4 rounded-2xl bg-black/3 p-4">
                 <p className="text-sm font-medium text-[#111111]">Lectura operativa</p>
                 <p className="mt-1 text-sm leading-6 text-black/60">
@@ -1769,6 +1865,10 @@ function DebtsView({
             <input name="balance" type="number" min="1" step="100" className={fieldClass} required />
           </label>
           <label className="space-y-2">
+            <span className={labelClass}>Capital inicial</span>
+            <input name="principalAmount" type="number" min="0" step="100" className={fieldClass} placeholder="Ej. 6700000" />
+          </label>
+          <label className="space-y-2">
             <span className={labelClass}>Cuota</span>
             <input name="installment" type="number" min="0" step="100" className={fieldClass} defaultValue="0" required />
           </label>
@@ -1779,6 +1879,28 @@ function DebtsView({
           <label className="space-y-2">
             <span className={labelClass}>Meses restantes</span>
             <input name="remainingMonths" type="number" min="0" step="1" className={fieldClass} placeholder="0 si no aplica" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Plazo total meses</span>
+            <input name="termMonths" type="number" min="0" step="1" className={fieldClass} placeholder="Ej. 44" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Tasa interes anual</span>
+            <input name="annualInterestRate" type="number" min="0" step="0.01" className={fieldClass} placeholder="Ej. 38.5" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Tipo de tasa</span>
+            <select name="interestType" className={fieldClass} defaultValue="effective_annual">
+              <option value="effective_annual">Efectiva anual</option>
+              <option value="nominal_annual">Nominal anual</option>
+              <option value="monthly">Mensual</option>
+              <option value="none">Sin interes</option>
+              <option value="unknown">Por confirmar</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Total final estimado</span>
+            <input name="estimatedTotalPayment" type="number" min="0" step="100" className={fieldClass} placeholder="Si el recibo lo informa" />
           </label>
           <label className="space-y-2">
             <span className={labelClass}>Prioridad</span>
@@ -1874,11 +1996,228 @@ function DebtsView({
   );
 }
 
-function CardsView({ cards, transactions }: DashboardData) {
+function getRelatedCardTransactions(card: CreditCardRecord, transactions: Transaction[]) {
+  const normalizedName = card.name.toLowerCase();
+  const normalizedIssuer = card.issuer.toLowerCase();
+
+  return transactions.filter(
+    (tx) =>
+      tx.kind === "card_payment" &&
+      (tx.concept.toLowerCase().includes(normalizedName) || tx.concept.toLowerCase().includes(normalizedIssuer))
+  );
+}
+
+function getCardStatusTone(card: CreditCardRecord) {
+  const usage = getCardUsagePercent(card.used, card.limit);
+
+  if (card.status === "blocked" || usage > 75) {
+    return "danger" as const;
+  }
+
+  if (usage > 50) {
+    return "warning" as const;
+  }
+
+  return "success" as const;
+}
+
+function CardDetailModal({
+  card,
+  events,
+  transactions,
+  selectedMonth,
+}: {
+  card?: CreditCardRecord;
+  events: FinancialEvent[];
+  transactions: Transaction[];
+  selectedMonth: string;
+}) {
+  if (!card) {
+    return null;
+  }
+
+  const usage = getCardUsagePercent(card.used, card.limit);
+  const available = getCardAvailable(card);
+  const payoff = estimatePayoff({
+    balance: card.used,
+    monthlyPayment: card.minimumPayment,
+    annualInterestRate: card.annualInterestRate,
+    overrideMonths: card.estimatedPayoffMonths,
+    overrideTotal: card.estimatedTotalPayment,
+  });
+  const relatedEvents = events
+    .filter((event) => event.relatedTable === "credit_cards" && event.relatedId === card.id)
+    .sort((a, b) => getEventTime(a) - getEventTime(b));
+  const relatedTransactions = getRelatedCardTransactions(card, transactions);
+  const paidAmount = relatedTransactions
+    .filter((tx) => tx.status === "paid" || tx.status === "confirmed")
+    .reduce((total, tx) => total + tx.amount, 0);
+  const projectedInterest = Math.max(0, payoff.total - card.used);
+  const monthlyInterest = card.used * getMonthlyRate(card.annualInterestRate);
+  const nextPaymentEvent = relatedEvents.find(isOpenEvent);
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/35 p-4 backdrop-blur-sm">
+      <div className="mx-auto max-w-5xl">
+        <Card className="relative overflow-hidden p-5 shadow-[0_24px_80px_rgba(17,17,17,0.28)] md:p-6">
+          <Link
+            href={getMonthHref("cards", selectedMonth)}
+            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-black/65 hover:bg-black/10"
+            aria-label="Cerrar detalle de tarjeta"
+          >
+            <X className="h-4 w-4" />
+          </Link>
+
+          <div className="pr-12">
+            <p className="text-xs uppercase tracking-[0.22em] text-black/55">Detalle de tarjeta</p>
+            <h3 className="mt-2 text-2xl font-semibold text-[#111111] md:text-4xl">{card.name}</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge tone={getCardStatusTone(card)}>{card.status}</Badge>
+              <Badge tone={usage > 75 ? "danger" : "success"}>{usage}% usado</Badge>
+              <Badge tone="neutral">Corte dia {card.cutOffDate}</Badge>
+              <Badge tone="warning">Pago dia {card.payDueDate}</Badge>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <MetricCard label="Cupo total" value={formatCOP(card.limit)} tone="neutral" />
+            <MetricCard label="Usado/deuda" value={formatCOP(card.used)} tone={card.used > 0 ? "danger" : "success"} />
+            <MetricCard label="Disponible" value={formatCOP(available)} tone={available > 0 ? "success" : "danger"} />
+            <MetricCard label="Pago minimo" value={formatCOP(card.minimumPayment)} tone="warning" />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <MetricCard label="Tasa cargada" value={formatRate(card.annualInterestRate)} delta={card.interestType ?? "tipo pendiente"} tone="warning" />
+            <MetricCard
+              label="Total final estimado"
+              value={payoff.total ? formatCOP(payoff.total) : "Por calcular"}
+              delta={payoff.warning ?? "si mantienes la estrategia actual"}
+              tone={payoff.warning ? "danger" : "warning"}
+            />
+            <MetricCard label="Costo financiero" value={formatCOP(projectedInterest)} delta="interes estimado" tone={projectedInterest > 0 ? "danger" : "success"} />
+            <MetricCard label="Meses estimados" value={`${payoff.months || 0}`} delta={card.paymentStrategy ?? "pago minimo"} tone="neutral" />
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-black/8 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-[#111111]">Uso recomendado maximo 75%</span>
+                <span className={cn("font-semibold", usage > 75 ? "text-[var(--danger)]" : "text-[var(--success)]")}>{usage}%</span>
+              </div>
+              <div className="mt-3 h-3 rounded-full bg-black/6">
+                <div
+                  className={cn("h-3 rounded-full", usage > 75 ? "bg-[var(--danger)]" : "bg-[var(--success)]")}
+                  style={{ width: `${Math.min(100, usage)}%` }}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Interes mensual aprox</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(monthlyInterest)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Pagado registrado</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(paidAmount)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Lectura de vida crediticia</p>
+              <p className="mt-2 text-sm leading-6 text-black/65">
+                {usage > 75
+                  ? "La tarjeta esta por encima del uso recomendado. Conviene bajar saldo antes de volver a usarla."
+                  : card.status === "blocked"
+                    ? "Esta bloqueada. Prioriza el pago minimo o acuerdo para recuperar uso y evitar mora."
+                    : "El uso esta dentro de un rango manejable si el pago se hace antes de la fecha limite."}
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-black/55">Proximo evento</p>
+                  <p className="mt-1 font-semibold text-[#111111]">
+                    {nextPaymentEvent ? `${formatDate(nextPaymentEvent.eventDate)} - ${formatCOP(nextPaymentEvent.amount)}` : "Sin evento"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-black/55">Pago optimo</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(Math.max(card.minimumPayment, card.used - card.limit * 0.75))}</p>
+                </div>
+              </div>
+              {payoff.warning ? <p className="mt-3 text-sm font-medium text-[var(--danger)]">{payoff.warning}</p> : null}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-black/8 p-4">
+              <SectionHeader eyebrow="Cronograma" title="Pagos programados" />
+              <div className="mt-3 divide-y divide-black/8">
+                {relatedEvents.length ? (
+                  relatedEvents.map((event) => (
+                    <div key={event.id} className="grid gap-2 py-3 md:grid-cols-[1fr_auto] md:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-[#111111]">{event.title}</p>
+                          <Badge tone={getEventTone(event)}>{getEventStatusLabel(event)}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-black/55">{formatDate(event.eventDate)}</p>
+                      </div>
+                      <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState label="No hay pagos programados asociados a esta tarjeta." />
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/8 p-4">
+              <SectionHeader eyebrow="Historial" title="Pagos registrados" />
+              <div className="mt-3 divide-y divide-black/8">
+                {relatedTransactions.length ? (
+                  relatedTransactions.slice(0, 8).map((tx) => (
+                    <div key={tx.id} className="grid gap-2 py-3 md:grid-cols-[1fr_auto] md:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-[#111111]">{tx.concept}</p>
+                          <Badge tone={getTransactionTone(tx.kind)}>{tx.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-black/55">{formatDate(tx.date)}</p>
+                      </div>
+                      <p className="font-semibold text-[#111111]">{formatCOP(tx.amount)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState label="Aun no hay pagos cerrados detectados para esta tarjeta." />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-black/8 p-4">
+            <SectionHeader eyebrow="Notas" title="Contexto de la tarjeta" />
+            <p className="mt-3 text-sm leading-6 text-black/65">
+              {card.notes || "Sin notas registradas. Aqui conviene guardar bloqueo, acuerdos, beneficios, compras a cuotas o condiciones de interes."}
+            </p>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function CardsView({
+  cards,
+  events,
+  transactions,
+  selectedCardId,
+  selectedMonth,
+}: DashboardData & { selectedCardId?: string; selectedMonth: string }) {
   const cardTransactions = transactions.filter((tx) => tx.kind === "card_payment");
+  const selectedCard = cards.find((card) => card.id === selectedCardId);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <CardDetailModal card={selectedCard} events={events} transactions={transactions} selectedMonth={selectedMonth} />
       <Card className="p-5">
         <SectionHeader eyebrow="Nueva tarjeta" title="Cargar tarjeta de credito" />
         <form action={createCreditCard} className="mt-5 grid gap-4 md:grid-cols-2">
@@ -1910,6 +2249,40 @@ function CardsView({ cards, transactions }: DashboardData) {
             <span className={labelClass}>Pago minimo actual</span>
             <input name="minimumPayment" type="number" min="0" step="100" className={fieldClass} defaultValue="0" required />
           </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Tasa interes anual</span>
+            <input name="annualInterestRate" type="number" min="0" step="0.01" className={fieldClass} placeholder="Ej. 42" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Tipo de tasa</span>
+            <select name="interestType" className={fieldClass} defaultValue="effective_annual">
+              <option value="effective_annual">Efectiva anual</option>
+              <option value="nominal_annual">Nominal anual</option>
+              <option value="monthly">Mensual</option>
+              <option value="unknown">Por confirmar</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Meses estimados pago</span>
+            <input name="estimatedPayoffMonths" type="number" min="0" step="1" className={fieldClass} placeholder="Si el banco lo informa" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Total final estimado</span>
+            <input name="estimatedTotalPayment" type="number" min="0" step="100" className={fieldClass} placeholder="Si aparece en extracto" />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Estrategia de pago</span>
+            <select name="paymentStrategy" className={fieldClass} defaultValue="minimum">
+              <option value="minimum">Pago minimo</option>
+              <option value="fixed">Cuota fija</option>
+              <option value="full">Pago total</option>
+              <option value="custom">Personalizada</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Notas</span>
+            <input name="notes" className={fieldClass} placeholder="Bloqueo, acuerdo, beneficios, compras a cuotas..." />
+          </label>
           <div className="md:col-span-2">
             <Button type="submit" className="w-full">
               <Plus className="h-4 w-4" />
@@ -1923,18 +2296,40 @@ function CardsView({ cards, transactions }: DashboardData) {
         <SectionHeader eyebrow="Tarjetas" title="Cupos y fechas de pago" />
         <div className="mt-4 space-y-3">
           {cards.length ? (
-            cards.map((card) => (
+            cards.map((card) => {
+              const payoff = estimatePayoff({
+                balance: card.used,
+                monthlyPayment: card.minimumPayment,
+                annualInterestRate: card.annualInterestRate,
+                overrideMonths: card.estimatedPayoffMonths,
+                overrideTotal: card.estimatedTotalPayment,
+              });
+
+              return (
               <div key={card.id} className="rounded-2xl border border-black/8 p-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-[#111111]">{card.name}</p>
                     <p className="text-sm text-black/55">
                       Corte {card.cutOffDate} - pago {card.payDueDate}
                     </p>
                   </div>
-                  <Badge tone="warning">{card.status}</Badge>
+                  <Link
+                    href={`/?view=cards&month=${selectedMonth}&card=${card.id}`}
+                    className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-black/5 px-3 text-sm font-medium text-[#111111] hover:bg-black/10"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Detalle
+                  </Link>
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge tone={getCardStatusTone(card)}>{card.status}</Badge>
+                  <Badge tone={getCardUsagePercent(card.used, card.limit) > 75 ? "danger" : "success"}>
+                    {getCardUsagePercent(card.used, card.limit)}% usado
+                  </Badge>
+                  <Badge tone="warning">{formatRate(card.annualInterestRate)}</Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cupo</p>
                     <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.limit)}</p>
@@ -1946,6 +2341,10 @@ function CardsView({ cards, transactions }: DashboardData) {
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-black/45">Minimo</p>
                     <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.minimumPayment)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Total estimado</p>
+                    <p className="mt-1 font-semibold text-[#111111]">{payoff.total ? formatCOP(payoff.total) : "Pendiente"}</p>
                   </div>
                 </div>
                 <div className="mt-4">
@@ -1969,7 +2368,8 @@ function CardsView({ cards, transactions }: DashboardData) {
                   </p>
                 </div>
               </div>
-            ))
+              );
+            })
           ) : (
             <EmptyState label="Aun no hay tarjetas. Carga cupo, usado, corte, pago y minimo actual." />
           )}
@@ -2399,7 +2799,7 @@ function BusinessView(data: DashboardData & { selectedMonth: string }) {
   );
 }
 
-function renderView(view: ViewKey, data: DashboardData, selectedMonth: string, selectedDebtId?: string) {
+function renderView(view: ViewKey, data: DashboardData, selectedMonth: string, selectedDebtId?: string, selectedCardId?: string) {
   const incomeTransactions = data.transactions.filter((tx) => tx.kind === "income" && isSelectedMonth(tx.date, selectedMonth));
   const expenseTransactions = data.transactions.filter((tx) =>
     ["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind) && isSelectedMonth(tx.date, selectedMonth)
@@ -2423,7 +2823,7 @@ function renderView(view: ViewKey, data: DashboardData, selectedMonth: string, s
     case "debts":
       return <DebtsView {...data} selectedDebtId={selectedDebtId} selectedMonth={selectedMonth} />;
     case "cards":
-      return <CardsView {...data} />;
+      return <CardsView {...data} selectedCardId={selectedCardId} selectedMonth={selectedMonth} />;
     case "savings":
       return <SavingsView {...data} />;
     case "budget":
@@ -2541,7 +2941,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </nav>
           </header>
 
-          <div className="shell-grid flex-1 overflow-y-auto p-4 md:p-6">{renderView(activeView, data, selectedMonth, params.debt)}</div>
+          <div className="shell-grid flex-1 overflow-y-auto p-4 md:p-6">{renderView(activeView, data, selectedMonth, params.debt, params.card)}</div>
         </section>
       </div>
     </main>

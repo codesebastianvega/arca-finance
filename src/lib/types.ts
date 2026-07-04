@@ -57,10 +57,15 @@ export interface Debt {
   name: string;
   lender: string;
   debtType: string;
+  principalAmount?: number;
   balance: number;
   installment: number;
   nextDueDate: string;
+  annualInterestRate?: number;
+  interestType?: string;
+  termMonths?: number;
   remainingMonths?: number;
+  estimatedTotalPayment?: number;
   status: "active" | "paid" | "late";
   priority: "high" | "medium" | "low";
   notes?: string;
@@ -75,6 +80,12 @@ export interface CreditCard {
   cutOffDate: number;
   payDueDate: number;
   minimumPayment: number;
+  annualInterestRate?: number;
+  interestType?: string;
+  estimatedPayoffMonths?: number;
+  estimatedTotalPayment?: number;
+  paymentStrategy?: string;
+  notes?: string;
   status: "active" | "blocked" | "closed";
 }
 

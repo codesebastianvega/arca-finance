@@ -36,10 +36,15 @@ const debtSchema = z.object({
   name: z.string().trim().min(2),
   lender: z.string().trim().min(2),
   debtType: z.string().trim().min(2).default("personal"),
+  principalAmount: z.coerce.number().min(0).optional(),
   balance: z.coerce.number().positive(),
   installment: z.coerce.number().min(0),
   nextDueDate: z.string().trim().min(10),
+  annualInterestRate: z.coerce.number().min(0).optional(),
+  interestType: z.string().trim().optional(),
+  termMonths: z.coerce.number().int().min(0).optional(),
   remainingMonths: z.coerce.number().int().min(0).optional(),
+  estimatedTotalPayment: z.coerce.number().min(0).optional(),
   priority: z.enum(["high", "medium", "low"]),
   notes: z.string().trim().optional(),
 });
@@ -52,6 +57,12 @@ const creditCardSchema = z.object({
   cutOffDate: z.coerce.number().int().min(1).max(31),
   payDueDate: z.coerce.number().int().min(1).max(31),
   minimumPayment: z.coerce.number().min(0),
+  annualInterestRate: z.coerce.number().min(0).optional(),
+  interestType: z.string().trim().optional(),
+  estimatedPayoffMonths: z.coerce.number().int().min(0).optional(),
+  estimatedTotalPayment: z.coerce.number().min(0).optional(),
+  paymentStrategy: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
 });
 
 const savingsGoalSchema = z.object({
@@ -242,10 +253,15 @@ export async function createDebt(formData: FormData) {
     name: formData.get("name"),
     lender: formData.get("lender"),
     debtType: formData.get("debtType") || "personal",
+    principalAmount: formData.get("principalAmount") || undefined,
     balance: formData.get("balance"),
     installment: formData.get("installment"),
     nextDueDate: formData.get("nextDueDate"),
+    annualInterestRate: formData.get("annualInterestRate") || undefined,
+    interestType: formData.get("interestType") || undefined,
+    termMonths: formData.get("termMonths") || undefined,
     remainingMonths: formData.get("remainingMonths") || undefined,
+    estimatedTotalPayment: formData.get("estimatedTotalPayment") || undefined,
     priority: formData.get("priority"),
     notes: formData.get("notes") || undefined,
   });
@@ -256,22 +272,34 @@ export async function createDebt(formData: FormData) {
     throw new Error("Supabase no esta configurado en el servidor.");
   }
 
-  const { data: debt, error } = await supabase
-    .from("debts")
-    .insert({
-      name: input.name,
-      lender: input.lender,
-      debt_type: input.debtType,
-      balance: input.balance,
-      installment: input.installment,
-      next_due_date: input.nextDueDate,
-      remaining_months: input.remainingMonths ?? null,
-      status: "active",
-      priority: input.priority,
-      notes: input.notes ?? null,
-    })
-    .select("id")
-    .single();
+  const baseDebtInsert = {
+    name: input.name,
+    lender: input.lender,
+    debt_type: input.debtType,
+    balance: input.balance,
+    installment: input.installment,
+    next_due_date: input.nextDueDate,
+    remaining_months: input.remainingMonths ?? null,
+    status: "active",
+    priority: input.priority,
+    notes: input.notes ?? null,
+  };
+  const extendedDebtInsert = {
+    ...baseDebtInsert,
+    principal_amount: input.principalAmount ?? null,
+    annual_interest_rate: input.annualInterestRate ?? null,
+    interest_type: input.interestType ?? "unknown",
+    term_months: input.termMonths ?? null,
+    estimated_total_payment: input.estimatedTotalPayment ?? null,
+  };
+
+  let { data: debt, error } = await supabase.from("debts").insert(extendedDebtInsert).select("id").single();
+
+  if (error && error.message.toLowerCase().includes("column")) {
+    const fallback = await supabase.from("debts").insert(baseDebtInsert).select("id").single();
+    debt = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(`No se pudo crear la deuda: ${error.message}`);
@@ -308,6 +336,12 @@ export async function createCreditCard(formData: FormData) {
     cutOffDate: formData.get("cutOffDate"),
     payDueDate: formData.get("payDueDate"),
     minimumPayment: formData.get("minimumPayment"),
+    annualInterestRate: formData.get("annualInterestRate") || undefined,
+    interestType: formData.get("interestType") || undefined,
+    estimatedPayoffMonths: formData.get("estimatedPayoffMonths") || undefined,
+    estimatedTotalPayment: formData.get("estimatedTotalPayment") || undefined,
+    paymentStrategy: formData.get("paymentStrategy") || undefined,
+    notes: formData.get("notes") || undefined,
   });
 
   const supabase = getSupabaseServerClient();
@@ -316,20 +350,33 @@ export async function createCreditCard(formData: FormData) {
     throw new Error("Supabase no esta configurado en el servidor.");
   }
 
-  const { data: card, error } = await supabase
-    .from("credit_cards")
-    .insert({
-      name: input.name,
-      issuer: input.issuer,
-      limit_value: input.limit,
-      used: input.used,
-      cut_off_date: input.cutOffDate,
-      pay_due_date: input.payDueDate,
-      minimum_payment: input.minimumPayment,
-      status: "active",
-    })
-    .select("id")
-    .single();
+  const baseCardInsert = {
+    name: input.name,
+    issuer: input.issuer,
+    limit_value: input.limit,
+    used: input.used,
+    cut_off_date: input.cutOffDate,
+    pay_due_date: input.payDueDate,
+    minimum_payment: input.minimumPayment,
+    status: "active",
+  };
+  const extendedCardInsert = {
+    ...baseCardInsert,
+    annual_interest_rate: input.annualInterestRate ?? null,
+    interest_type: input.interestType ?? "unknown",
+    estimated_payoff_months: input.estimatedPayoffMonths ?? null,
+    estimated_total_payment: input.estimatedTotalPayment ?? null,
+    payment_strategy: input.paymentStrategy ?? "minimum",
+    notes: input.notes ?? null,
+  };
+
+  let { data: card, error } = await supabase.from("credit_cards").insert(extendedCardInsert).select("id").single();
+
+  if (error && error.message.toLowerCase().includes("column")) {
+    const fallback = await supabase.from("credit_cards").insert(baseCardInsert).select("id").single();
+    card = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(`No se pudo crear la tarjeta: ${error.message}`);

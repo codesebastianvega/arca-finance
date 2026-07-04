@@ -66,6 +66,12 @@ type SupabaseCardRow = {
   cut_off_date: number;
   pay_due_date: number;
   minimum_payment: number | string;
+  annual_interest_rate?: number | string | null;
+  interest_type?: string | null;
+  estimated_payoff_months?: number | null;
+  estimated_total_payment?: number | string | null;
+  payment_strategy?: string | null;
+  notes?: string | null;
   status: CreditCard["status"];
 };
 
@@ -74,10 +80,15 @@ type SupabaseDebtRow = {
   name: string;
   lender: string;
   debt_type?: string | null;
+  principal_amount?: number | string | null;
   balance: number | string;
   installment: number | string;
   next_due_date: string;
+  annual_interest_rate?: number | string | null;
+  interest_type?: string | null;
+  term_months?: number | null;
   remaining_months?: number | null;
+  estimated_total_payment?: number | string | null;
   status: Debt["status"];
   priority: Debt["priority"];
   notes?: string | null;
@@ -209,6 +220,12 @@ function mapCard(row: SupabaseCardRow): CreditCard {
     cutOffDate: row.cut_off_date,
     payDueDate: row.pay_due_date,
     minimumPayment: toNumber(row.minimum_payment),
+    annualInterestRate: row.annual_interest_rate == null ? undefined : toNumber(row.annual_interest_rate),
+    interestType: row.interest_type ?? undefined,
+    estimatedPayoffMonths: row.estimated_payoff_months ?? undefined,
+    estimatedTotalPayment: row.estimated_total_payment == null ? undefined : toNumber(row.estimated_total_payment),
+    paymentStrategy: row.payment_strategy ?? undefined,
+    notes: row.notes ?? undefined,
     status: row.status,
   };
 }
@@ -219,10 +236,15 @@ function mapDebt(row: SupabaseDebtRow): Debt {
     name: row.name,
     lender: row.lender,
     debtType: row.debt_type ?? "personal",
+    principalAmount: row.principal_amount == null ? undefined : toNumber(row.principal_amount),
     balance: toNumber(row.balance),
     installment: toNumber(row.installment),
     nextDueDate: row.next_due_date,
+    annualInterestRate: row.annual_interest_rate == null ? undefined : toNumber(row.annual_interest_rate),
+    interestType: row.interest_type ?? undefined,
+    termMonths: row.term_months ?? undefined,
     remainingMonths: row.remaining_months ?? undefined,
+    estimatedTotalPayment: row.estimated_total_payment == null ? undefined : toNumber(row.estimated_total_payment),
     status: row.status,
     priority: row.priority,
     notes: row.notes ?? undefined,
