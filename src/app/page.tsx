@@ -13,6 +13,7 @@ import {
   MoveRight,
   Plus,
   PiggyBank,
+  Scale,
   Wallet,
 } from "lucide-react";
 import {
@@ -38,7 +39,7 @@ import {
   parseCalendarDate,
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
-import type { Account, FinancialEvent, Transaction } from "@/lib/types";
+import type { Account, BusinessUnitKey, FinancialEvent, Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ type ViewKey =
   | "debts"
   | "cards"
   | "savings"
+  | "budget"
   | "calendar"
   | "history"
   | "projections"
@@ -78,6 +80,7 @@ const navItems: { label: string; view: ViewKey; icon: typeof LayoutDashboard }[]
   { label: "Deudas", view: "debts", icon: AlertTriangle },
   { label: "Tarjetas", view: "cards", icon: CreditCard },
   { label: "Ahorro", view: "savings", icon: PiggyBank },
+  { label: "Presupuesto", view: "budget", icon: Scale },
   { label: "Calendario", view: "calendar", icon: CalendarDays },
   { label: "Historial", view: "history", icon: ListChecks },
   { label: "Proyeccion", view: "projections", icon: ListChecks },
@@ -94,6 +97,7 @@ const viewTitles: Record<ViewKey, string> = {
   debts: "Deudas",
   cards: "Tarjetas",
   savings: "Ahorro",
+  budget: "Presupuesto",
   calendar: "Calendario financiero",
   history: "Historial",
   projections: "Proyeccion mensual",
@@ -104,6 +108,32 @@ const fieldClass =
   "h-11 w-full rounded-xl border border-black/10 bg-white/70 px-3 text-sm text-[#111111] outline-none transition focus:border-[#163a5f]/50 focus:ring-2 focus:ring-[#163a5f]/10";
 
 const labelClass = "text-xs font-medium uppercase tracking-[0.16em] text-black/55";
+
+const businessLabels: Record<BusinessUnitKey, string> = {
+  personal: "Personal",
+  empresa: "Empresa",
+  deuxio: "Deuxio",
+  el_recreo: "El Recreo",
+  uxio: "Uxio",
+  sie: "SIE Travel",
+  aluna: "Aluna",
+  arca: "Arca",
+  freelance: "Freelance",
+};
+
+const coreBusinessUnits: BusinessUnitKey[] = ["el_recreo", "sie", "uxio", "aluna", "arca", "freelance", "personal"];
+
+const outflowKinds: FinancialEvent["eventType"][] = ["expense", "debt_payment", "card_payment", "saving"];
+
+const budgetBuckets = [
+  { id: "commitments", label: "Obligaciones", percent: 55, tone: "danger" as const },
+  { id: "debt", label: "Deuda y tarjetas", percent: 25, tone: "warning" as const },
+  { id: "savings", label: "Ahorro", percent: 10, tone: "success" as const },
+  { id: "joy", label: "Ocio y gustos", percent: 5, tone: "neutral" as const },
+  { id: "free", label: "Libre/colchon", percent: 5, tone: "success" as const },
+];
+
+const suggestedSavingsPockets = ["Alcancia monedas", "Alcancia billetes", "Colchon", "Nu ahorro rentable"];
 
 function getView(value?: string): ViewKey {
   return navItems.some((item) => item.view === value) ? (value as ViewKey) : "dashboard";
@@ -194,7 +224,92 @@ function getAccountName(accounts: Account[], accountId?: string) {
 }
 
 function getBusinessName(business: DashboardData["business"], unit?: string) {
-  return business.find((item) => item.id === unit)?.name ?? unit ?? "Sin fuente";
+  const typedUnit = unit as BusinessUnitKey | undefined;
+
+  if (typedUnit && businessLabels[typedUnit]) {
+    return business.find((item) => item.id === typedUnit)?.name ?? businessLabels[typedUnit];
+  }
+
+  return unit ?? "Sin fuente";
+}
+
+function getBusinessOptions(business: DashboardData["business"]) {
+  const known = new Set<BusinessUnitKey>();
+  const options = [
+    ...business.map((unit) => {
+      known.add(unit.id);
+      return { id: unit.id, name: getBusinessName(business, unit.id) };
+    }),
+    ...coreBusinessUnits.filter((unit) => !known.has(unit)).map((unit) => ({ id: unit, name: businessLabels[unit] })),
+  ];
+
+  return options.filter((option, index) => options.findIndex((item) => item.id === option.id) === index);
+}
+
+function getEventStatusLabel(event: FinancialEvent) {
+  if (event.status === "overdue") {
+    return "vencido";
+  }
+
+  if (event.status === "paid" || event.status === "confirmed") {
+    return "cerrado";
+  }
+
+  if (event.notes?.toLowerCase().includes("por confirmar")) {
+    return "fecha por confirmar";
+  }
+
+  if (event.notes?.toLowerCase().includes("estimad")) {
+    return "estimado";
+  }
+
+  return event.status;
+}
+
+function getEventKindLabel(event: FinancialEvent) {
+  const text = `${event.title} ${event.notes ?? ""}`.toLowerCase();
+
+  if (event.eventType === "income") {
+    return "Ingreso";
+  }
+
+  if (event.eventType === "card_payment") {
+    return "Tarjeta";
+  }
+
+  if (event.eventType === "debt_payment") {
+    return "Deuda";
+  }
+
+  if (text.includes("arriendo")) {
+    return "Gasto fijo";
+  }
+
+  if (text.includes("agua") || text.includes("gas") || text.includes("luz") || text.includes("claro") || text.includes("internet") || text.includes("celular")) {
+    return "Servicio";
+  }
+
+  if (event.eventType === "saving") {
+    return "Ahorro";
+  }
+
+  return "Gasto";
+}
+
+function getEventTone(event: FinancialEvent) {
+  if (event.status === "overdue") {
+    return "danger" as const;
+  }
+
+  if (event.eventType === "income") {
+    return "success" as const;
+  }
+
+  if (event.notes?.toLowerCase().includes("por confirmar")) {
+    return "warning" as const;
+  }
+
+  return "neutral" as const;
 }
 
 function getMonthKey(value: string) {
@@ -443,6 +558,95 @@ function buildIncomeSourceData(events: FinancialEvent[], business: DashboardData
     .sort((a, b) => b.value - a.value);
 }
 
+function buildBusinessMonthlySummary(data: DashboardData, monthKey: string) {
+  const units = new Map<BusinessUnitKey, {
+    id: BusinessUnitKey;
+    name: string;
+    expectedIncome: number;
+    receivedIncome: number;
+    expenses: number;
+    pending: number;
+    nextEvent?: FinancialEvent;
+  }>();
+
+  const ensureUnit = (unit: BusinessUnitKey) => {
+    const existing = units.get(unit);
+
+    if (existing) {
+      return existing;
+    }
+
+    const created = {
+      id: unit,
+      name: getBusinessName(data.business, unit),
+      expectedIncome: 0,
+      receivedIncome: 0,
+      expenses: 0,
+      pending: 0,
+      nextEvent: undefined,
+    };
+
+    units.set(unit, created);
+    return created;
+  };
+
+  coreBusinessUnits.forEach(ensureUnit);
+  data.business.forEach((unit) => ensureUnit(unit.id));
+
+  data.events
+    .filter((event) => isSelectedMonth(event.eventDate, monthKey))
+    .forEach((event) => {
+      const unit = ensureUnit(event.unit ?? "personal");
+      const isClosed = event.status === "paid" || event.status === "confirmed";
+
+      if (event.eventType === "income") {
+        unit.expectedIncome += isClosed ? 0 : event.amount;
+        unit.pending += isClosed ? 0 : event.amount;
+      } else {
+        unit.expenses += event.amount;
+        unit.pending += isClosed ? 0 : event.amount;
+      }
+
+      if (!isClosed && (!unit.nextEvent || getEventTime(event) < getEventTime(unit.nextEvent))) {
+        unit.nextEvent = event;
+      }
+    });
+
+  data.transactions
+    .filter((tx) => isSelectedMonth(tx.date, monthKey))
+    .forEach((tx) => {
+      const unit = ensureUnit(tx.unit);
+
+      if (tx.kind === "income") {
+        unit.receivedIncome += tx.amount;
+      } else if (["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind)) {
+        unit.expenses += tx.amount;
+      }
+    });
+
+  return [...units.values()].sort((a, b) => {
+    const totalB = b.expectedIncome + b.receivedIncome + b.expenses + b.pending;
+    const totalA = a.expectedIncome + a.receivedIncome + a.expenses + a.pending;
+
+    return totalB - totalA;
+  });
+}
+
+function getMonthCalendarDays(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const leadingDays = (firstDay.getDay() + 6) % 7;
+
+  return Array.from({ length: leadingDays + daysInMonth }, (_, index) => {
+    if (index < leadingDays) {
+      return null;
+    }
+
+    return index - leadingDays + 1;
+  });
+}
+
 function SectionHeader({
   eyebrow,
   title,
@@ -509,13 +713,12 @@ function EventList({ events, emptyLabel }: { events: FinancialEvent[]; emptyLabe
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium text-[#111111]">{event.title}</p>
-              <Badge tone={event.status === "overdue" ? "danger" : event.eventType === "income" ? "success" : "warning"}>
-                {event.status}
-              </Badge>
+              <Badge tone={getEventTone(event)}>{getEventStatusLabel(event)}</Badge>
             </div>
             <p className="mt-1 text-sm text-black/55">
-              {event.eventType} - {formatDate(event.eventDate)}
+              {getEventKindLabel(event)} - {formatDate(event.eventDate)}
               {event.unit ? ` - ${event.unit}` : ""}
+              {event.notes?.toLowerCase().includes("por confirmar") ? " - por confirmar" : ""}
             </p>
           </div>
           <p className="text-right font-semibold text-[#111111]">
@@ -559,6 +762,7 @@ function DashboardView({
   const notifications = getUpcomingNotifications(events);
   const transferSuggestions = cashTimeline.filter((item) => item.type === "payment" && item.needsTransfer);
   const transferSuggestionTotal = transferSuggestions.reduce((total, item) => total + item.event.amount, 0);
+  const futureEvents = events.filter((event) => isOpenEvent(event)).sort((a, b) => getEventTime(a) - getEventTime(b));
   const flowData = buildProjectedBalanceData(events, accounts, selectedMonth);
   const sourceData = buildIncomeSourceData(events, business, selectedMonth);
   const accountTotalForBars = Math.max(cashNow, 1);
@@ -636,7 +840,7 @@ function DashboardView({
             <p className="text-sm text-black/55">Pagos que podrian exigir combinar cuentas</p>
             <p className="mt-1 text-2xl font-semibold text-[#111111]">{formatCOP(transferSuggestionTotal)}</p>
             <p className="mt-2 text-sm leading-6 text-black/60">
-              Arca no registra automaticamente estas transferencias todavia. La siguiente iteracion debe permitir mover saldo entre cuentas y dejar auditoria.
+              Usa la vista Transferir para mover saldo entre cuentas y dejar auditoria antes de marcar pagos que requieren combinar caja.
             </p>
           </div>
         </Card>
@@ -855,14 +1059,14 @@ function DashboardView({
         <Card className="p-5">
           <SectionHeader eyebrow="Calendario" title="Eventos futuros" />
           <div className="mt-4 divide-y divide-black/8">
-            {events.slice(0, 5).map((event) => (
+            {futureEvents.slice(0, 5).map((event) => (
               <div key={event.id} className="flex items-center justify-between gap-4 py-3">
                 <div>
                   <p className={cn("font-medium", event.status === "overdue" ? "text-[var(--danger)]" : "text-[#111111]")}>
                     {event.title}
                   </p>
                   <p className={cn("text-sm", event.status === "overdue" ? "text-[var(--danger)]" : "text-black/55")}>
-                    {event.eventType} - {formatDate(event.eventDate)}
+                    {getEventKindLabel(event)} - {formatDate(event.eventDate)}
                   </p>
                 </div>
                 <p className={cn("font-semibold", event.status === "overdue" ? "text-[var(--danger)]" : "text-[#111111]")}>
@@ -870,6 +1074,7 @@ function DashboardView({
                 </p>
               </div>
             ))}
+            {!futureEvents.length ? <EmptyState label="No hay eventos futuros abiertos." /> : null}
           </div>
         </Card>
 
@@ -885,6 +1090,8 @@ function DashboardView({
 }
 
 function RegisterView({ accounts, business }: DashboardData) {
+  const businessOptions = getBusinessOptions(business);
+
   if (!accounts.length) {
     return (
       <Card className="p-6">
@@ -964,7 +1171,7 @@ function RegisterView({ accounts, business }: DashboardData) {
           <label className="space-y-2">
             <span className={labelClass}>Unidad</span>
             <select name="unit" className={fieldClass} defaultValue="personal" required>
-              {business.map((unit) => (
+              {businessOptions.map((unit) => (
                 <option key={unit.id} value={unit.id}>
                   {unit.name}
                 </option>
@@ -1173,6 +1380,20 @@ function CashflowView({
   type: "income" | "expense";
 }) {
   const isIncome = type === "income";
+  const groupedOutflows = outflowKinds.map((kind) => ({
+    kind,
+    label:
+      kind === "expense"
+        ? "Gastos fijos y servicios"
+        : kind === "debt_payment"
+          ? "Deudas"
+          : kind === "card_payment"
+            ? "Tarjetas"
+            : "Ahorro",
+    total: sumEvents(events.filter((event) => event.eventType === kind)),
+    count: events.filter((event) => event.eventType === kind).length,
+  }));
+  const unconfirmedEvents = events.filter((event) => event.notes?.toLowerCase().includes("por confirmar"));
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -1190,24 +1411,51 @@ function CashflowView({
         </div>
       </Card>
 
-      <Card className="p-5">
-        <SectionHeader
-          eyebrow={isIncome ? "Recibidos" : "Pagados"}
-          title={isIncome ? "Movimientos reales" : "Salidas registradas"}
-          action={
-            <Link
-              href="/?view=register"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
-            >
-              <Plus className="h-4 w-4" />
-              Registrar
-            </Link>
-          }
-        />
-        <div className="mt-4">
-          <MovementList transactions={transactions} />
-        </div>
-      </Card>
+      <div className="space-y-4">
+        {!isIncome ? (
+          <Card className="p-5">
+            <SectionHeader eyebrow="Mapa de compromisos" title="Que tipo de salida es" />
+            <div className="mt-4 grid gap-3">
+              {groupedOutflows.map((item) => (
+                <div key={item.kind} className="rounded-2xl border border-black/8 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-[#111111]">{item.label}</p>
+                    <Badge tone={item.count ? "warning" : "neutral"}>{item.count}</Badge>
+                  </div>
+                  <p className="mt-2 text-xl font-semibold text-[#111111]">{formatCOP(item.total)}</p>
+                </div>
+              ))}
+            </div>
+            {unconfirmedEvents.length ? (
+              <div className="mt-4 rounded-2xl border border-[rgba(184,106,30,0.22)] bg-[rgba(184,106,30,0.06)] p-4">
+                <p className="text-sm font-medium text-[var(--warning)]">Fechas por confirmar</p>
+                <p className="mt-1 text-sm leading-6 text-black/65">
+                  {unconfirmedEvents.map((event) => event.title).join(", ")} quedan visibles para no perderlos, pero deben validarse con recibo o llamada.
+                </p>
+              </div>
+            ) : null}
+          </Card>
+        ) : null}
+
+        <Card className="p-5">
+          <SectionHeader
+            eyebrow={isIncome ? "Recibidos" : "Pagados"}
+            title={isIncome ? "Movimientos reales" : "Salidas registradas"}
+            action={
+              <Link
+                href="/?view=register"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"
+              >
+                <Plus className="h-4 w-4" />
+                Registrar
+              </Link>
+            }
+          />
+          <div className="mt-4">
+            <MovementList transactions={transactions} />
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -1477,8 +1725,34 @@ function SavingsView({ goals, transactions }: DashboardData) {
               );
             })
           ) : (
-            <EmptyState label="Aun no hay metas. Define una meta para que Proyeccion tenga norte." />
+            <div className="space-y-3">
+              <EmptyState label="Aun no hay metas. Define una meta para que Proyeccion tenga norte." />
+              {suggestedSavingsPockets.map((name) => (
+                <div key={name} className="rounded-2xl border border-black/8 p-4">
+                  <p className="font-medium text-[#111111]">{name}</p>
+                  <p className="mt-1 text-sm text-black/55">Bolsillo sugerido para separar plata antes de gastarla.</p>
+                </div>
+              ))}
+            </div>
           )}
+        </div>
+      </Card>
+
+      <Card className="p-5 xl:col-span-2">
+        <SectionHeader eyebrow="Definicion" title="Para que sirve ahorro en Arca" />
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {suggestedSavingsPockets.map((name) => (
+            <div key={name} className="rounded-2xl bg-black/3 p-4">
+              <p className="font-medium text-[#111111]">{name}</p>
+              <p className="mt-2 text-sm leading-6 text-black/60">
+                {name === "Colchon"
+                  ? "Reserva para emergencias y meses apretados."
+                  : name === "Nu ahorro rentable"
+                    ? "Plata que puede rentar, pero no deberia mezclarse con gasto diario."
+                    : "Separador fisico para guardar efectivo sin contarlo como libre."}
+              </p>
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -1489,30 +1763,167 @@ function SavingsView({ goals, transactions }: DashboardData) {
   );
 }
 
-function CalendarView({ events, transactions, selectedMonth }: DashboardData & { selectedMonth: string }) {
-  const monthEvents = events.filter((event) => isSelectedMonth(event.eventDate, selectedMonth));
-  const upcoming = getUpcomingPayments(transactions).filter((tx) => isSelectedMonth(tx.date, selectedMonth));
+function BudgetView({ events, transactions, selectedMonth }: DashboardData & { selectedMonth: string }) {
+  const monthEvents = events.filter((event) => isSelectedMonth(event.eventDate, selectedMonth) && isOpenEvent(event));
+  const monthTransactions = transactions.filter((tx) => isSelectedMonth(tx.date, selectedMonth));
+  const income = sumEvents(monthEvents.filter((event) => event.eventType === "income")) + getIncomeMonth(monthTransactions);
+  const fixedExpenses = sumEvents(monthEvents.filter((event) => event.eventType === "expense"));
+  const debtAndCards = sumEvents(monthEvents.filter((event) => event.eventType === "debt_payment" || event.eventType === "card_payment"));
+  const savings = sumEvents(monthEvents.filter((event) => event.eventType === "saving"));
+  const spent = getExpenseMonth(monthTransactions);
+  const committed = fixedExpenses + debtAndCards + savings + spent;
+  const freeAfterCommitments = income - committed;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-      <Card className="p-5">
-        <SectionHeader eyebrow="Calendario" title="Eventos financieros" />
-        <div className="mt-4 divide-y divide-black/8">
-          {monthEvents.map((event) => (
-            <div key={event.id} className="flex items-center justify-between gap-4 py-3">
-              <div>
-                <p className="font-medium text-[#111111]">{event.title}</p>
-                <p className="text-sm text-black/55">
-                  {event.eventType} - {formatDate(event.eventDate)}
-                </p>
-              </div>
-              <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
-            </div>
-          ))}
+    <div className="space-y-4">
+      <Card className="p-5 md:p-6">
+        <SectionHeader
+          eyebrow="Decision de compra"
+          title={`Presupuesto operativo - ${getMonthName(selectedMonth)}`}
+          action={<Badge tone={freeAfterCommitments >= 0 ? "success" : "danger"}>{formatCOP(freeAfterCommitments)}</Badge>}
+        />
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <MetricCard label="Ingreso base del mes" value={formatCOP(income)} tone="success" />
+          <MetricCard label="Comprometido" value={formatCOP(committed)} tone={committed > income ? "danger" : "warning"} />
+          <MetricCard label="Libre estimado" value={formatCOP(freeAfterCommitments)} tone={freeAfterCommitments >= 0 ? "success" : "danger"} />
+          <MetricCard label="Gastos reales ya hechos" value={formatCOP(spent)} tone={spent > 0 ? "warning" : "neutral"} />
         </div>
       </Card>
 
-      <MovementsView eyebrow="Pendientes" title="Movimientos por pagar/cobrar" transactions={upcoming} />
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <Card className="p-5">
+          <SectionHeader eyebrow="Regla guia" title="Distribucion sugerida" />
+          <div className="mt-4 space-y-4">
+            {budgetBuckets.map((bucket) => {
+              const amount = Math.round((income * bucket.percent) / 100);
+
+              return (
+                <div key={bucket.id}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <div>
+                      <p className="font-medium text-[#111111]">{bucket.label}</p>
+                      <p className="text-black/50">{bucket.percent}% del ingreso estimado</p>
+                    </div>
+                    <p className="font-semibold text-[#111111]">{formatCOP(amount)}</p>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-black/6">
+                    <div className="h-2 rounded-full bg-[#163a5f]" style={{ width: `${bucket.percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <SectionHeader eyebrow="Realidad del mes" title="Lo que ya aprieta" />
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Gastos fijos y servicios</p>
+              <p className="mt-1 text-xl font-semibold text-[#111111]">{formatCOP(fixedExpenses)}</p>
+            </div>
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Deudas y tarjetas</p>
+              <p className="mt-1 text-xl font-semibold text-[#111111]">{formatCOP(debtAndCards)}</p>
+            </div>
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Ahorro programado</p>
+              <p className="mt-1 text-xl font-semibold text-[#111111]">{formatCOP(savings)}</p>
+            </div>
+            <div className={cn("rounded-2xl p-4", freeAfterCommitments >= 0 ? "bg-[rgba(22,115,91,0.08)]" : "bg-[rgba(164,61,49,0.08)]")}>
+              <p className={cn("text-sm font-medium", freeAfterCommitments >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]")}>
+                {freeAfterCommitments >= 0 ? "Compra posible con control" : "No conviene comprar todavia"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-black/65">
+                Esta lectura no es contabilidad formal: es caja operativa para decidir si puedes gastar sin romper pagos del mes.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function CalendarView({ events, transactions, selectedMonth }: DashboardData & { selectedMonth: string }) {
+  const monthEvents = events
+    .filter((event) => isSelectedMonth(event.eventDate, selectedMonth))
+    .sort((a, b) => getEventTime(a) - getEventTime(b));
+  const upcoming = getUpcomingPayments(transactions).filter((tx) => isSelectedMonth(tx.date, selectedMonth));
+  const days = getMonthCalendarDays(selectedMonth);
+  const eventsByDay = new Map<number, FinancialEvent[]>();
+
+  monthEvents.forEach((event) => {
+    const day = parseCalendarDate(event.eventDate).getDate();
+    eventsByDay.set(day, [...(eventsByDay.get(day) ?? []), event]);
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader
+          eyebrow="Calendario"
+          title={`Vista mensual - ${getMonthName(selectedMonth)}`}
+          action={<Badge tone="neutral">{monthEvents.length} eventos</Badge>}
+        />
+        <div className="mt-5 grid grid-cols-7 gap-2 text-center text-xs uppercase tracking-[0.14em] text-black/45">
+          {["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-7 gap-2">
+          {days.map((day, index) => {
+            const dayEvents = day ? eventsByDay.get(day) ?? [] : [];
+
+            return (
+              <div
+                key={`${day ?? "empty"}-${index}`}
+                className={cn(
+                  "min-h-28 rounded-xl border border-black/8 bg-white/45 p-2",
+                  !day && "border-transparent bg-transparent"
+                )}
+              >
+                {day ? (
+                  <>
+                    <p className="text-sm font-semibold text-[#111111]">{day}</p>
+                    <div className="mt-2 space-y-1">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <div
+                          key={event.id}
+                          className={cn(
+                            "rounded-lg px-2 py-1 text-left text-[11px] leading-4",
+                            event.eventType === "income"
+                              ? "bg-[rgba(22,115,91,0.10)] text-[var(--success)]"
+                              : event.status === "overdue"
+                                ? "bg-[rgba(164,61,49,0.10)] text-[var(--danger)]"
+                                : "bg-black/5 text-black/70"
+                          )}
+                          title={`${event.title} - ${formatCOP(event.amount)}`}
+                        >
+                          <span className="block truncate font-medium">{event.title}</span>
+                          <span>{formatCOP(event.amount)}</span>
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 ? <p className="text-[11px] text-black/45">+{dayEvents.length - 3} mas</p> : null}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <Card className="p-5">
+          <SectionHeader eyebrow="Lista operativa" title="Eventos del mes en orden" />
+          <div className="mt-4">
+            <EventList events={monthEvents} emptyLabel="No hay eventos financieros para este mes." />
+          </div>
+        </Card>
+
+        <MovementsView eyebrow="Pendientes" title="Movimientos por pagar/cobrar" transactions={upcoming} />
+      </div>
     </div>
   );
 }
@@ -1626,34 +2037,46 @@ function ProjectionsView({ accounts, cards, debts, goals, projections }: Dashboa
   );
 }
 
-function BusinessView({ business }: DashboardData) {
+function BusinessView(data: DashboardData & { selectedMonth: string }) {
+  const businessSummary = buildBusinessMonthlySummary(data, data.selectedMonth);
+
   return (
     <Card className="p-5">
-      <SectionHeader eyebrow="Unidades" title="Resultado por negocio" />
+      <SectionHeader eyebrow="Unidades" title={`Resultado por negocio - ${getMonthName(data.selectedMonth)}`} />
       <div className="mt-4 grid gap-3">
-        {business.map((unit) => (
+        {businessSummary.map((unit) => {
+          const net = unit.receivedIncome + unit.expectedIncome - unit.expenses;
+
+          return (
           <div
             key={unit.id}
-            className="grid gap-3 rounded-2xl border border-black/8 p-4 md:grid-cols-[1.5fr_1fr_1fr_1fr] md:items-center"
+            className="grid gap-3 rounded-2xl border border-black/8 p-4 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr] md:items-center"
           >
             <div>
               <p className="font-medium text-[#111111]">{unit.name}</p>
-              <p className="text-sm text-black/55">Cobros pendientes {formatCOP(unit.pending)}</p>
+              <p className="text-sm text-black/55">
+                {unit.nextEvent ? `${unit.nextEvent.title} - ${formatDate(unit.nextEvent.eventDate)}` : "Sin proximo evento del mes"}
+              </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Ingresos</p>
-              <p className="mt-1 font-semibold text-[#111111]">{formatCOP(unit.income)}</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Por cobrar</p>
+              <p className="mt-1 font-semibold text-[#111111]">{formatCOP(unit.expectedIncome)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Recibido</p>
+              <p className="mt-1 font-semibold text-[#111111]">{formatCOP(unit.receivedIncome)}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.16em] text-black/45">Gastos</p>
-              <p className="mt-1 font-semibold text-[#111111]">{formatCOP(unit.expense)}</p>
+              <p className="mt-1 font-semibold text-[#111111]">{formatCOP(unit.expenses)}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.16em] text-black/45">Neto</p>
-              <p className="mt-1 font-semibold text-[#111111]">{formatCOP(unit.income - unit.expense)}</p>
+              <p className={cn("mt-1 font-semibold", net >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]")}>{formatCOP(net)}</p>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
@@ -1664,9 +2087,9 @@ function renderView(view: ViewKey, data: DashboardData, selectedMonth: string) {
   const expenseTransactions = data.transactions.filter((tx) =>
     ["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind) && isSelectedMonth(tx.date, selectedMonth)
   );
-  const incomeEvents = data.events.filter((event) => event.eventType === "income" && isSelectedMonth(event.eventDate, selectedMonth));
+  const incomeEvents = data.events.filter((event) => event.eventType === "income" && isOpenEvent(event) && isSelectedMonth(event.eventDate, selectedMonth));
   const expenseEvents = data.events.filter((event) =>
-    ["expense", "debt_payment", "card_payment", "saving"].includes(event.eventType) && isSelectedMonth(event.eventDate, selectedMonth)
+    ["expense", "debt_payment", "card_payment", "saving"].includes(event.eventType) && isOpenEvent(event) && isSelectedMonth(event.eventDate, selectedMonth)
   );
 
   switch (view) {
@@ -1686,6 +2109,8 @@ function renderView(view: ViewKey, data: DashboardData, selectedMonth: string) {
       return <CardsView {...data} />;
     case "savings":
       return <SavingsView {...data} />;
+    case "budget":
+      return <BudgetView {...data} selectedMonth={selectedMonth} />;
     case "calendar":
       return <CalendarView {...data} selectedMonth={selectedMonth} />;
     case "history":
@@ -1693,7 +2118,7 @@ function renderView(view: ViewKey, data: DashboardData, selectedMonth: string) {
     case "projections":
       return <ProjectionsView {...data} />;
     case "business":
-      return <BusinessView {...data} />;
+      return <BusinessView {...data} selectedMonth={selectedMonth} />;
     default:
       return <DashboardView {...data} selectedMonth={selectedMonth} />;
   }
@@ -1704,6 +2129,8 @@ export default async function Home({ searchParams }: HomeProps) {
   const activeView = getView(params.view);
   const selectedMonth = normalizeMonth(params.month);
   const data = await loadDashboardData();
+  const dataTone = data.source === "supabase" ? "success" : data.source === "error" ? "danger" : "warning";
+  const dataLabel = data.source === "supabase" ? "Supabase" : data.source === "error" ? "Error datos" : "Sin datos";
 
   return (
     <main className="min-h-screen p-4 md:p-6">
@@ -1748,10 +2175,12 @@ export default async function Home({ searchParams }: HomeProps) {
           <Card className="mt-auto p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-black/55">Estado datos</p>
             <p className="mt-2 text-sm leading-6 text-black/70">
-              Los registros manuales escriben en Supabase y actualizan saldos cuando el movimiento queda pagado.
+              {data.source === "supabase"
+                ? "Los registros manuales escriben en Supabase y actualizan saldos cuando el movimiento queda pagado."
+                : data.issue ?? "Arca no esta mostrando datos inventados. Revisa la conexion para cargar datos reales."}
             </p>
-            <Badge className="mt-4" tone={data.source === "supabase" ? "success" : "warning"}>
-              {data.source === "supabase" ? "Supabase conectado" : "Usando mock local"}
+            <Badge className="mt-4" tone={dataTone}>
+              {data.source === "supabase" ? "Supabase conectado" : dataLabel}
             </Badge>
           </Card>
         </aside>
@@ -1767,9 +2196,7 @@ export default async function Home({ searchParams }: HomeProps) {
                 {params.saved === "1" ? <Badge tone="success">Movimiento guardado</Badge> : null}
                 <MonthSwitcher activeView={activeView} selectedMonth={selectedMonth} />
                 <Badge tone="warning">COP</Badge>
-                <Badge tone={data.source === "supabase" ? "success" : "warning"}>
-                  {data.source === "supabase" ? "Supabase" : "Mock"}
-                </Badge>
+                <Badge tone={dataTone}>{dataLabel}</Badge>
                 <Link
                   href={getMonthHref("register", selectedMonth)}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#163a5f] px-4 text-sm font-medium text-white hover:bg-[#102d49]"

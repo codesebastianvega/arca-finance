@@ -1,6 +1,5 @@
 import "server-only";
 
-import { accounts as mockAccounts, business as mockBusiness, cards as mockCards, debts as mockDebts, goals as mockGoals, transactions as mockTransactions } from "./mock-data";
 import { getSupabaseServerClient } from "./supabase";
 import type {
   Account,
@@ -17,7 +16,8 @@ import type {
 } from "./types";
 
 type DashboardData = {
-  source: "mock" | "supabase";
+  source: "supabase" | "empty" | "error";
+  issue?: string;
   accounts: Account[];
   business: BusinessSummary[];
   cards: CreditCard[];
@@ -26,6 +26,17 @@ type DashboardData = {
   goals: SavingsGoal[];
   projections: MonthlyProjection[];
   transactions: Transaction[];
+};
+
+const emptyDashboardData: Omit<DashboardData, "source" | "issue"> = {
+  accounts: [],
+  business: [],
+  cards: [],
+  debts: [],
+  events: [],
+  goals: [],
+  projections: [],
+  transactions: [],
 };
 
 type SupabaseAccountRow = {
@@ -275,15 +286,9 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
   if (!supabase) {
     return {
-      source: "mock",
-      accounts: mockAccounts,
-      business: mockBusiness,
-      cards: mockCards,
-      debts: mockDebts,
-      events: [],
-      goals: mockGoals,
-      projections: [],
-      transactions: mockTransactions,
+      source: "empty",
+      issue: "Supabase no esta configurado en este entorno.",
+      ...emptyDashboardData,
     };
   }
 
@@ -318,16 +323,23 @@ export async function loadDashboardData(): Promise<DashboardData> {
       projectionsResult.error ||
       transactionsResult.error
     ) {
+      const issue = [
+        accountsResult.error,
+        businessResult.error,
+        cardsResult.error,
+        debtsResult.error,
+        eventsResult.error,
+        goalsResult.error,
+        projectionsResult.error,
+        transactionsResult.error,
+      ]
+        .find(Boolean)
+        ?.message;
+
       return {
-        source: "mock",
-        accounts: mockAccounts,
-        business: mockBusiness,
-        cards: mockCards,
-        debts: mockDebts,
-        events: [],
-        goals: mockGoals,
-        projections: [],
-        transactions: mockTransactions,
+        source: "error",
+        issue: issue ?? "No se pudieron leer los datos de Supabase.",
+        ...emptyDashboardData,
       };
     }
 
@@ -342,17 +354,11 @@ export async function loadDashboardData(): Promise<DashboardData> {
       projections: (projectionsResult.data ?? []).map((row) => mapProjection(row as SupabaseProjectionRow)),
       transactions: (transactionsResult.data ?? []).map((row) => mapTransaction(row as SupabaseTransactionRow)),
     };
-  } catch {
+  } catch (error) {
     return {
-      source: "mock",
-      accounts: mockAccounts,
-      business: mockBusiness,
-      cards: mockCards,
-      debts: mockDebts,
-      events: [],
-      goals: mockGoals,
-      projections: [],
-      transactions: mockTransactions,
+      source: "error",
+      issue: error instanceof Error ? error.message : "Error desconocido al cargar datos.",
+      ...emptyDashboardData,
     };
   }
 }
