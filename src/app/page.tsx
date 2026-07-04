@@ -213,7 +213,7 @@ function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[])
         event,
         type: "income" as const,
         covered: true,
-        fundingLabel: getAccountName(accounts, event.accountId) ?? primaryCashAccount?.name ?? "Cuenta por definir",
+        fundingLabel: getAccountName(accounts, event.accountId) ?? "Cuenta por definir",
         projectedCashBefore,
         projectedCashAfter: projectedCash,
         shortfall: 0,
