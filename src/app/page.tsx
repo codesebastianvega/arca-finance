@@ -228,8 +228,9 @@ function choosePaymentSource(accountBalances: Map<string, number>, accounts: Acc
   };
 }
 
-function deductAcrossAccounts(accountBalances: Map<string, number>, accounts: Account[], amount: number) {
+function allocateAcrossAccounts(accountBalances: Map<string, number>, accounts: Account[], amount: number) {
   let remaining = amount;
+  const allocations: { accountId: string; accountName: string; amount: number }[] = [];
   const rankedAccounts = accounts
     .map((account) => ({ account, balance: accountBalances.get(account.id) ?? 0 }))
     .filter((item) => item.balance > 0)
@@ -242,8 +243,15 @@ function deductAcrossAccounts(accountBalances: Map<string, number>, accounts: Ac
 
     const deduction = Math.min(balance, remaining);
     accountBalances.set(account.id, balance - deduction);
+    allocations.push({ accountId: account.id, accountName: account.name, amount: deduction });
     remaining -= deduction;
   });
+
+  return allocations;
+}
+
+function formatAllocation(allocations: { accountName: string; amount: number }[]) {
+  return allocations.map((item) => `${item.accountName}: ${formatCOP(item.amount)}`).join(" + ");
 }
 
 function isTimelineEvent(event: FinancialEvent) {
@@ -279,6 +287,7 @@ function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[])
         type: "income" as const,
         covered: true,
         fundingLabel: getAccountName(accounts, event.accountId) ?? "Cuenta por definir",
+        needsTransfer: false,
         projectedCashBefore,
         projectedCashAfter: getTotalBalance(accountBalances, unassignedCash),
         shortfall: 0,
@@ -289,10 +298,19 @@ function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[])
     const shortfall = Math.max(0, event.amount - projectedCashBefore);
     const paymentSource = choosePaymentSource(accountBalances, accounts, event);
 
+    let allocations: { accountId: string; accountName: string; amount: number }[] = [];
+
     if (covered && paymentSource.accountId && paymentSource.canPayFromSingleAccount) {
       accountBalances.set(paymentSource.accountId, (accountBalances.get(paymentSource.accountId) ?? 0) - event.amount);
+      allocations = [
+        {
+          accountId: paymentSource.accountId,
+          accountName: getAccountName(accounts, paymentSource.accountId) ?? "Cuenta definida",
+          amount: event.amount,
+        },
+      ];
     } else if (covered) {
-      deductAcrossAccounts(accountBalances, accounts, event.amount);
+      allocations = allocateAcrossAccounts(accountBalances, accounts, event.amount);
     }
 
     return {
@@ -303,13 +321,42 @@ function buildMonthlyCashTimeline(events: FinancialEvent[], accounts: Account[])
       fundingLabel: covered
         ? paymentSource.canPayFromSingleAccount
           ? paymentSource.label
-          : "Requiere mover o combinar cuentas"
+          : formatAllocation(allocations)
         : "Esperar ingreso o renegociar",
+      needsTransfer: covered && !paymentSource.canPayFromSingleAccount,
       projectedCashBefore,
       projectedCashAfter: getTotalBalance(accountBalances, unassignedCash),
       shortfall,
     };
   });
+}
+
+function getUpcomingNotifications(events: FinancialEvent[]) {
+  const today = parseCalendarDate(getToday());
+  const todayTime = today.getTime();
+  const fiveDaysFromNow = todayTime + 5 * 24 * 60 * 60 * 1000;
+
+  return events
+    .filter((event) => isOpenEvent(event) && event.amount > 0)
+    .map((event) => {
+      const eventTime = parseCalendarDate(event.eventDate).getTime();
+      const isOverdue = event.status === "overdue" || (event.eventType !== "income" && eventTime < todayTime);
+      const isToday = eventTime === todayTime;
+      const isSoon = eventTime > todayTime && eventTime <= fiveDaysFromNow;
+
+      if (!isOverdue && !isToday && !isSoon) {
+        return null;
+      }
+
+      return {
+        event,
+        tone: isOverdue ? ("danger" as const) : isToday ? ("warning" as const) : ("neutral" as const),
+        label: isOverdue ? "Vencido" : isToday ? "Hoy" : "Pronto",
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .sort((a, b) => getEventTime(a.event) - getEventTime(b.event))
+    .slice(0, 8);
 }
 
 function buildProjectedBalanceData(events: FinancialEvent[], accounts: Account[]) {
@@ -462,7 +509,10 @@ function DashboardView({
   const availableAfterCommitments = cashNow + incomeMonth - expenseMonth;
   const pressureToCover = Math.max(0, expenseMonth - cashNow);
   const debtTotal = getDebtTotal(debts, cards);
-  const cashTimeline = buildMonthlyCashTimeline(events, accounts).slice(0, 14);
+  const cashTimeline = buildMonthlyCashTimeline(events, accounts);
+  const notifications = getUpcomingNotifications(events);
+  const transferSuggestions = cashTimeline.filter((item) => item.type === "payment" && item.needsTransfer);
+  const transferSuggestionTotal = transferSuggestions.reduce((total, item) => total + item.event.amount, 0);
   const flowData = buildProjectedBalanceData(events, accounts);
   const sourceData = buildIncomeSourceData(events, business);
   const accountTotalForBars = Math.max(cashNow, 1);
@@ -498,6 +548,53 @@ function DashboardView({
           <MetricCard label="Deuda total" value={formatCOP(debtTotal)} tone={debtTotal > 0 ? "danger" : "success"} />
         </div>
       </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="p-5">
+          <SectionHeader
+            eyebrow="Notificaciones"
+            title="Alertas que requieren decision"
+            action={<Badge tone={notifications.some((item) => item.tone === "danger") ? "danger" : "warning"}>{notifications.length}</Badge>}
+          />
+          <div className="mt-4 divide-y divide-black/8">
+            {notifications.length ? (
+              notifications.map(({ event, tone, label }) => (
+                <div key={event.id} className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className={cn("font-medium", tone === "danger" ? "text-[var(--danger)]" : "text-[#111111]")}>{event.title}</p>
+                      <Badge tone={tone}>{label}</Badge>
+                    </div>
+                    <p className={cn("mt-1 text-sm", tone === "danger" ? "text-[var(--danger)]" : "text-black/55")}>
+                      {event.eventType} - {formatDate(event.eventDate)}
+                    </p>
+                  </div>
+                  <p className={cn("font-semibold", tone === "danger" ? "text-[var(--danger)]" : "text-[#111111]")}>
+                    {formatCOP(event.amount)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <EmptyState label="No hay alertas urgentes en los proximos dias." />
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <SectionHeader
+            eyebrow="Transferencias"
+            title="Movimientos entre cuentas sugeridos"
+            action={<Badge tone={transferSuggestions.length ? "warning" : "success"}>{transferSuggestions.length}</Badge>}
+          />
+          <div className="mt-4 rounded-2xl bg-black/3 p-4">
+            <p className="text-sm text-black/55">Pagos que podrian exigir combinar cuentas</p>
+            <p className="mt-1 text-2xl font-semibold text-[#111111]">{formatCOP(transferSuggestionTotal)}</p>
+            <p className="mt-2 text-sm leading-6 text-black/60">
+              Arca no registra automaticamente estas transferencias todavia. La siguiente iteracion debe permitir mover saldo entre cuentas y dejar auditoria.
+            </p>
+          </div>
+        </Card>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="p-5">

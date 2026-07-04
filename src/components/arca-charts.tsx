@@ -36,7 +36,7 @@ export function ArcaCharts({
             <p className="text-xs uppercase tracking-[0.18em] text-black/55">Proyeccion</p>
             <h2 className="mt-1 text-lg font-semibold text-[#111111]">Saldo proyectado</h2>
           </div>
-          <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-black/60">Eventos reales</span>
+          <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-black/60">Eventos abiertos</span>
         </div>
         <div className="h-[280px]">
           {hasFlowData ? (
