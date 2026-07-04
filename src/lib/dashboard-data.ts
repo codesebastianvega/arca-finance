@@ -73,11 +73,14 @@ type SupabaseDebtRow = {
   id: string;
   name: string;
   lender: string;
+  debt_type?: string | null;
   balance: number | string;
   installment: number | string;
   next_due_date: string;
+  remaining_months?: number | null;
   status: Debt["status"];
   priority: Debt["priority"];
+  notes?: string | null;
 };
 
 type SupabaseGoalRow = {
@@ -215,11 +218,14 @@ function mapDebt(row: SupabaseDebtRow): Debt {
     id: row.id,
     name: row.name,
     lender: row.lender,
+    debtType: row.debt_type ?? "personal",
     balance: toNumber(row.balance),
     installment: toNumber(row.installment),
     nextDueDate: row.next_due_date,
+    remainingMonths: row.remaining_months ?? undefined,
     status: row.status,
     priority: row.priority,
+    notes: row.notes ?? undefined,
   };
 }
 

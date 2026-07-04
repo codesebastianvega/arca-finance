@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   CreditCard,
+  Eye,
   Landmark,
   LayoutDashboard,
   ListChecks,
@@ -15,6 +16,7 @@ import {
   PiggyBank,
   Scale,
   Wallet,
+  X,
 } from "lucide-react";
 import {
   createAccount,
@@ -39,7 +41,7 @@ import {
   parseCalendarDate,
 } from "@/lib/finance";
 import { loadDashboardData } from "@/lib/dashboard-data";
-import type { Account, BusinessUnitKey, FinancialEvent, Transaction } from "@/lib/types";
+import type { Account, BusinessUnitKey, Debt, FinancialEvent, Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +69,7 @@ type HomeProps = {
     saved?: string;
     month?: string;
     view?: string;
+    debt?: string;
   }>;
 };
 
@@ -173,6 +176,14 @@ function getCardUsagePercent(used: number, limit: number) {
   }
 
   return Math.round((used / limit) * 100);
+}
+
+function getPercent(value: number, total: number) {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round((value / total) * 100)));
 }
 
 function getCurrentMonthKey() {
@@ -321,6 +332,20 @@ function addMonthsToMonthKey(monthKey: string, offset: number) {
   const date = new Date(year, month - 1 + offset, 1);
 
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function addMonthsToDateString(value: string, offset: number) {
+  const date = parseCalendarDate(value);
+  date.setMonth(date.getMonth() + offset);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function getDaysFromToday(value: string) {
+  const today = parseCalendarDate(getToday()).getTime();
+  const date = parseCalendarDate(value).getTime();
+
+  return Math.round((date - today) / (24 * 60 * 60 * 1000));
 }
 
 function getMonthLabelFromKey(monthKey: string) {
@@ -1460,11 +1485,274 @@ function CashflowView({
   );
 }
 
-function DebtsView({ debts, transactions }: DashboardData) {
+function getDebtPriorityLabel(priority: Debt["priority"]) {
+  if (priority === "high") {
+    return "Alta";
+  }
+
+  if (priority === "medium") {
+    return "Media";
+  }
+
+  return "Baja";
+}
+
+function getDebtStatusLabel(status: Debt["status"]) {
+  if (status === "paid") {
+    return "Pagada";
+  }
+
+  if (status === "late") {
+    return "En mora";
+  }
+
+  return "Activa";
+}
+
+function getDebtStatusTone(debt: Debt) {
+  const days = getDaysFromToday(debt.nextDueDate);
+
+  if (debt.status === "late" || days < 0 || debt.priority === "high") {
+    return "danger" as const;
+  }
+
+  if (days <= 5) {
+    return "warning" as const;
+  }
+
+  return "success" as const;
+}
+
+function getRelatedDebtTransactions(debt: Debt, transactions: Transaction[]) {
+  const normalizedName = debt.name.toLowerCase();
+  const normalizedLender = debt.lender.toLowerCase();
+
+  return transactions.filter(
+    (tx) =>
+      tx.kind === "debt_payment" &&
+      (tx.concept.toLowerCase().includes(normalizedName) || tx.concept.toLowerCase().includes(normalizedLender))
+  );
+}
+
+function getDebtPaymentStats(debt: Debt, events: FinancialEvent[], transactions: Transaction[]) {
+  const relatedEvents = events
+    .filter((event) => event.relatedTable === "debts" && event.relatedId === debt.id)
+    .sort((a, b) => getEventTime(a) - getEventTime(b));
+  const relatedTransactions = getRelatedDebtTransactions(debt, transactions);
+  const closedEvents = relatedEvents.filter((event) => event.status === "paid" || event.status === "confirmed");
+  const openEvents = relatedEvents.filter(isOpenEvent);
+  const paidFromEvents = sumEvents(closedEvents);
+  const paidFromTransactions = relatedTransactions
+    .filter((tx) => tx.status === "paid" || tx.status === "confirmed")
+    .reduce((total, tx) => total + tx.amount, 0);
+  const paidAmount = Math.max(paidFromEvents, paidFromTransactions);
+  const paidInstallments = Math.max(
+    closedEvents.length,
+    relatedTransactions.filter((tx) => tx.status === "paid" || tx.status === "confirmed").length
+  );
+  const estimatedRemainingInstallments =
+    debt.remainingMonths ?? (debt.installment > 0 ? Math.ceil(debt.balance / debt.installment) : 0);
+  const estimatedTotal = debt.balance + paidAmount;
+
+  return {
+    relatedEvents,
+    relatedTransactions,
+    openEvents,
+    paidAmount,
+    paidInstallments,
+    estimatedRemainingInstallments,
+    estimatedTotal,
+    progress: getPercent(paidAmount, estimatedTotal),
+  };
+}
+
+function DebtDetailModal({
+  debt,
+  events,
+  transactions,
+  selectedMonth,
+}: {
+  debt?: Debt;
+  events: FinancialEvent[];
+  transactions: Transaction[];
+  selectedMonth: string;
+}) {
+  if (!debt) {
+    return null;
+  }
+
+  const stats = getDebtPaymentStats(debt, events, transactions);
+  const daysToDue = getDaysFromToday(debt.nextDueDate);
+  const projectedEndDate =
+    stats.estimatedRemainingInstallments > 0 ? addMonthsToDateString(debt.nextDueDate, stats.estimatedRemainingInstallments - 1) : debt.nextDueDate;
+  const nextOpenEvent = stats.openEvents[0];
+  const monthlyPressure = debt.installment > 0 ? getPercent(debt.installment, Math.max(debt.balance, debt.installment)) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/35 p-4 backdrop-blur-sm">
+      <div className="mx-auto max-w-5xl">
+        <Card className="relative overflow-hidden p-5 shadow-[0_24px_80px_rgba(17,17,17,0.28)] md:p-6">
+          <Link
+            href={getMonthHref("debts", selectedMonth)}
+            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-black/65 hover:bg-black/10"
+            aria-label="Cerrar detalle de deuda"
+          >
+            <X className="h-4 w-4" />
+          </Link>
+
+          <div className="pr-12">
+            <p className="text-xs uppercase tracking-[0.22em] text-black/55">Detalle de deuda</p>
+            <h3 className="mt-2 text-2xl font-semibold text-[#111111] md:text-4xl">{debt.name}</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge tone={getDebtStatusTone(debt)}>{getDebtStatusLabel(debt.status)}</Badge>
+              <Badge tone={debt.priority === "high" ? "danger" : "warning"}>Prioridad {getDebtPriorityLabel(debt.priority)}</Badge>
+              <Badge tone="neutral">{debt.debtType}</Badge>
+              <Badge tone={daysToDue < 0 ? "danger" : daysToDue <= 5 ? "warning" : "success"}>
+                {daysToDue < 0 ? `${Math.abs(daysToDue)} dias vencida` : daysToDue === 0 ? "vence hoy" : `faltan ${daysToDue} dias`}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <MetricCard label="Saldo pendiente" value={formatCOP(debt.balance)} tone={debt.balance > 0 ? "danger" : "success"} />
+            <MetricCard label="Cuota actual" value={formatCOP(debt.installment)} tone={debt.installment > 0 ? "warning" : "neutral"} />
+            <MetricCard label="Cuotas pagadas" value={`${stats.paidInstallments}`} delta="segun pagos registrados" tone="success" />
+            <MetricCard
+              label="Cuotas pendientes"
+              value={`${stats.estimatedRemainingInstallments}`}
+              delta={debt.remainingMonths ? "dato cargado" : "estimadas por saldo/cuota"}
+              tone="warning"
+            />
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-black/8 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Avance estimado</p>
+                  <p className="mt-1 text-sm text-black/60">Pagado registrado contra saldo historico conocido.</p>
+                </div>
+                <p className="text-lg font-semibold text-[#111111]">{stats.progress}%</p>
+              </div>
+              <div className="mt-4 h-3 rounded-full bg-black/6">
+                <div className="h-3 rounded-full bg-[var(--success)]" style={{ width: `${stats.progress}%` }} />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Pagado registrado</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(stats.paidAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-black/45">Total conocido</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatCOP(stats.estimatedTotal)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/8 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">Plan de pago</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-black/55">Proximo pago</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatDate(debt.nextDueDate)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-black/55">Fecha final estimada</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{formatDate(projectedEndDate)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-black/55">Presion cuota/saldo</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{monthlyPressure}%</p>
+                </div>
+                <div>
+                  <p className="text-sm text-black/55">Evento abierto</p>
+                  <p className="mt-1 font-semibold text-[#111111]">{nextOpenEvent ? formatCOP(nextOpenEvent.amount) : "Sin evento"}</p>
+                </div>
+              </div>
+              <div className="mt-4 rounded-2xl bg-black/3 p-4">
+                <p className="text-sm font-medium text-[#111111]">Lectura operativa</p>
+                <p className="mt-1 text-sm leading-6 text-black/60">
+                  {daysToDue < 0
+                    ? "Esta deuda esta vencida o necesita acuerdo. Debe quedar arriba en la agenda de caja."
+                    : daysToDue <= 5
+                      ? "Pago proximo. Conviene reservar caja antes de registrar gastos nuevos."
+                      : "Aun hay margen, pero debe mantenerse en proyeccion mensual."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-black/8 p-4">
+              <SectionHeader eyebrow="Cronograma" title="Eventos de esta deuda" />
+              <div className="mt-3 divide-y divide-black/8">
+                {stats.relatedEvents.length ? (
+                  stats.relatedEvents.map((event) => (
+                    <div key={event.id} className="grid gap-2 py-3 md:grid-cols-[1fr_auto] md:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-[#111111]">{event.title}</p>
+                          <Badge tone={getEventTone(event)}>{getEventStatusLabel(event)}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-black/55">{formatDate(event.eventDate)}</p>
+                      </div>
+                      <p className="font-semibold text-[#111111]">{formatCOP(event.amount)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState label="No hay eventos asociados. Los proximos pagos se estiman con cuota y saldo." />
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/8 p-4">
+              <SectionHeader eyebrow="Historial" title="Pagos registrados" />
+              <div className="mt-3 divide-y divide-black/8">
+                {stats.relatedTransactions.length ? (
+                  stats.relatedTransactions.slice(0, 8).map((tx) => (
+                    <div key={tx.id} className="grid gap-2 py-3 md:grid-cols-[1fr_auto] md:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-[#111111]">{tx.concept}</p>
+                          <Badge tone={getTransactionTone(tx.kind)}>{tx.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-black/55">{formatDate(tx.date)}</p>
+                      </div>
+                      <p className="font-semibold text-[#111111]">{formatCOP(tx.amount)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState label="Aun no hay pagos cerrados detectados para esta deuda." />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-black/8 p-4">
+            <SectionHeader eyebrow="Notas y datos faltantes" title="Contexto para decisiones" />
+            <p className="mt-3 text-sm leading-6 text-black/65">
+              {debt.notes || "Sin notas registradas. Aqui conviene guardar acuerdo, numero de credito, mora, cuotas reales, telefono o comprobante."}
+            </p>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function DebtsView({
+  debts,
+  events,
+  transactions,
+  selectedDebtId,
+  selectedMonth,
+}: DashboardData & { selectedDebtId?: string; selectedMonth: string }) {
   const debtTransactions = transactions.filter((tx) => tx.kind === "debt_payment");
+  const selectedDebt = debts.find((debt) => debt.id === selectedDebtId);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <DebtDetailModal debt={selectedDebt} events={events} transactions={transactions} selectedMonth={selectedMonth} />
       <Card className="p-5">
         <SectionHeader eyebrow="Nueva deuda" title="Cargar obligacion real" />
         <form action={createDebt} className="mt-5 grid gap-4 md:grid-cols-2">
@@ -1521,29 +1809,58 @@ function DebtsView({ debts, transactions }: DashboardData) {
         <SectionHeader eyebrow="Deudas" title="Obligaciones activas" />
         <div className="mt-4 space-y-3">
           {debts.length ? (
-            debts.map((debt) => (
-              <div key={debt.id} className="rounded-2xl border border-black/8 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-[#111111]">{debt.name}</p>
-                    <p className="text-sm text-black/55">
-                      {debt.lender} - vence {formatDate(debt.nextDueDate)}
-                    </p>
+            debts.map((debt) => {
+              const stats = getDebtPaymentStats(debt, events, transactions);
+              const daysToDue = getDaysFromToday(debt.nextDueDate);
+
+              return (
+                <div key={debt.id} className="rounded-2xl border border-black/8 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-[#111111]">{debt.name}</p>
+                      <p className="text-sm text-black/55">
+                        {debt.lender} - vence {formatDate(debt.nextDueDate)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge tone={getDebtStatusTone(debt)}>{getDebtStatusLabel(debt.status)}</Badge>
+                        <Badge tone={debt.priority === "high" ? "danger" : "warning"}>{getDebtPriorityLabel(debt.priority)}</Badge>
+                        <Badge tone={daysToDue < 0 ? "danger" : daysToDue <= 5 ? "warning" : "neutral"}>
+                          {daysToDue < 0 ? `${Math.abs(daysToDue)} dias vencida` : `${daysToDue} dias`}
+                        </Badge>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/?view=debts&month=${selectedMonth}&debt=${debt.id}`}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-black/5 px-3 text-sm font-medium text-[#111111] hover:bg-black/10"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Detalle
+                    </Link>
                   </div>
-                  <Badge tone={debt.priority === "high" ? "danger" : "warning"}>{debt.status}</Badge>
+                  <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-black/45">Saldo</p>
+                      <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.balance)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cuota</p>
+                      <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.installment)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-black/45">Pagadas</p>
+                      <p className="mt-1 font-semibold text-[#111111]">{stats.paidInstallments}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-black/45">Pendientes</p>
+                      <p className="mt-1 font-semibold text-[#111111]">{stats.estimatedRemainingInstallments}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-2 rounded-full bg-black/6">
+                    <div className="h-2 rounded-full bg-[var(--success)]" style={{ width: `${stats.progress}%` }} />
+                  </div>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Saldo</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.balance)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cuota</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(debt.installment)}</p>
-                  </div>
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <EmptyState label="Aun no hay deudas cargadas. Agrega cada obligacion con saldo, cuota, plazo y vencimiento." />
           )}
@@ -2082,7 +2399,7 @@ function BusinessView(data: DashboardData & { selectedMonth: string }) {
   );
 }
 
-function renderView(view: ViewKey, data: DashboardData, selectedMonth: string) {
+function renderView(view: ViewKey, data: DashboardData, selectedMonth: string, selectedDebtId?: string) {
   const incomeTransactions = data.transactions.filter((tx) => tx.kind === "income" && isSelectedMonth(tx.date, selectedMonth));
   const expenseTransactions = data.transactions.filter((tx) =>
     ["expense", "debt_payment", "card_payment", "saving_contribution"].includes(tx.kind) && isSelectedMonth(tx.date, selectedMonth)
@@ -2104,7 +2421,7 @@ function renderView(view: ViewKey, data: DashboardData, selectedMonth: string) {
     case "expenses":
       return <CashflowView type="expense" events={expenseEvents} transactions={expenseTransactions} />;
     case "debts":
-      return <DebtsView {...data} />;
+      return <DebtsView {...data} selectedDebtId={selectedDebtId} selectedMonth={selectedMonth} />;
     case "cards":
       return <CardsView {...data} />;
     case "savings":
@@ -2224,7 +2541,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </nav>
           </header>
 
-          <div className="shell-grid flex-1 overflow-y-auto p-4 md:p-6">{renderView(activeView, data, selectedMonth)}</div>
+          <div className="shell-grid flex-1 overflow-y-auto p-4 md:p-6">{renderView(activeView, data, selectedMonth, params.debt)}</div>
         </section>
       </div>
     </main>

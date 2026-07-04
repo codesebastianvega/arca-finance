@@ -56,11 +56,14 @@ export interface Debt {
   id: string;
   name: string;
   lender: string;
+  debtType: string;
   balance: number;
   installment: number;
   nextDueDate: string;
+  remainingMonths?: number;
   status: "active" | "paid" | "late";
   priority: "high" | "medium" | "low";
+  notes?: string;
 }
 
 export interface CreditCard {
