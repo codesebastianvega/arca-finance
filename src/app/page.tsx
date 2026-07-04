@@ -139,6 +139,51 @@ const budgetBuckets = [
 
 const suggestedSavingsPockets = ["Alcancia monedas", "Alcancia billetes", "Colchon", "Nu ahorro rentable"];
 
+type RateReference = {
+  annualRate?: number;
+  displayRate?: string;
+  label: string;
+  source: string;
+  confidence: "oficial" | "pendiente";
+};
+
+const referenceRates: { match: string[]; rate: RateReference }[] = [
+  {
+    match: ["rappi", "rappicard"],
+    rate: {
+      annualRate: 28.79,
+      label: "RappiCard julio 2026",
+      source: "PDF oficial RappiCard, vigencia 1 al 31 de julio de 2026",
+      confidence: "oficial",
+    },
+  },
+  {
+    match: ["nequi"],
+    rate: {
+      annualRate: 62.56,
+      label: "Nequi bajo monto max",
+      source: "Nequi credito bajo monto informa rango hasta 62.56% EA; reemplazar por tasa exacta del credito",
+      confidence: "oficial",
+    },
+  },
+  {
+    match: ["falabella", "cmr"],
+    rate: {
+      label: "Banco Falabella",
+      source: "Pagina oficial publica descarga de tasas vigentes, tasa exacta pendiente de extracto/PDF",
+      confidence: "pendiente",
+    },
+  },
+  {
+    match: ["codensa", "condensa", "cfc", "enel"],
+    rate: {
+      label: "Credito Facil Codensa",
+      source: "Enel/Codensa confirma productos a 1-48 cuotas; tasa exacta pendiente del recibo",
+      confidence: "pendiente",
+    },
+  },
+];
+
 function getView(value?: string): ViewKey {
   return navItems.some((item) => item.view === value) ? (value as ViewKey) : "dashboard";
 }
@@ -185,6 +230,40 @@ function getPercent(value: number, total: number) {
   }
 
   return Math.max(0, Math.min(100, Math.round((value / total) * 100)));
+}
+
+function getReferenceRate(name: string, issuer?: string) {
+  const haystack = `${name} ${issuer ?? ""}`.toLowerCase();
+
+  return referenceRates.find((item) => item.match.some((term) => haystack.includes(term)))?.rate;
+}
+
+function getAppliedRate(record: { name: string; annualInterestRate?: number; interestType?: string; lender?: string; issuer?: string }) {
+  if (record.annualInterestRate != null) {
+    const effectiveAnnualRate = getEffectiveAnnualRate(record.annualInterestRate, record.interestType);
+
+    return {
+      annualRate: effectiveAnnualRate,
+      displayRate:
+        record.interestType === "effective_annual" || !record.interestType
+          ? `${record.annualInterestRate}% EA`
+          : `${record.annualInterestRate}% ${getInterestTypeLabel(record.interestType)} (~${effectiveAnnualRate.toFixed(2)}% EA)`,
+      label: "Tasa cargada",
+      source: "Dato manual o de Supabase",
+      confidence: "oficial" as const,
+      isReference: false,
+    };
+  }
+
+  const reference = getReferenceRate(record.name, record.lender ?? record.issuer);
+
+  return reference
+    ? {
+        ...reference,
+        displayRate: reference.annualRate == null ? "Pendiente" : `${reference.annualRate}% EA`,
+        isReference: true,
+      }
+    : undefined;
 }
 
 function getCurrentMonthKey() {
@@ -349,6 +428,22 @@ function getDaysFromToday(value: string) {
   return Math.round((date - today) / (24 * 60 * 60 * 1000));
 }
 
+function getEffectiveAnnualRate(rate?: number, interestType?: string) {
+  if (!rate || rate <= 0 || interestType === "none") {
+    return 0;
+  }
+
+  if (interestType === "monthly") {
+    return (Math.pow(1 + rate / 100, 12) - 1) * 100;
+  }
+
+  if (interestType === "nominal_annual") {
+    return (Math.pow(1 + rate / 1200, 12) - 1) * 100;
+  }
+
+  return rate;
+}
+
 function getMonthlyRate(annualInterestRate?: number) {
   if (!annualInterestRate || annualInterestRate <= 0) {
     return 0;
@@ -418,8 +513,85 @@ function estimatePayoff({
   return { months, total, interest: Math.max(0, total - balance), warning: undefined };
 }
 
-function formatRate(rate?: number) {
-  return rate == null ? "Sin tasa" : `${rate}% EA`;
+function buildAmortizationRows({
+  balance,
+  monthlyPayment,
+  annualInterestRate,
+  startDate,
+  maxRows = 6,
+}: {
+  balance: number;
+  monthlyPayment: number;
+  annualInterestRate?: number;
+  startDate: string;
+  maxRows?: number;
+}) {
+  const monthlyRate = getMonthlyRate(annualInterestRate);
+  let remaining = balance;
+  const rows: { date: string; payment: number; interest: number; principal: number; closingBalance: number }[] = [];
+
+  if (balance <= 0 || monthlyPayment <= 0) {
+    return rows;
+  }
+
+  for (let index = 0; index < maxRows && remaining > 0; index += 1) {
+    const interest = Math.round(remaining * monthlyRate);
+    const principal = Math.max(0, Math.min(remaining, monthlyPayment - interest));
+
+    if (principal <= 0 && interest > 0) {
+      rows.push({
+        date: addMonthsToDateString(startDate, index),
+        payment: monthlyPayment,
+        interest,
+        principal: 0,
+        closingBalance: remaining,
+      });
+      break;
+    }
+
+    remaining = Math.max(0, remaining - principal);
+    rows.push({
+      date: addMonthsToDateString(startDate, index),
+      payment: Math.min(monthlyPayment, principal + interest),
+      interest,
+      principal,
+      closingBalance: remaining,
+    });
+  }
+
+  return rows;
+}
+
+function getInterestTypeLabel(type?: string) {
+  if (type === "monthly") {
+    return "mensual";
+  }
+
+  if (type === "nominal_annual") {
+    return "nominal anual";
+  }
+
+  if (type === "none") {
+    return "sin interes";
+  }
+
+  if (type === "unknown") {
+    return "por confirmar";
+  }
+
+  return "EA";
+}
+
+function formatRateReference(rate?: ReturnType<typeof getAppliedRate>) {
+  if (!rate) {
+    return "Sin tasa";
+  }
+
+  if (rate.annualRate == null) {
+    return "Pendiente";
+  }
+
+  return rate.displayRate;
 }
 
 function getMonthLabelFromKey(monthKey: string) {
@@ -888,13 +1060,13 @@ function DashboardView({
         <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Dinero actual" value={formatCOP(cashNow)} tone={cashNow > 0 ? "success" : "warning"} />
           <MetricCard label="Ingresos estimados" value={formatCOP(incomeMonth)} tone="success" />
-          <MetricCard label="Necesario del mes" value={formatCOP(expenseMonth)} tone="danger" />
+          <MetricCard label="Compromisos del mes" value={formatCOP(expenseMonth)} tone="danger" />
           <MetricCard
-            label="Disponible tras compromisos"
+            label="Libre despues de pagos"
             value={formatCOP(availableAfterCommitments)}
             tone={availableAfterCommitments >= 0 ? "success" : "danger"}
           />
-          <MetricCard label="Deuda total" value={formatCOP(debtTotal)} tone={debtTotal > 0 ? "danger" : "success"} />
+          <MetricCard label="Deuda viva" value={formatCOP(debtTotal)} tone={debtTotal > 0 ? "danger" : "success"} />
         </div>
       </Card>
 
@@ -932,7 +1104,7 @@ function DashboardView({
         <Card className="p-5">
           <SectionHeader
             eyebrow="Transferencias"
-            title="Movimientos entre cuentas sugeridos"
+            title="Mover plata antes de pagar"
             action={<Badge tone={transferSuggestions.length ? "warning" : "success"}>{transferSuggestions.length}</Badge>}
           />
           <div className="mt-4 rounded-2xl bg-black/3 p-4">
@@ -1377,10 +1549,46 @@ function TransfersView({ accounts, transactions }: DashboardData) {
   );
 }
 
+function getAccountRole(account: Account) {
+  if (account.type === "savings") {
+    return "Reserva / ahorro";
+  }
+
+  if (account.type === "cash") {
+    return "Efectivo disponible";
+  }
+
+  if (account.type === "wallet") {
+    return "Billetera de pago";
+  }
+
+  if (account.type === "bank") {
+    return "Cuenta bancaria";
+  }
+
+  return "Cuenta operativa";
+}
+
+function getAccountSkin(account: Account) {
+  if (account.type === "savings") {
+    return "from-[#145c4b] to-[#d6a94f]";
+  }
+
+  if (account.type === "wallet") {
+    return "from-[#163a5f] to-[#2d7d8f]";
+  }
+
+  if (account.type === "cash") {
+    return "from-[#5b4630] to-[#a67c3b]";
+  }
+
+  return "from-[#202020] to-[#163a5f]";
+}
+
 function AccountsView({ accounts }: DashboardData) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-      <Card className="p-5">
+    <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <Card className="order-2 p-5 xl:order-2">
         <SectionHeader eyebrow="Nueva cuenta" title="Crear billetera o banco" />
         <form action={createAccount} className="mt-5 space-y-4">
           <label className="block space-y-2">
@@ -1409,7 +1617,7 @@ function AccountsView({ accounts }: DashboardData) {
         </form>
       </Card>
 
-      <Card className="p-5">
+      <Card className="order-1 p-5 xl:order-1">
         <SectionHeader
           eyebrow="Cuentas"
           title="Donde esta la plata"
@@ -1418,15 +1626,18 @@ function AccountsView({ accounts }: DashboardData) {
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {accounts.length ? (
             accounts.map((account) => (
-              <div key={account.id} className="rounded-2xl border border-black/8 p-4">
-                <div className="flex items-center justify-between">
+              <div key={account.id} className={cn("overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-[0_14px_34px_rgba(17,17,17,0.12)]", getAccountSkin(account))}>
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-medium text-[#111111]">{account.name}</p>
-                    <p className="text-sm text-black/55">{account.type}</p>
+                    <p className="font-medium">{account.name}</p>
+                    <p className="text-sm text-white/65">{getAccountRole(account)}</p>
                   </div>
-                  <Landmark className="h-5 w-5 text-black/45" />
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+                    <Landmark className="h-5 w-5 text-white/80" />
+                  </div>
                 </div>
-                <p className="mt-4 text-2xl font-semibold text-[#111111]">{formatCOP(account.balance)}</p>
+                <p className="mt-5 text-2xl font-semibold">{formatCOP(account.balance)}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/55">Disponible hoy</p>
               </div>
             ))
           ) : (
@@ -1657,10 +1868,16 @@ function DebtDetailModal({
 
   const stats = getDebtPaymentStats(debt, events, transactions);
   const daysToDue = getDaysFromToday(debt.nextDueDate);
+  const appliedRate = getAppliedRate({
+    name: debt.name,
+    lender: debt.lender,
+    annualInterestRate: debt.annualInterestRate,
+    interestType: debt.interestType,
+  });
   const payoff = estimatePayoff({
     balance: debt.balance,
     monthlyPayment: debt.installment,
-    annualInterestRate: debt.annualInterestRate,
+    annualInterestRate: appliedRate?.annualRate,
     overrideMonths: debt.remainingMonths ?? debt.termMonths,
     overrideTotal: debt.estimatedTotalPayment,
   });
@@ -1670,6 +1887,12 @@ function DebtDetailModal({
   const projectedEndDate =
     payoff.months > 0 ? addMonthsToDateString(debt.nextDueDate, payoff.months - 1) : debt.nextDueDate;
   const monthlyPressure = debt.installment > 0 ? getPercent(debt.installment, Math.max(debt.balance, debt.installment)) : 0;
+  const amortizationRows = buildAmortizationRows({
+    balance: debt.balance,
+    monthlyPayment: debt.installment,
+    annualInterestRate: appliedRate?.annualRate,
+    startDate: debt.nextDueDate,
+  });
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/35 p-4 backdrop-blur-sm">
@@ -1710,7 +1933,12 @@ function DebtDetailModal({
 
           <div className="mt-3 grid gap-3 md:grid-cols-4">
             <MetricCard label="Capital inicial" value={formatCOP(knownPrincipal)} tone="neutral" />
-            <MetricCard label="Tasa cargada" value={formatRate(debt.annualInterestRate)} delta={debt.interestType ?? "tipo pendiente"} tone="warning" />
+            <MetricCard
+              label={appliedRate?.isReference ? "Tasa referencial" : "Tasa cargada"}
+              value={formatRateReference(appliedRate)}
+              delta={appliedRate ? appliedRate.source : debt.interestType ?? "tipo pendiente"}
+              tone={appliedRate?.confidence === "pendiente" ? "warning" : "neutral"}
+            />
             <MetricCard
               label="Total final estimado"
               value={payoff.total ? formatCOP(projectedTotalWithPaid) : "Por calcular"}
@@ -1825,6 +2053,38 @@ function DebtDetailModal({
           </div>
 
           <div className="mt-4 rounded-2xl border border-black/8 p-4">
+            <SectionHeader eyebrow="Amortizacion" title="Proximas cuotas estimadas" />
+            <div className="mt-3 overflow-x-auto">
+              {amortizationRows.length ? (
+                <table className="w-full min-w-[620px] text-sm">
+                  <thead className="text-left text-xs uppercase tracking-[0.12em] text-black/45">
+                    <tr>
+                      <th className="py-2 font-medium">Fecha</th>
+                      <th className="py-2 font-medium">Cuota</th>
+                      <th className="py-2 font-medium">Interes</th>
+                      <th className="py-2 font-medium">Capital</th>
+                      <th className="py-2 text-right font-medium">Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/8">
+                    {amortizationRows.map((row) => (
+                      <tr key={row.date}>
+                        <td className="py-3 text-black/65">{formatDate(row.date)}</td>
+                        <td className="py-3 font-medium text-[#111111]">{formatCOP(row.payment)}</td>
+                        <td className="py-3 text-[var(--danger)]">{formatCOP(row.interest)}</td>
+                        <td className="py-3 text-[var(--success)]">{formatCOP(row.principal)}</td>
+                        <td className="py-3 text-right font-semibold text-[#111111]">{formatCOP(row.closingBalance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <EmptyState label="Falta cuota o saldo para calcular amortizacion." />
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-black/8 p-4">
             <SectionHeader eyebrow="Notas y datos faltantes" title="Contexto para decisiones" />
             <p className="mt-3 text-sm leading-6 text-black/65">
               {debt.notes || "Sin notas registradas. Aqui conviene guardar acuerdo, numero de credito, mora, cuotas reales, telefono o comprobante."}
@@ -1847,10 +2107,10 @@ function DebtsView({
   const selectedDebt = debts.find((debt) => debt.id === selectedDebtId);
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+    <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
       <DebtDetailModal debt={selectedDebt} events={events} transactions={transactions} selectedMonth={selectedMonth} />
-      <Card className="p-5">
-        <SectionHeader eyebrow="Nueva deuda" title="Cargar obligacion real" />
+      <Card className="order-2 p-5 xl:order-2">
+        <SectionHeader eyebrow="Nueva deuda" title="Agregar deuda" />
         <form action={createDebt} className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
             <span className={labelClass}>Nombre</span>
@@ -1927,7 +2187,7 @@ function DebtsView({
         </form>
       </Card>
 
-      <Card className="p-5">
+      <Card className="order-1 p-5 xl:order-1">
         <SectionHeader eyebrow="Deudas" title="Obligaciones activas" />
         <div className="mt-4 space-y-3">
           {debts.length ? (
@@ -2021,6 +2281,48 @@ function getCardStatusTone(card: CreditCardRecord) {
   return "success" as const;
 }
 
+function getCardWalletSkin(card: CreditCardRecord) {
+  const text = `${card.name} ${card.issuer}`.toLowerCase();
+
+  if (text.includes("rappi")) {
+    return {
+      bg: "from-[#111111] via-[#202020] to-[#4b3a1b]",
+      chip: "bg-[#f5d26b]",
+      label: "RappiCard",
+    };
+  }
+
+  if (text.includes("falabella") || text.includes("cmr")) {
+    return {
+      bg: "from-[#0f5132] via-[#146c43] to-[#7aa95c]",
+      chip: "bg-[#d8f3dc]",
+      label: "CMR",
+    };
+  }
+
+  if (text.includes("nu")) {
+    return {
+      bg: "from-[#3b0a69] via-[#5b2391] to-[#8f5bd5]",
+      chip: "bg-[#e7d7ff]",
+      label: "Nu",
+    };
+  }
+
+  if (text.includes("codensa") || text.includes("condensa") || text.includes("enel")) {
+    return {
+      bg: "from-[#17324d] via-[#1f6f8b] to-[#42b7a5]",
+      chip: "bg-[#dff7f3]",
+      label: "CFC",
+    };
+  }
+
+  return {
+    bg: "from-[#163a5f] via-[#234f7c] to-[#8f6d3b]",
+    chip: "bg-[#f4ece2]",
+    label: "Arca",
+  };
+}
+
 function CardDetailModal({
   card,
   events,
@@ -2038,10 +2340,16 @@ function CardDetailModal({
 
   const usage = getCardUsagePercent(card.used, card.limit);
   const available = getCardAvailable(card);
+  const appliedRate = getAppliedRate({
+    name: card.name,
+    issuer: card.issuer,
+    annualInterestRate: card.annualInterestRate,
+    interestType: card.interestType,
+  });
   const payoff = estimatePayoff({
     balance: card.used,
     monthlyPayment: card.minimumPayment,
-    annualInterestRate: card.annualInterestRate,
+    annualInterestRate: appliedRate?.annualRate,
     overrideMonths: card.estimatedPayoffMonths,
     overrideTotal: card.estimatedTotalPayment,
   });
@@ -2053,8 +2361,14 @@ function CardDetailModal({
     .filter((tx) => tx.status === "paid" || tx.status === "confirmed")
     .reduce((total, tx) => total + tx.amount, 0);
   const projectedInterest = Math.max(0, payoff.total - card.used);
-  const monthlyInterest = card.used * getMonthlyRate(card.annualInterestRate);
+  const monthlyInterest = card.used * getMonthlyRate(appliedRate?.annualRate);
   const nextPaymentEvent = relatedEvents.find(isOpenEvent);
+  const amortizationRows = buildAmortizationRows({
+    balance: card.used,
+    monthlyPayment: card.minimumPayment,
+    annualInterestRate: appliedRate?.annualRate,
+    startDate: nextPaymentEvent?.eventDate ?? getToday(),
+  });
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/35 p-4 backdrop-blur-sm">
@@ -2087,7 +2401,12 @@ function CardDetailModal({
           </div>
 
           <div className="mt-3 grid gap-3 md:grid-cols-4">
-            <MetricCard label="Tasa cargada" value={formatRate(card.annualInterestRate)} delta={card.interestType ?? "tipo pendiente"} tone="warning" />
+            <MetricCard
+              label={appliedRate?.isReference ? "Tasa referencial" : "Tasa cargada"}
+              value={formatRateReference(appliedRate)}
+              delta={appliedRate ? appliedRate.source : card.interestType ?? "tipo pendiente"}
+              tone={appliedRate?.confidence === "pendiente" ? "warning" : "neutral"}
+            />
             <MetricCard
               label="Total final estimado"
               value={payoff.total ? formatCOP(payoff.total) : "Por calcular"}
@@ -2194,6 +2513,38 @@ function CardDetailModal({
           </div>
 
           <div className="mt-4 rounded-2xl border border-black/8 p-4">
+            <SectionHeader eyebrow="Payoff estimado" title="Si pagas esa cuota cada mes" />
+            <div className="mt-3 overflow-x-auto">
+              {amortizationRows.length ? (
+                <table className="w-full min-w-[620px] text-sm">
+                  <thead className="text-left text-xs uppercase tracking-[0.12em] text-black/45">
+                    <tr>
+                      <th className="py-2 font-medium">Fecha</th>
+                      <th className="py-2 font-medium">Pago</th>
+                      <th className="py-2 font-medium">Interes</th>
+                      <th className="py-2 font-medium">Abono</th>
+                      <th className="py-2 text-right font-medium">Saldo tarjeta</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/8">
+                    {amortizationRows.map((row) => (
+                      <tr key={row.date}>
+                        <td className="py-3 text-black/65">{formatDate(row.date)}</td>
+                        <td className="py-3 font-medium text-[#111111]">{formatCOP(row.payment)}</td>
+                        <td className="py-3 text-[var(--danger)]">{formatCOP(row.interest)}</td>
+                        <td className="py-3 text-[var(--success)]">{formatCOP(row.principal)}</td>
+                        <td className="py-3 text-right font-semibold text-[#111111]">{formatCOP(row.closingBalance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <EmptyState label="Falta pago minimo o saldo usado para calcular payoff." />
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-black/8 p-4">
             <SectionHeader eyebrow="Notas" title="Contexto de la tarjeta" />
             <p className="mt-3 text-sm leading-6 text-black/65">
               {card.notes || "Sin notas registradas. Aqui conviene guardar bloqueo, acuerdos, beneficios, compras a cuotas o condiciones de interes."}
@@ -2216,10 +2567,109 @@ function CardsView({
   const selectedCard = cards.find((card) => card.id === selectedCardId);
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+    <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
       <CardDetailModal card={selectedCard} events={events} transactions={transactions} selectedMonth={selectedMonth} />
-      <Card className="p-5">
-        <SectionHeader eyebrow="Nueva tarjeta" title="Cargar tarjeta de credito" />
+      <Card className="order-1 p-5 xl:order-1">
+        <SectionHeader eyebrow="Tarjetas" title="Uso, cupo y proxima fecha" />
+        <div className="mt-4 grid gap-4">
+          {cards.length ? (
+            cards.map((card) => {
+              const payoff = estimatePayoff({
+                balance: card.used,
+                monthlyPayment: card.minimumPayment,
+                annualInterestRate: getAppliedRate({
+                  name: card.name,
+                  issuer: card.issuer,
+                  annualInterestRate: card.annualInterestRate,
+                  interestType: card.interestType,
+                })?.annualRate,
+                overrideMonths: card.estimatedPayoffMonths,
+                overrideTotal: card.estimatedTotalPayment,
+              });
+              const skin = getCardWalletSkin(card);
+              const usage = getCardUsagePercent(card.used, card.limit);
+
+              return (
+                <div key={card.id} className="grid gap-3 rounded-2xl border border-black/8 bg-white/45 p-3 md:grid-cols-[minmax(280px,0.9fr)_1fr]">
+                  <div className={cn("relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]", skin.bg)}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/65">{skin.label}</p>
+                        <p className="mt-2 text-xl font-semibold">{card.name}</p>
+                        <p className="mt-1 text-sm text-white/70">{card.issuer}</p>
+                      </div>
+                      <div className={cn("h-9 w-12 rounded-lg opacity-90", skin.chip)} />
+                    </div>
+                    <div className="mt-8 grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-white/55">Disponible</p>
+                        <p className="mt-1 text-2xl font-semibold">{formatCOP(getCardAvailable(card))}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-[0.14em] text-white/55">Usado</p>
+                        <p className="mt-1 text-xl font-semibold">{usage}%</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 h-2 rounded-full bg-white/20">
+                      <div className="h-2 rounded-full bg-white" style={{ width: `${Math.min(100, usage)}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="p-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone={getCardStatusTone(card)}>{card.status}</Badge>
+                          <Badge tone={usage > 75 ? "danger" : "success"}>{usage}% usado</Badge>
+                          <Badge tone="neutral">{formatRateReference(getAppliedRate({ name: card.name, issuer: card.issuer, annualInterestRate: card.annualInterestRate, interestType: card.interestType }))}</Badge>
+                        </div>
+                        <p className="mt-3 text-sm text-black/60">
+                          Corte dia {card.cutOffDate} - pago dia {card.payDueDate}
+                        </p>
+                      </div>
+                      <Link
+                        href={`/?view=cards&month=${selectedMonth}&card=${card.id}`}
+                        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-black/5 px-3 text-sm font-medium text-[#111111] hover:bg-black/10"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Detalle
+                      </Link>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.12em] text-black/45">Cupo</p>
+                        <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.limit)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.12em] text-black/45">Deuda</p>
+                        <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.used)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.12em] text-black/45">Minimo</p>
+                        <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.minimumPayment)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.12em] text-black/45">Total final</p>
+                        <p className="mt-1 font-semibold text-[#111111]">{payoff.total ? formatCOP(payoff.total) : "Pendiente"}</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-black/50">
+                      {usage > 75
+                        ? "Baja esta tarjeta antes de volver a usarla para cuidar cupo y score."
+                        : "Mantenerla bajo 75% ayuda a usar credito sin tension de caja."}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <EmptyState label="Aun no hay tarjetas. Carga cupo, usado, corte, pago y minimo actual." />
+          )}
+        </div>
+      </Card>
+
+      <Card className="order-2 p-5 xl:order-2">
+        <SectionHeader eyebrow="Nueva tarjeta" title="Agregar tarjeta de credito" />
         <form action={createCreditCard} className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
             <span className={labelClass}>Nombre</span>
@@ -2290,90 +2740,6 @@ function CardsView({
             </Button>
           </div>
         </form>
-      </Card>
-
-      <Card className="p-5">
-        <SectionHeader eyebrow="Tarjetas" title="Cupos y fechas de pago" />
-        <div className="mt-4 space-y-3">
-          {cards.length ? (
-            cards.map((card) => {
-              const payoff = estimatePayoff({
-                balance: card.used,
-                monthlyPayment: card.minimumPayment,
-                annualInterestRate: card.annualInterestRate,
-                overrideMonths: card.estimatedPayoffMonths,
-                overrideTotal: card.estimatedTotalPayment,
-              });
-
-              return (
-              <div key={card.id} className="rounded-2xl border border-black/8 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-[#111111]">{card.name}</p>
-                    <p className="text-sm text-black/55">
-                      Corte {card.cutOffDate} - pago {card.payDueDate}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/?view=cards&month=${selectedMonth}&card=${card.id}`}
-                    className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-black/5 px-3 text-sm font-medium text-[#111111] hover:bg-black/10"
-                  >
-                    <Eye className="h-4 w-4" />
-                    Detalle
-                  </Link>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Badge tone={getCardStatusTone(card)}>{card.status}</Badge>
-                  <Badge tone={getCardUsagePercent(card.used, card.limit) > 75 ? "danger" : "success"}>
-                    {getCardUsagePercent(card.used, card.limit)}% usado
-                  </Badge>
-                  <Badge tone="warning">{formatRate(card.annualInterestRate)}</Badge>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Cupo</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.limit)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Usado</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.used)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Minimo</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{formatCOP(card.minimumPayment)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-black/45">Total estimado</p>
-                    <p className="mt-1 font-semibold text-[#111111]">{payoff.total ? formatCOP(payoff.total) : "Pendiente"}</p>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-black/55">Uso del cupo</span>
-                    <span className="font-medium text-[#111111]">
-                      {getCardUsagePercent(card.used, card.limit)}% / max sugerido 75%
-                    </span>
-                  </div>
-                  <div className="mt-2 h-2 rounded-full bg-black/6">
-                    <div
-                      className={cn(
-                        "h-2 rounded-full",
-                        getCardUsagePercent(card.used, card.limit) > 75 ? "bg-[var(--danger)]" : "bg-[var(--success)]"
-                      )}
-                      style={{ width: `${Math.min(100, getCardUsagePercent(card.used, card.limit))}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-black/50">
-                    El corte cierra lo consumido del ciclo. La fecha de pago es el ultimo dia para pagar sin afectar mora.
-                  </p>
-                </div>
-              </div>
-              );
-            })
-          ) : (
-            <EmptyState label="Aun no hay tarjetas. Carga cupo, usado, corte, pago y minimo actual." />
-          )}
-        </div>
       </Card>
 
       <div className="xl:col-span-2">

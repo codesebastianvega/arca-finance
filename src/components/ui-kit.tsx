@@ -63,6 +63,13 @@ export function MetricCard({
   delta?: string;
   tone?: "neutral" | "success" | "warning" | "danger";
 }) {
+  const toneLabels = {
+    neutral: "Info",
+    success: "Bien",
+    warning: "Atento",
+    danger: "Riesgo",
+  } as const;
+
   return (
     <Card className="p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-black/55">{label}</p>
@@ -71,7 +78,7 @@ export function MetricCard({
           <p className="break-words text-xl font-semibold text-[#111111] xl:text-2xl">{value}</p>
           {delta ? <p className="mt-1 text-sm text-black/55">{delta}</p> : null}
         </div>
-        <Badge tone={tone}>{tone}</Badge>
+        <Badge tone={tone}>{toneLabels[tone]}</Badge>
       </div>
     </Card>
   );
