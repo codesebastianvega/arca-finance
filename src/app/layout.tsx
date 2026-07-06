@@ -2,21 +2,21 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Arca Finance",
+  applicationName: "Arca",
   title: {
-    default: "Arca Finance",
-    template: "%s | Arca Finance",
+    default: "Arca",
+    template: "%s | Arca",
   },
-  description: "Control financiero personal y operativo con claridad.",
+  description: "Arca te ayuda a ordenar cuentas, deudas, tarjetas, ahorro y pagos del mes en un solo lugar.",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/arca-mark.svg",
+    icon: [{ url: "/favicon.ico" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Arca Finance",
-    description: "Control financiero personal y operativo con claridad.",
-    siteName: "Arca Finance",
+    title: "Arca",
+    description: "Tu dinero, claro y bajo control.",
+    siteName: "Arca",
     type: "website",
   },
 };

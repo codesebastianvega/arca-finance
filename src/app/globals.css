@@ -1,20 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f0e7;
-  --foreground: #101010;
-  --surface: #fffaf2;
-  --surface-2: #eee3d5;
+  --background: #f4ede3;
+  --foreground: #0d1218;
+  --surface: #fffaf4;
+  --surface-2: #eadcca;
   --surface-strong: #ffffff;
-  --line: rgba(16, 16, 16, 0.12);
-  --line-strong: rgba(16, 16, 16, 0.2);
-  --muted: #51483c;
-  --muted-2: #756a5e;
-  --accent: #0f3554;
-  --accent-hover: #09263f;
-  --on-accent: #fffaf2;
+  --surface-brand: #f8efe1;
+  --line: rgba(42, 33, 23, 0.28);
+  --line-strong: rgba(13, 18, 24, 0.22);
+  --muted: #493f35;
+  --muted-2: #675c50;
+  --accent: #A9713C;
+  --accent-hover: #97622F;
+  --on-accent: #211708;
   --accent-2: #a27734;
   --accent-2-strong: #7a561f;
+  --olive: #5f6b4c;
+  --olive-soft: #dde2d1;
+  --copper: #a27734;
+  --copper-soft: #ecd8b7;
   --success: #0d6b51;
   --success-bg: #dbeee7;
   --warning: #96520e;
@@ -22,6 +27,15 @@
   --danger: #9e2f24;
   --danger-bg: #f5deda;
   --focus: rgba(15, 53, 84, 0.32);
+  --bg-surface-2: var(--surface-2);
+  --border: var(--line);
+  --text-primary: var(--foreground);
+  --text-muted: var(--muted);
+  --border-top-highlight: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  --header-backdrop: color-mix(in srgb, var(--background) 92%, transparent);
+  --accent-gradient: linear-gradient(180deg, #B98548, #A9713C);
+  --elevation-soft: 0 14px 36px color-mix(in srgb, var(--foreground) 10%, transparent);
+  --elevation-strong: 0 18px 44px color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 @theme inline {
@@ -38,8 +52,8 @@
 html {
   height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(15, 53, 84, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(162, 119, 52, 0.12), transparent 24%),
+    radial-gradient(circle at top left, rgba(15, 53, 84, 0.08), transparent 24%),
+    radial-gradient(circle at top right, rgba(162, 119, 52, 0.1), transparent 20%),
     var(--background);
 }
 
@@ -48,6 +62,46 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #16120d;
+    --foreground: #f7f1e8;
+    --surface: #211912;
+    --surface-2: #30251b;
+    --surface-strong: #382b20;
+    --surface-brand: #2d2218;
+    --line: rgba(247, 241, 232, 0.12);
+    --line-strong: rgba(247, 241, 232, 0.22);
+    --muted: #d1c2b3;
+    --muted-2: #b39f8e;
+    --accent: #C68A45;
+    --accent-hover: #D89C56;
+    --on-accent: #fffaf2;
+    --accent-2: #c18b3d;
+    --accent-2-strong: #ddb06a;
+    --olive: #92a07a;
+    --olive-soft: rgba(146, 160, 122, 0.18);
+    --copper: #c18b3d;
+    --copper-soft: rgba(193, 139, 61, 0.24);
+    --success: #63c2a3;
+    --success-bg: rgba(99, 194, 163, 0.18);
+    --warning: #efb86a;
+    --warning-bg: rgba(239, 184, 106, 0.16);
+    --danger: #ef978b;
+    --danger-bg: rgba(239, 151, 139, 0.16);
+    --focus: rgba(64, 126, 182, 0.36);
+    --bg-surface-2: var(--surface-2);
+    --border: var(--line);
+    --text-primary: var(--foreground);
+    --text-muted: var(--muted);
+    --border-top-highlight: color-mix(in srgb, white 22%, transparent);
+    --header-backdrop: color-mix(in srgb, var(--background) 92%, transparent);
+    --accent-gradient: linear-gradient(180deg, #D89C56, #C68A45);
+    --elevation-soft: 0 14px 36px color-mix(in srgb, black 36%, transparent);
+    --elevation-strong: 0 18px 44px color-mix(in srgb, black 42%, transparent);
+  }
 }
 
 a {
@@ -72,13 +126,14 @@ a {
 }
 
 .arca-primary-action {
-  background: var(--accent);
+  border-top: 1px solid var(--border-top-highlight);
+  background: var(--accent-gradient);
   color: var(--on-accent) !important;
-  box-shadow: 0 12px 28px rgba(15, 53, 84, 0.18);
+  box-shadow: var(--elevation-soft);
 }
 
 .arca-primary-action:hover {
-  background: var(--accent-hover);
+  filter: brightness(1.04);
 }
 
 .arca-primary-action svg,
@@ -100,7 +155,80 @@ a {
 }
 
 .arca-panel {
-  background: color-mix(in srgb, var(--surface) 84%, white 16%);
-  border: 1px solid var(--line);
-  box-shadow: 0 1px 0 rgba(16, 16, 16, 0.04);
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-strong) 8%);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border-top-highlight);
+  box-shadow: var(--elevation-soft);
+}
+
+.arca-panel-featured {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-brand) 92%, var(--surface-strong) 8%), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--copper) 42%, var(--line) 58%);
+  border-top: 1px solid var(--border-top-highlight);
+  box-shadow: var(--elevation-strong);
+}
+
+.arca-hero-frame {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 22%, transparent), transparent),
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    color-mix(in srgb, var(--surface) 82%, var(--surface-strong) 18%);
+  background-size:
+    auto,
+    28px 28px,
+    28px 28px,
+    auto;
+}
+
+.arca-input {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border-top-highlight);
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  padding-inline: 0.75rem;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.arca-input::placeholder {
+  color: var(--text-muted);
+}
+
+.arca-input:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.arca-input-area {
+  min-height: 7rem;
+  padding-block: 0.75rem;
+}
+
+.arca-soft-block {
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border-top-highlight);
+  background: color-mix(in srgb, var(--surface) 86%, var(--surface-strong) 14%);
+}
+
+.arca-muted-block {
+  border: 1px dashed var(--border);
+  border-top: 1px solid var(--border-top-highlight);
+  background: color-mix(in srgb, var(--surface) 76%, var(--surface-2) 24%);
+}
+
+.arca-chip {
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border-top-highlight);
+  background: color-mix(in srgb, var(--surface) 72%, var(--surface-strong) 28%);
+  color: var(--text-primary);
+}
+
+.arca-chip-active {
+  border: 1px solid color-mix(in srgb, var(--accent) 74%, var(--border) 26%);
+  border-top: 1px solid var(--border-top-highlight);
+  background: var(--accent-gradient);
+  color: var(--on-accent);
 }

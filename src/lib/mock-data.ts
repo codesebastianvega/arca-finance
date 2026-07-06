@@ -2,17 +2,19 @@ import { subDays, subMonths } from "date-fns";
 import type { Account, BusinessSummary, CreditCard, Debt, SavingsGoal, Transaction } from "./types";
 
 const today = new Date();
+const workspaceId = "mock-workspace";
 
 export const accounts: Account[] = [
-  { id: "acc-nequi", name: "Nequi", type: "wallet", balance: 825000, color: "#163a5f", active: true },
-  { id: "acc-daviplata", name: "Daviplata", type: "wallet", balance: 240000, color: "#8f6d3b", active: true },
-  { id: "acc-nu", name: "Nu", type: "bank", balance: 1680000, color: "#a43d31", active: true },
-  { id: "acc-cash", name: "Efectivo", type: "cash", balance: 180000, color: "#16735b", active: true },
+  { id: "acc-nequi", workspaceId, name: "Nequi", type: "wallet", balance: 825000, color: "accent", active: true },
+  { id: "acc-daviplata", workspaceId, name: "Daviplata", type: "wallet", balance: 240000, color: "copper", active: true },
+  { id: "acc-nu", workspaceId, name: "Nu", type: "bank", balance: 1680000, color: "danger", active: true },
+  { id: "acc-cash", workspaceId, name: "Efectivo", type: "cash", balance: 180000, color: "success", active: true },
 ];
 
 export const transactions: Transaction[] = [
   {
     id: "tx-001",
+    workspaceId,
     kind: "income",
     status: "confirmed",
     amount: 4200000,
@@ -24,6 +26,7 @@ export const transactions: Transaction[] = [
   },
   {
     id: "tx-002",
+    workspaceId,
     kind: "expense",
     status: "paid",
     amount: 38000,
@@ -35,6 +38,7 @@ export const transactions: Transaction[] = [
   },
   {
     id: "tx-003",
+    workspaceId,
     kind: "expense",
     status: "scheduled",
     amount: 620000,
@@ -47,6 +51,7 @@ export const transactions: Transaction[] = [
   },
   {
     id: "tx-004",
+    workspaceId,
     kind: "income",
     status: "pending",
     amount: 860000,
@@ -59,6 +64,7 @@ export const transactions: Transaction[] = [
   },
   {
     id: "tx-005",
+    workspaceId,
     kind: "expense",
     status: "paid",
     amount: 180000,
@@ -70,6 +76,7 @@ export const transactions: Transaction[] = [
   },
   {
     id: "tx-006",
+    workspaceId,
     kind: "income",
     status: "confirmed",
     amount: 1350000,
@@ -84,6 +91,7 @@ export const transactions: Transaction[] = [
 export const debts: Debt[] = [
   {
     id: "debt-solventa",
+    workspaceId,
     name: "Solventa",
     lender: "Solventa",
     debtType: "personal",
@@ -102,6 +110,7 @@ export const debts: Debt[] = [
   },
   {
     id: "debt-friend",
+    workspaceId,
     name: "Prestamo familiar",
     lender: "Familia",
     debtType: "personal",
@@ -123,6 +132,7 @@ export const debts: Debt[] = [
 export const cards: CreditCard[] = [
   {
     id: "card-nu",
+    workspaceId,
     name: "Nu",
     issuer: "Nu Bank",
     limit: 3500000,
@@ -141,14 +151,14 @@ export const cards: CreditCard[] = [
 ];
 
 export const goals: SavingsGoal[] = [
-  { id: "goal-emergency", name: "Fondo emergencia", target: 5000000, current: 1800000, color: "#16735b" },
-  { id: "goal-fitur", name: "FITUR", target: 2500000, current: 860000, color: "#8f6d3b" },
+  { id: "goal-emergency", workspaceId, name: "Fondo emergencia", target: 5000000, current: 1800000, color: "success" },
+  { id: "goal-fitur", workspaceId, name: "FITUR", target: 2500000, current: 860000, color: "copper" },
 ];
 
 export const business: BusinessSummary[] = [
-  { id: "empresa", name: "Empresa", income: 4200000, expense: 0, pending: 0 },
-  { id: "deuxio", name: "Deuxio", income: 860000, expense: 180000, pending: 0 },
-  { id: "sie", name: "Sie Travel", income: 1240000, expense: 690000, pending: 240000 },
-  { id: "aluna", name: "Aluna", income: 1350000, expense: 260000, pending: 0 },
-  { id: "personal", name: "Personal", income: 0, expense: 218000, pending: 620000 },
+  { id: "empresa", workspaceId, name: "Empresa", income: 4200000, expense: 0, pending: 0 },
+  { id: "deuxio", workspaceId, name: "Deuxio", income: 860000, expense: 180000, pending: 0 },
+  { id: "sie", workspaceId, name: "Sie Travel", income: 1240000, expense: 690000, pending: 240000 },
+  { id: "aluna", workspaceId, name: "Aluna", income: 1350000, expense: 260000, pending: 0 },
+  { id: "personal", workspaceId, name: "Personal", income: 0, expense: 218000, pending: 620000 },
 ];

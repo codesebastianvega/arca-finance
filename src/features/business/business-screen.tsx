@@ -1,0 +1,292 @@
+import Link from "next/link";
+import { createBusinessUnit, deleteBusinessUnit, updateBusinessUnit } from "@/app/actions";
+import { Badge, Button, Card, EmptyState, MetricCard } from "@/components/ui-kit";
+import type { DashboardData } from "@/lib/dashboard-data";
+import { formatCOP, parseCalendarDate } from "@/lib/finance";
+
+type BusinessFilters = {
+  month: string;
+};
+
+type UnitSnapshot = {
+  unit: string;
+  name: string;
+  realIncome: number;
+  realExpense: number;
+  realNet: number;
+  expectedIncome: number;
+  expectedOutflow: number;
+  projectedNet: number;
+  pendingEvents: number;
+  configured: boolean;
+};
+
+const fieldClass = "arca-focus arca-input text-sm";
+
+export function BusinessScreen({
+  data,
+  filters,
+  feedback,
+}: {
+  data: DashboardData;
+  filters: BusinessFilters;
+  feedback?: {
+    saved?: boolean;
+    updated?: boolean;
+    deleted?: boolean;
+    error?: string;
+  };
+}) {
+  const snapshot = buildSnapshot(data, filters.month);
+  const totals = snapshot.reduce(
+    (acc, item) => {
+      acc.realIncome += item.realIncome;
+      acc.realExpense += item.realExpense;
+      acc.expectedIncome += item.expectedIncome;
+      acc.expectedOutflow += item.expectedOutflow;
+      acc.pendingEvents += item.pendingEvents;
+      return acc;
+    },
+    { realIncome: 0, realExpense: 0, expectedIncome: 0, expectedOutflow: 0, pendingEvents: 0 }
+  );
+  const message = getBusinessFeedback(feedback);
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+        <div className="max-w-4xl">
+          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Fuentes y frentes</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Origen del ingreso y lectura por frente real.</h1>
+          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Aqui solo salen fuentes o frentes creados por ti o con actividad real.</p>
+        </div>
+      </section>
+
+      {message ? (
+        <Card className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-[var(--foreground)]">{message.text}</p>
+            <Badge tone={message.tone}>{message.label}</Badge>
+          </div>
+        </Card>
+      ) : null}
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Ingreso real" value={formatCOP(totals.realIncome)} delta="Movimientos confirmados" tone="success" />
+        <MetricCard label="Gasto real" value={formatCOP(totals.realExpense)} delta="Solo caja posteada" tone="warning" />
+        <MetricCard label="Ingreso esperado" value={formatCOP(totals.expectedIncome)} delta={`${totals.pendingEvents} eventos abiertos`} tone="neutral" />
+        <MetricCard
+          label="Balance proyectado"
+          value={formatCOP(totals.realIncome - totals.realExpense + totals.expectedIncome - totals.expectedOutflow)}
+          delta={`Salidas pendientes: ${formatCOP(totals.expectedOutflow)}`}
+          tone={totals.realIncome - totals.realExpense + totals.expectedIncome - totals.expectedOutflow >= 0 ? "success" : "danger"}
+        />
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
+        <Card className="p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <form action="/app/negocios" className="flex flex-wrap gap-3">
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Mes</span>
+                <input name="month" type="month" defaultValue={filters.month} className={fieldClass} />
+              </label>
+              <div className="flex items-end gap-3">
+                <Button type="submit" size="sm">
+                  Ver corte
+                </Button>
+                <Link href="/app/registrar?segment=movimiento" className="inline-flex h-9 items-center rounded-xl border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] px-3 text-sm text-[var(--text-primary)]">
+                  Registrar movimiento
+                </Link>
+              </div>
+            </form>
+            <p className="text-sm text-[var(--muted)]">Usa esta vista para separar lo personal de tus otras fuentes de ingreso.</p>
+          </div>
+        </Card>
+
+        <Card id="new-unit" className="p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Crear fuente</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Nueva fuente de ingreso</h2>
+          <form action={createBusinessUnit} className="mt-5 grid gap-3">
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
+              <input name="name" className={fieldClass} placeholder="Uxio, Freelance, Personal..." required />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre corto opcional</span>
+              <input name="key" className={fieldClass} placeholder="uxio, freelance, personal" />
+            </label>
+            <Button type="submit" size="sm">
+              Crear fuente
+            </Button>
+          </form>
+        </Card>
+      </div>
+
+      {snapshot.length ? (
+        <div className="space-y-4">
+          {snapshot.map((item) => (
+            <Card key={item.unit} className="p-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl font-semibold text-[var(--foreground)]">{item.name}</h2>
+                    <Badge tone={item.realNet >= 0 ? "success" : "danger"}>{item.realNet >= 0 ? "Real positivo" : "Real negativo"}</Badge>
+                    {item.configured ? <Badge tone="neutral">Configurada</Badge> : <Badge tone="warning">Solo actividad</Badge>}
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    {item.pendingEvents} eventos abiertos. Proyeccion neta del mes: {formatCOP(item.projectedNet)}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href="/app/registrar?segment=movimiento" className="text-sm text-[var(--muted)] underline-offset-4 hover:underline">
+                    Registrar en esta fuente
+                  </Link>
+                  {item.configured ? (
+                    <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                      <summary className="cursor-pointer list-none text-sm text-[var(--foreground)]">Editar fuente</summary>
+                      <div className="mt-3 grid gap-3">
+                        <form action={updateBusinessUnit} className="grid gap-3">
+                          <input type="hidden" name="key" value={item.unit} />
+                          <label className="space-y-2">
+                            <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
+                            <input name="name" className={fieldClass} defaultValue={item.name} required />
+                          </label>
+                          <div className="text-xs text-[var(--muted)]">La clave interna queda fija para no romper historial y agenda.</div>
+                          <Button type="submit" size="sm">Guardar</Button>
+                        </form>
+                        <form action={deleteBusinessUnit}>
+                          <input type="hidden" name="key" value={item.unit} />
+                          <Button type="submit" size="sm" variant="secondary">
+                            Borrar
+                          </Button>
+                        </form>
+                      </div>
+                    </details>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                <div className="arca-soft-block rounded-2xl p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Real</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <MetricMini label="Ingresos" value={formatCOP(item.realIncome)} />
+                    <MetricMini label="Gastos" value={formatCOP(item.realExpense)} />
+                    <MetricMini label="Neto" value={formatCOP(item.realNet)} tone={item.realNet >= 0 ? "success" : "danger"} />
+                  </div>
+                </div>
+                <div className="arca-soft-block rounded-2xl p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Pendiente o programado</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <MetricMini label="Por entrar" value={formatCOP(item.expectedIncome)} />
+                    <MetricMini label="Por salir" value={formatCOP(item.expectedOutflow)} />
+                    <MetricMini label="Proyectado" value={formatCOP(item.projectedNet)} tone={item.projectedNet >= 0 ? "success" : "danger"} />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="Aun no has creado fuentes de ingreso"
+          description="Puedes empezar con Personal, Freelance o el nombre de tu negocio."
+          actions={
+            <a href="#new-unit">
+              <Button size="sm">Crear fuente</Button>
+            </a>
+          }
+          className="p-6"
+        />
+      )}
+    </div>
+  );
+}
+
+function getBusinessFeedback(feedback?: {
+  saved?: boolean;
+  updated?: boolean;
+  deleted?: boolean;
+  error?: string;
+}) {
+  if (!feedback) return null;
+  if (feedback.updated) return { text: "La fuente se actualizo correctamente.", tone: "success" as const, label: "Actualizada" };
+  if (feedback.deleted) return { text: "La fuente se borro correctamente.", tone: "success" as const, label: "Borrada" };
+  if (feedback.saved) return { text: "La fuente se creo correctamente.", tone: "success" as const, label: "Guardada" };
+  if (feedback.error) return { text: "No se pudo completar la accion sobre la fuente.", tone: "danger" as const, label: "Error" };
+  return null;
+}
+
+function buildSnapshot(data: DashboardData, month: string): UnitSnapshot[] {
+  const configured = new Map<string, { name: string }>();
+  data.business.forEach((item) => configured.set(item.id, { name: item.name }));
+
+  const units = new Set<string>();
+  data.transactions.forEach((item) => {
+    if (item.unit) units.add(item.unit);
+  });
+  data.scheduledEvents.forEach((item) => {
+    if (item.unit) units.add(item.unit);
+  });
+  data.business.forEach((item) => units.add(item.id));
+
+  return [...units]
+    .map((unit) => {
+      const tx = data.transactions.filter((item) => item.unit === unit && monthMatches(item.date, month) && item.status !== "cancelled");
+      const events = data.scheduledEvents.filter(
+        (item) => item.unit === unit && monthMatches(item.dueDate, month) && !["paid", "confirmed", "cancelled"].includes(item.status)
+      );
+      const realIncome = tx.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+      const realExpense = tx.filter((item) => item.kind !== "income").reduce((sum, item) => sum + item.amount, 0);
+      const expectedIncome = events.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+      const expectedOutflow = events.filter((item) => item.kind !== "income").reduce((sum, item) => sum + item.amount, 0);
+      const configuredUnit = configured.get(unit);
+
+      return {
+        unit,
+        name: configuredUnit?.name ?? prettifyUnitName(unit),
+        realIncome,
+        realExpense,
+        realNet: realIncome - realExpense,
+        expectedIncome,
+        expectedOutflow,
+        projectedNet: realIncome - realExpense + expectedIncome - expectedOutflow,
+        pendingEvents: events.length,
+        configured: Boolean(configuredUnit),
+      };
+    })
+    .sort((left, right) => {
+      if (right.projectedNet !== left.projectedNet) return right.projectedNet - left.projectedNet;
+      return left.name.localeCompare(right.name);
+    });
+}
+
+function prettifyUnitName(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function monthMatches(value: string, month: string) {
+  const date = parseCalendarDate(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` === month;
+}
+
+function MetricMini({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "success" | "danger";
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3">
+      <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">{label}</p>
+      <p className={`mt-2 text-lg font-semibold ${tone === "danger" ? "text-[var(--danger)]" : tone === "success" ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>
+        {value}
+      </p>
+    </div>
+  );
+}

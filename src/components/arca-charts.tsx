@@ -42,7 +42,7 @@ export function ArcaCharts({
           {hasFlowData ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={flowData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
-                <CartesianGrid stroke="rgba(16,16,16,0.12)" vertical={false} />
+                <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
                 <YAxis
                   tickLine={false}
@@ -52,9 +52,9 @@ export function ArcaCharts({
                 />
                 <Tooltip
                   formatter={(value) => [`$${Number(value).toLocaleString("es-CO")}`, "Saldo"]}
-                  contentStyle={{ borderRadius: 12, border: "1px solid rgba(16,16,16,0.12)" }}
+                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)" }}
                 />
-                <Line type="monotone" dataKey="value" stroke="#0f3554" strokeWidth={3} dot={false} />
+                <Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={3} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -76,7 +76,7 @@ export function ArcaCharts({
           {hasSourceData ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sourceData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
-                <CartesianGrid stroke="rgba(16,16,16,0.12)" vertical={false} />
+                <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
                 <YAxis
                   tickLine={false}
@@ -86,9 +86,9 @@ export function ArcaCharts({
                 />
                 <Tooltip
                   formatter={(value) => [`$${Number(value).toLocaleString("es-CO")}`, "Ingreso"]}
-                  contentStyle={{ borderRadius: 12, border: "1px solid rgba(16,16,16,0.12)" }}
+                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)" }}
                 />
-                <Bar dataKey="value" fill="#a27734" radius={[10, 10, 0, 0]} />
+                <Bar dataKey="value" fill="var(--accent-2)" radius={[10, 10, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

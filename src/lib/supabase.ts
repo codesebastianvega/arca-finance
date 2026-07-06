@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
 type GenericTable = {
@@ -17,41 +19,77 @@ type GenericDatabase = {
   };
 };
 
-let browserClient: ReturnType<typeof createClient<GenericDatabase>> | null = null;
-let serverClient: ReturnType<typeof createClient<GenericDatabase>> | null = null;
+let adminClient: ReturnType<typeof createClient<GenericDatabase>> | null = null;
 
-export function getSupabaseBrowserClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function getSupabaseUrl() {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+}
+
+function getSupabaseAnonKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+}
+
+function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+}
+
+export function isSupabaseConfigured() {
+  return Boolean(getSupabaseUrl() && getSupabaseAnonKey());
+}
+
+export function getSupabaseConfig() {
+  return {
+    url: getSupabaseUrl(),
+    anonKey: getSupabaseAnonKey(),
+  };
+}
+
+function getServerCookieAdapter(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  return {
+    getAll() {
+      return cookieStore.getAll();
+    },
+    setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+      try {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options);
+        });
+      } catch {
+        // Server Components may call this in a read-only context.
+      }
+    },
+  };
+}
+
+export async function createSupabaseServerComponentClient() {
+  const url = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
 
   if (!url || !anonKey) {
     return null;
   }
 
-  if (!browserClient) {
-    browserClient = createClient<GenericDatabase>(url, anonKey);
-  }
+  const cookieStore = await cookies();
 
-  return browserClient;
+  return createServerClient<GenericDatabase>(url, anonKey, {
+    cookies: getServerCookieAdapter(cookieStore),
+  });
 }
 
-export function getSupabaseConfig() {
-  return {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-  };
+export async function createSupabaseServerActionClient() {
+  return createSupabaseServerComponentClient();
 }
 
-export function getSupabaseServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export function getSupabaseAdminClient() {
+  const url = getSupabaseUrl();
+  const serviceRoleKey = getSupabaseServiceRoleKey();
 
   if (!url || !serviceRoleKey) {
     return null;
   }
 
-  if (!serverClient) {
-    serverClient = createClient<GenericDatabase>(url, serviceRoleKey, {
+  if (!adminClient) {
+    adminClient = createClient<GenericDatabase>(url, serviceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -59,5 +97,11 @@ export function getSupabaseServerClient() {
     });
   }
 
-  return serverClient;
+  return adminClient;
+}
+
+// Legacy alias kept so the previous shell can still render while the app moves
+// to user-scoped clients under /app.
+export function getSupabaseServerClient() {
+  return getSupabaseAdminClient();
 }
