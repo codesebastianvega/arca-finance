@@ -54,7 +54,13 @@ function endOfMonth(date: Date) {
 
 function isMissingRelationMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
-  return normalized.includes("does not exist") || normalized.includes("relation") || normalized.includes("column");
+  return (
+    normalized.includes("does not exist") ||
+    normalized.includes("relation") ||
+    normalized.includes("column") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("could not find the table")
+  );
 }
 
 function toNumber(value: number | string | null | undefined) {
