@@ -11,6 +11,9 @@ type BusinessPageProps = {
     saved?: string;
     updated?: string;
     deleted?: string;
+    source_saved?: string;
+    source_updated?: string;
+    source_deleted?: string;
     error?: string;
   }>;
 };
@@ -29,6 +32,9 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
           saved: params.saved === "1",
           updated: params.updated === "1",
           deleted: params.deleted === "1",
+          sourceSaved: params.source_saved === "1",
+          sourceUpdated: params.source_updated === "1",
+          sourceDeleted: params.source_deleted === "1",
           error: params.error,
         }}
       />

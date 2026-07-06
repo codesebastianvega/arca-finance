@@ -34,9 +34,7 @@ export function RegisterScreen({
   welcome?: boolean;
 }) {
   const segment = segments.some((item) => item.key === activeSegment) ? (activeSegment as SegmentKey) : "movimiento";
-  const businessOptions = data.business.length
-    ? data.business
-    : [{ id: "personal", name: "Personal", income: 0, expense: 0, pending: 0, workspaceId: "fallback" }];
+  const businessOptions = data.business;
   const incomeSourceOptions = data.incomeSources;
 
   return (
@@ -149,6 +147,14 @@ function MovementForm({
   businessOptions: Array<{ id: string; name: string }>;
   incomeSourceOptions: DashboardData["incomeSources"];
 }) {
+  if (!data.accounts.length) {
+    return <RegisterDependencyState title="Primero crea una cuenta" description="Sin una cuenta o billetera no se puede registrar dinero real." href="/app/registrar?segment=cuenta" cta="Crear cuenta" />;
+  }
+
+  if (!businessOptions.length) {
+    return <RegisterDependencyState title="Primero crea un frente" description="Cada movimiento debe quedar ligado a un frente economico real. Ya no usamos Personal como relleno silencioso." href="/app/negocios#new-unit" cta="Crear frente" />;
+  }
+
   return (
     <div>
       <div>
@@ -219,7 +225,7 @@ function MovementForm({
         </label>
         <label className="space-y-2">
           <span className={labelClass}>Frente o unidad</span>
-          <select name="unit" className={fieldClass} defaultValue="personal" required>
+          <select name="unit" className={fieldClass} defaultValue={businessOptions[0]?.id} required>
             {businessOptions.map((unit) => (
               <option key={unit.id} value={unit.id}>
                 {unit.name}
@@ -256,6 +262,17 @@ function IncomeTemplateForm({
   businessOptions: Array<{ id: string; name: string }>;
   incomeSourceOptions: DashboardData["incomeSources"];
 }) {
+  if (!data.accounts.length || !businessOptions.length || !incomeSourceOptions.length) {
+    return (
+      <RegisterDependencyState
+        title="Falta base para esta plantilla"
+        description="Para proyectar ingresos necesitas una cuenta destino, un frente y una fuente de ingreso ya creados."
+        href={!businessOptions.length ? "/app/negocios#new-unit" : !incomeSourceOptions.length ? "/app/negocios#new-source" : "/app/registrar?segment=cuenta"}
+        cta={!businessOptions.length ? "Crear frente" : !incomeSourceOptions.length ? "Crear fuente" : "Crear cuenta"}
+      />
+    );
+  }
+
   return (
     <div>
       <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Plantilla de ingreso</p>
@@ -357,6 +374,17 @@ function ExpenseTemplateForm({
   data: DashboardData;
   businessOptions: Array<{ id: string; name: string }>;
 }) {
+  if (!data.accounts.length || !businessOptions.length) {
+    return (
+      <RegisterDependencyState
+        title="Falta base para esta plantilla"
+        description="Para programar gastos o pagos necesitas al menos una cuenta y un frente economico."
+        href={!businessOptions.length ? "/app/negocios#new-unit" : "/app/registrar?segment=cuenta"}
+        cta={!businessOptions.length ? "Crear frente" : "Crear cuenta"}
+      />
+    );
+  }
+
   return (
     <div>
       <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Plantilla de gasto</p>
@@ -661,4 +689,31 @@ function SavingsForm() {
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function RegisterDependencyState({
+  title,
+  description,
+  href,
+  cta,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  cta: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Base requerida</p>
+      <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{title}</h2>
+      <div className="arca-soft-block mt-6 rounded-2xl p-4">
+        <p className="text-sm leading-6 text-[var(--muted)]">{description}</p>
+      </div>
+      <div className="mt-5">
+        <Link href={href}>
+          <Button size="lg">{cta}</Button>
+        </Link>
+      </div>
+    </div>
+  );
 }

@@ -54,6 +54,25 @@ const deleteBusinessUnitSchema = z.object({
   key: z.string().trim().min(2),
 });
 
+const incomeSourceSchema = z.object({
+  name: z.string().trim().min(2),
+  businessUnitKey: z.string().trim().min(2),
+  type: z.string().trim().min(2).default("manual"),
+});
+
+const updateIncomeSourceSchema = z.object({
+  sourceId: z.string().uuid(),
+  name: z.string().trim().min(2),
+  type: z.string().trim().min(2).default("manual"),
+  active: z
+    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.literal("off"), z.undefined()])
+    .transform((value) => value === "on" || value === "true"),
+});
+
+const deleteIncomeSourceSchema = z.object({
+  sourceId: z.string().uuid(),
+});
+
 const accountSchema = z.object({
   name: z.string().trim().min(2),
   type: z.enum(["cash", "bank", "wallet", "savings", "other"]),
@@ -1148,8 +1167,8 @@ export async function confirmScheduledEventNow(formData: FormData) {
     throw new Error("La entrada esperada no existe en este espacio.");
   }
 
-  if (!event.account_id) {
-    throw new Error("El evento programado no tiene una cuenta asociada para confirmar en un clic.");
+  if (!event.business_unit_key) {
+    throw new Error("El evento programado no tiene un frente economico asociado.");
   }
 
   if (["paid", "confirmed", "cancelled"].includes(String(event.status))) {
@@ -1157,6 +1176,27 @@ export async function confirmScheduledEventNow(formData: FormData) {
   }
 
   const eventKind = String(event.kind);
+
+  if (eventKind !== "income") {
+    if (!event.account_id) {
+      throw new Error("El evento programado no tiene una cuenta asociada para confirmar en un clic.");
+    }
+
+    await payObligationRpc(rpcClient, context.workspace.id, {
+      eventId: input.eventId,
+      accountId: String(event.account_id),
+      amount: Number(event.amount),
+      paidAt: today,
+    });
+
+    revalidatePath("/app");
+    redirect("/app/hoy?confirmed=1");
+  }
+
+  if (!event.account_id) {
+    throw new Error("El evento programado no tiene una cuenta asociada para confirmar en un clic.");
+  }
+
   const movementKind =
     eventKind === "income"
       ? "income"
@@ -1174,7 +1214,7 @@ export async function confirmScheduledEventNow(formData: FormData) {
     concept: String(event.title),
     accountId: String(event.account_id),
     category: eventKind === "income" ? "Ingreso confirmado" : "Compromiso confirmado",
-    unit: String(event.business_unit_key ?? "personal"),
+    unit: String(event.business_unit_key),
     date: today,
     dueDate: String(event.due_date),
     status: "confirmed",
@@ -1254,7 +1294,24 @@ export async function adjustAndConfirmScheduledEvent(formData: FormData) {
     throw new Error(`No se pudo leer el evento programado: ${eventError?.message ?? "sin respuesta"}`);
   }
 
+  if (!event.business_unit_key) {
+    throw new Error("El evento programado no tiene un frente economico asociado.");
+  }
+
   const eventKind = String(event.kind);
+
+  if (eventKind !== "income") {
+    await payObligationRpc(rpcClient, context.workspace.id, {
+      eventId: input.eventId,
+      accountId: input.accountId,
+      amount: input.amount,
+      paidAt: input.confirmedAt,
+    });
+
+    revalidatePath("/app");
+    redirect("/app/hoy?confirmed=1");
+  }
+
   const movementKind =
     eventKind === "income"
       ? "income"
@@ -1272,7 +1329,7 @@ export async function adjustAndConfirmScheduledEvent(formData: FormData) {
     concept: String(event.title),
     accountId: input.accountId,
     category: eventKind === "income" ? "Ingreso confirmado" : "Compromiso confirmado",
-    unit: String(event.business_unit_key ?? "personal"),
+    unit: String(event.business_unit_key),
     date: input.confirmedAt,
     dueDate: String(event.due_date),
     status: "confirmed",
@@ -1582,19 +1639,6 @@ export async function createBusinessUnit(formData: FormData) {
     throw new Error(`No se pudo crear la fuente/unidad: ${insertBusinessError.message}`);
   }
 
-  const { error: insertIncomeError } = await client.from("income_sources").insert({
-    workspace_id: context.workspace.id,
-    name: input.name,
-    business_unit_key: key,
-    type: "manual",
-    active: true,
-  });
-
-  if (insertIncomeError) {
-    await client.from("business_units").delete().eq("workspace_id", context.workspace.id).eq("key", key);
-    throw new Error(`No se pudo crear la fuente de ingreso asociada: ${insertIncomeError.message}`);
-  }
-
   revalidatePath("/app");
   redirect("/app/negocios?saved=1");
 }
@@ -1621,12 +1665,6 @@ export async function updateBusinessUnit(formData: FormData) {
   if (businessError) {
     redirect("/app/negocios?error=update_unit");
   }
-
-  await client
-    .from("income_sources")
-    .update({ name: input.name })
-    .eq("workspace_id", context.workspace.id)
-    .eq("business_unit_key", input.key);
 
   revalidatePath("/app");
   redirect("/app/negocios?updated=1");
@@ -1663,14 +1701,18 @@ export async function deleteBusinessUnit(formData: FormData) {
     throw new Error("No puedes borrar esta fuente/unidad porque ya tiene movimientos o agenda asociada.");
   }
 
-  const { error: deleteIncomeError } = await client
+  const { count: sourceCount, error: sourceUsageError } = await client
     .from("income_sources")
-    .delete()
+    .select("id", { head: true, count: "exact" })
     .eq("workspace_id", context.workspace.id)
     .eq("business_unit_key", input.key);
 
-  if (deleteIncomeError) {
-    throw new Error(`No se pudieron borrar las fuentes de ingreso asociadas: ${deleteIncomeError.message}`);
+  if (sourceUsageError) {
+    throw new Error(`No se pudo validar las fuentes de ingreso asociadas: ${sourceUsageError.message}`);
+  }
+
+  if (Number(sourceCount ?? 0) > 0) {
+    throw new Error("No puedes borrar este frente mientras tenga fuentes de ingreso ligadas.");
   }
 
   const { error: deleteBusinessError } = await client
@@ -1685,4 +1727,120 @@ export async function deleteBusinessUnit(formData: FormData) {
 
   revalidatePath("/app");
   redirect("/app/negocios?deleted=1");
+}
+
+export async function createIncomeSource(formData: FormData) {
+  const input = incomeSourceSchema.parse({
+    name: formData.get("name"),
+    businessUnitKey: formData.get("businessUnitKey"),
+    type: formData.get("type") || "manual",
+  });
+
+  const context = await requireWorkspaceContext();
+  const client = await createSupabaseServerActionClient();
+
+  if (!client) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { data: businessUnit, error: businessError } = await client
+    .from("business_units")
+    .select("key")
+    .eq("workspace_id", context.workspace.id)
+    .eq("key", input.businessUnitKey)
+    .maybeSingle();
+
+  if (businessError) {
+    throw new Error(`No se pudo validar el frente de esta fuente: ${businessError.message}`);
+  }
+
+  if (!businessUnit) {
+    throw new Error("No puedes crear una fuente sin un frente valido.");
+  }
+
+  const { error } = await client.from("income_sources").insert({
+    workspace_id: context.workspace.id,
+    name: input.name,
+    business_unit_key: input.businessUnitKey,
+    type: input.type,
+    active: true,
+  });
+
+  if (error) {
+    throw new Error(`No se pudo crear la fuente de ingreso: ${error.message}`);
+  }
+
+  revalidatePath("/app");
+  redirect("/app/negocios?source_saved=1");
+}
+
+export async function updateIncomeSource(formData: FormData) {
+  const input = updateIncomeSourceSchema.parse({
+    sourceId: formData.get("sourceId"),
+    name: formData.get("name"),
+    type: formData.get("type") || "manual",
+    active: formData.get("active") || undefined,
+  });
+
+  const context = await requireWorkspaceContext();
+  const client = await createSupabaseServerActionClient();
+
+  if (!client) {
+    redirect("/app/negocios?error=config");
+  }
+
+  const { error } = await client
+    .from("income_sources")
+    .update({
+      name: input.name,
+      type: input.type,
+      active: input.active,
+    })
+    .eq("workspace_id", context.workspace.id)
+    .eq("id", input.sourceId);
+
+  if (error) {
+    redirect("/app/negocios?error=update_source");
+  }
+
+  revalidatePath("/app");
+  redirect("/app/negocios?source_updated=1");
+}
+
+export async function deleteIncomeSource(formData: FormData) {
+  const input = deleteIncomeSourceSchema.parse({
+    sourceId: formData.get("sourceId"),
+  });
+
+  const context = await requireWorkspaceContext();
+  const client = await createSupabaseServerActionClient();
+
+  if (!client) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const usageChecks = await Promise.all([
+    client.from("transactions").select("id", { head: true, count: "exact" }).eq("workspace_id", context.workspace.id).eq("source_type", "income_source").eq("source_id", input.sourceId),
+    client.from("income_templates").select("id", { head: true, count: "exact" }).eq("workspace_id", context.workspace.id).eq("income_source_id", input.sourceId),
+    client.from("incomes").select("id", { head: true, count: "exact" }).eq("workspace_id", context.workspace.id).eq("source_id", input.sourceId),
+  ]);
+
+  const firstError = usageChecks.find((result) => result.error)?.error;
+  if (firstError) {
+    throw new Error(`No se pudo validar uso de la fuente: ${firstError.message}`);
+  }
+
+  const totalUsage = usageChecks.reduce((sum, result) => sum + Number(result.count ?? 0), 0);
+  if (totalUsage > 0) {
+    throw new Error("No puedes borrar esta fuente porque ya tiene movimientos o plantillas asociadas.");
+  }
+
+  const { error } = await client.from("income_sources").delete().eq("workspace_id", context.workspace.id).eq("id", input.sourceId);
+
+  if (error) {
+    throw new Error(`No se pudo borrar la fuente: ${error.message}`);
+  }
+
+  revalidatePath("/app");
+  redirect("/app/negocios?source_deleted=1");
 }

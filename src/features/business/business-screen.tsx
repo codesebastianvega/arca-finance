@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createBusinessUnit, deleteBusinessUnit, updateBusinessUnit } from "@/app/actions";
+import { createBusinessUnit, createIncomeSource, deleteBusinessUnit, deleteIncomeSource, updateBusinessUnit, updateIncomeSource } from "@/app/actions";
 import { Badge, Button, Card, EmptyState, MetricCard } from "@/components/ui-kit";
 import type { DashboardData } from "@/lib/dashboard-data";
 import { formatCOP, parseCalendarDate } from "@/lib/finance";
@@ -34,10 +34,22 @@ export function BusinessScreen({
     saved?: boolean;
     updated?: boolean;
     deleted?: boolean;
+    sourceSaved?: boolean;
+    sourceUpdated?: boolean;
+    sourceDeleted?: boolean;
     error?: string;
   };
 }) {
   const snapshot = buildSnapshot(data, filters.month);
+  const units = [...data.business].sort((left, right) => left.name.localeCompare(right.name));
+  const sourceGroups = new Map(
+    units.map((unit) => [
+      unit.id,
+      data.incomeSources
+        .filter((source) => source.businessUnitKey === unit.id)
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    ])
+  );
   const totals = snapshot.reduce(
     (acc, item) => {
       acc.realIncome += item.realIncome;
@@ -57,7 +69,9 @@ export function BusinessScreen({
         <div className="max-w-4xl">
           <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Fuentes y frentes</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Origen del ingreso y lectura por frente real.</h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Aqui solo salen fuentes o frentes creados por ti o con actividad real.</p>
+          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            Aqui separas dos cosas distintas: el frente economico y la fuente concreta que trae la plata.
+          </p>
         </div>
       </section>
 
@@ -94,7 +108,10 @@ export function BusinessScreen({
                 <Button type="submit" size="sm">
                   Ver corte
                 </Button>
-                <Link href="/app/registrar?segment=movimiento" className="inline-flex h-9 items-center rounded-xl border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] px-3 text-sm text-[var(--text-primary)]">
+                <Link
+                  href="/app/registrar?segment=movimiento"
+                  className="inline-flex h-9 items-center rounded-xl border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] px-3 text-sm text-[var(--text-primary)]"
+                >
                   Registrar movimiento
                 </Link>
               </div>
@@ -103,97 +120,203 @@ export function BusinessScreen({
           </div>
         </Card>
 
-        <Card id="new-unit" className="p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Crear fuente</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Nueva fuente de ingreso</h2>
-          <form action={createBusinessUnit} className="mt-5 grid gap-3">
-            <label className="space-y-2">
-              <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
-              <input name="name" className={fieldClass} placeholder="Uxio, Freelance, Personal..." required />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre corto opcional</span>
-              <input name="key" className={fieldClass} placeholder="uxio, freelance, personal" />
-            </label>
-            <Button type="submit" size="sm">
-              Crear fuente
-            </Button>
-          </form>
-        </Card>
+        <div className="grid gap-6">
+          <Card id="new-unit" className="p-5">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Crear frente</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Nuevo frente economico</h2>
+            <form action={createBusinessUnit} className="mt-5 grid gap-3">
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
+                <input name="name" className={fieldClass} placeholder="Personal, Uxio, Freelance..." required />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Clave opcional</span>
+                <input name="key" className={fieldClass} placeholder="personal, uxio, freelance" />
+              </label>
+              <Button type="submit" size="sm">
+                Crear frente
+              </Button>
+            </form>
+          </Card>
+
+          <Card id="new-source" className="p-5">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Crear fuente</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Nueva fuente de ingreso</h2>
+            {units.length ? (
+              <form action={createIncomeSource} className="mt-5 grid gap-3">
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
+                  <input name="name" className={fieldClass} placeholder="Nomina, contrato mensual, comisiones..." required />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Frente</span>
+                  <select name="businessUnitKey" className={fieldClass} required defaultValue={units[0]?.id}>
+                    {units.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Tipo</span>
+                  <input name="type" className={fieldClass} defaultValue="manual" />
+                </label>
+                <Button type="submit" size="sm">
+                  Crear fuente
+                </Button>
+              </form>
+            ) : (
+              <EmptyState
+                title="Primero crea un frente"
+                description="La fuente siempre debe colgar de un frente economico."
+                actions={
+                  <a href="#new-unit">
+                    <Button size="sm">Crear frente</Button>
+                  </a>
+                }
+                className="mt-4 p-4"
+              />
+            )}
+          </Card>
+        </div>
       </div>
 
       {snapshot.length ? (
         <div className="space-y-4">
-          {snapshot.map((item) => (
-            <Card key={item.unit} className="p-5">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold text-[var(--foreground)]">{item.name}</h2>
-                    <Badge tone={item.realNet >= 0 ? "success" : "danger"}>{item.realNet >= 0 ? "Real positivo" : "Real negativo"}</Badge>
-                    {item.configured ? <Badge tone="neutral">Configurada</Badge> : <Badge tone="warning">Solo actividad</Badge>}
-                  </div>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
-                    {item.pendingEvents} eventos abiertos. Proyeccion neta del mes: {formatCOP(item.projectedNet)}.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Link href="/app/registrar?segment=movimiento" className="text-sm text-[var(--muted)] underline-offset-4 hover:underline">
-                    Registrar en esta fuente
-                  </Link>
-                  {item.configured ? (
-                    <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
-                      <summary className="cursor-pointer list-none text-sm text-[var(--foreground)]">Editar fuente</summary>
-                      <div className="mt-3 grid gap-3">
-                        <form action={updateBusinessUnit} className="grid gap-3">
-                          <input type="hidden" name="key" value={item.unit} />
-                          <label className="space-y-2">
-                            <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
-                            <input name="name" className={fieldClass} defaultValue={item.name} required />
-                          </label>
-                          <div className="text-xs text-[var(--muted)]">La clave interna queda fija para no romper historial y agenda.</div>
-                          <Button type="submit" size="sm">Guardar</Button>
-                        </form>
-                        <form action={deleteBusinessUnit}>
-                          <input type="hidden" name="key" value={item.unit} />
-                          <Button type="submit" size="sm" variant="secondary">
-                            Borrar
-                          </Button>
-                        </form>
-                      </div>
-                    </details>
-                  ) : null}
-                </div>
-              </div>
+          {snapshot.map((item) => {
+            const sources = sourceGroups.get(item.unit) ?? [];
 
-              <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                <div className="arca-soft-block rounded-2xl p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Real</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <MetricMini label="Ingresos" value={formatCOP(item.realIncome)} />
-                    <MetricMini label="Gastos" value={formatCOP(item.realExpense)} />
-                    <MetricMini label="Neto" value={formatCOP(item.realNet)} tone={item.realNet >= 0 ? "success" : "danger"} />
+            return (
+              <Card key={item.unit} className="p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-2xl font-semibold text-[var(--foreground)]">{item.name}</h2>
+                      <Badge tone={item.realNet >= 0 ? "success" : "danger"}>{item.realNet >= 0 ? "Real positivo" : "Real negativo"}</Badge>
+                      {item.configured ? <Badge tone="neutral">Configurado</Badge> : <Badge tone="warning">Solo actividad</Badge>}
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      {item.pendingEvents} eventos abiertos. Proyeccion neta del mes: {formatCOP(item.projectedNet)}.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link href="/app/registrar?segment=movimiento" className="text-sm text-[var(--muted)] underline-offset-4 hover:underline">
+                      Registrar en este frente
+                    </Link>
+                    {item.configured ? (
+                      <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                        <summary className="cursor-pointer list-none text-sm text-[var(--foreground)]">Editar frente</summary>
+                        <div className="mt-3 grid gap-3">
+                          <form action={updateBusinessUnit} className="grid gap-3">
+                            <input type="hidden" name="key" value={item.unit} />
+                            <label className="space-y-2">
+                              <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
+                              <input name="name" className={fieldClass} defaultValue={item.name} required />
+                            </label>
+                            <div className="text-xs text-[var(--muted)]">La clave interna queda fija para no romper historial y agenda.</div>
+                            <Button type="submit" size="sm">
+                              Guardar
+                            </Button>
+                          </form>
+                          <form action={deleteBusinessUnit}>
+                            <input type="hidden" name="key" value={item.unit} />
+                            <Button type="submit" size="sm" variant="secondary">
+                              Borrar frente
+                            </Button>
+                          </form>
+                        </div>
+                      </details>
+                    ) : null}
                   </div>
                 </div>
-                <div className="arca-soft-block rounded-2xl p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Pendiente o programado</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <MetricMini label="Por entrar" value={formatCOP(item.expectedIncome)} />
-                    <MetricMini label="Por salir" value={formatCOP(item.expectedOutflow)} />
-                    <MetricMini label="Proyectado" value={formatCOP(item.projectedNet)} tone={item.projectedNet >= 0 ? "success" : "danger"} />
+
+                <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                  <div className="arca-soft-block rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Real</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <MetricMini label="Ingresos" value={formatCOP(item.realIncome)} />
+                      <MetricMini label="Gastos" value={formatCOP(item.realExpense)} />
+                      <MetricMini label="Neto" value={formatCOP(item.realNet)} tone={item.realNet >= 0 ? "success" : "danger"} />
+                    </div>
+                  </div>
+                  <div className="arca-soft-block rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Pendiente o programado</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <MetricMini label="Por entrar" value={formatCOP(item.expectedIncome)} />
+                      <MetricMini label="Por salir" value={formatCOP(item.expectedOutflow)} />
+                      <MetricMini label="Proyectado" value={formatCOP(item.projectedNet)} tone={item.projectedNet >= 0 ? "success" : "danger"} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+
+                <div className="mt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Fuentes ligadas</p>
+                    <a href="#new-source" className="text-sm text-[var(--muted)] underline-offset-4 hover:underline">
+                      Crear fuente
+                    </a>
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {sources.length ? (
+                      sources.map((source) => (
+                        <div key={source.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="font-medium text-[var(--foreground)]">{source.name}</p>
+                              <p className="text-sm text-[var(--muted)]">{source.type}</p>
+                            </div>
+                            <Badge tone={source.active ? "success" : "warning"}>{source.active ? "Activa" : "Pausada"}</Badge>
+                          </div>
+                          <details className="mt-3 rounded-2xl border border-[var(--line)] bg-[color:color-mix(in_srgb,var(--surface-2)_82%,transparent)] p-3">
+                            <summary className="cursor-pointer list-none text-sm text-[var(--foreground)]">Editar fuente</summary>
+                            <div className="mt-3 grid gap-3 xl:grid-cols-[1fr,220px]">
+                              <form action={updateIncomeSource} className="grid gap-3">
+                                <input type="hidden" name="sourceId" value={source.id} />
+                                <label className="space-y-2">
+                                  <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Nombre visible</span>
+                                  <input name="name" className={fieldClass} defaultValue={source.name} required />
+                                </label>
+                                <label className="space-y-2">
+                                  <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Tipo</span>
+                                  <input name="type" className={fieldClass} defaultValue={source.type} />
+                                </label>
+                                <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
+                                  <input type="checkbox" name="active" defaultChecked={source.active} />
+                                  Fuente activa
+                                </label>
+                                <Button type="submit" size="sm">
+                                  Guardar fuente
+                                </Button>
+                              </form>
+                              <form action={deleteIncomeSource}>
+                                <input type="hidden" name="sourceId" value={source.id} />
+                                <Button type="submit" size="sm" variant="secondary">
+                                  Borrar fuente
+                                </Button>
+                              </form>
+                            </div>
+                          </details>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="arca-muted-block rounded-2xl p-4 text-sm text-[var(--muted)]">
+                        Este frente aun no tiene fuentes ligadas.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <EmptyState
-          title="Aun no has creado fuentes de ingreso"
-          description="Puedes empezar con Personal, Freelance o el nombre de tu negocio."
+          title="Aun no has creado frentes de ingreso"
+          description="Empieza por separar Personal, Freelance o el nombre de tu negocio."
           actions={
             <a href="#new-unit">
-              <Button size="sm">Crear fuente</Button>
+              <Button size="sm">Crear frente</Button>
             </a>
           }
           className="p-6"
@@ -207,13 +330,19 @@ function getBusinessFeedback(feedback?: {
   saved?: boolean;
   updated?: boolean;
   deleted?: boolean;
+  sourceSaved?: boolean;
+  sourceUpdated?: boolean;
+  sourceDeleted?: boolean;
   error?: string;
 }) {
   if (!feedback) return null;
-  if (feedback.updated) return { text: "La fuente se actualizo correctamente.", tone: "success" as const, label: "Actualizada" };
-  if (feedback.deleted) return { text: "La fuente se borro correctamente.", tone: "success" as const, label: "Borrada" };
-  if (feedback.saved) return { text: "La fuente se creo correctamente.", tone: "success" as const, label: "Guardada" };
-  if (feedback.error) return { text: "No se pudo completar la accion sobre la fuente.", tone: "danger" as const, label: "Error" };
+  if (feedback.sourceUpdated) return { text: "La fuente se actualizo correctamente.", tone: "success" as const, label: "Fuente" };
+  if (feedback.sourceDeleted) return { text: "La fuente se borro correctamente.", tone: "success" as const, label: "Fuente" };
+  if (feedback.sourceSaved) return { text: "La fuente se creo correctamente.", tone: "success" as const, label: "Fuente" };
+  if (feedback.updated) return { text: "El frente se actualizo correctamente.", tone: "success" as const, label: "Frente" };
+  if (feedback.deleted) return { text: "El frente se borro correctamente.", tone: "success" as const, label: "Frente" };
+  if (feedback.saved) return { text: "El frente se creo correctamente.", tone: "success" as const, label: "Frente" };
+  if (feedback.error) return { text: "No se pudo completar la accion sobre frentes o fuentes.", tone: "danger" as const, label: "Error" };
   return null;
 }
 

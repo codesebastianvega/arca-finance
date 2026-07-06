@@ -8,6 +8,10 @@ export const dynamic = "force-dynamic";
 type MonthPageProps = {
   searchParams: Promise<{
     month?: string;
+    saved?: string;
+    updated?: string;
+    deleted?: string;
+    error?: string;
   }>;
 };
 
@@ -18,7 +22,16 @@ export default async function MonthPage({ searchParams }: MonthPageProps) {
 
   return (
     <AppShell currentPath="/app/planeacion/mes" context={context}>
-      <MonthScreen data={data} monthKey={params.month ?? getMonthKey()} />
+      <MonthScreen
+        data={data}
+        monthKey={params.month ?? getMonthKey()}
+        feedback={{
+          saved: params.saved,
+          updated: params.updated,
+          deleted: params.deleted,
+          error: params.error,
+        }}
+      />
     </AppShell>
   );
 }
