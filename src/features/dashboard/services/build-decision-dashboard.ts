@@ -153,7 +153,7 @@ function buildTimeline(accounts: Account[], events: ScheduledEvent[], today: Dat
 
 function getMonthlyExpectedIncome(events: ScheduledEvent[], month: Date) {
   return events
-    .filter((event) => event.kind === "income" && isSameMonth(parseCalendarDate(event.dueDate), month))
+    .filter((event) => event.kind === "income" && !settledStatuses.has(event.status) && isSameMonth(parseCalendarDate(event.dueDate), month))
     .reduce((total, event) => total + event.amount, 0);
 }
 

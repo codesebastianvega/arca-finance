@@ -4,6 +4,7 @@ import { signOutAction } from "@/app/auth-actions";
 import { Badge, Button, Logo } from "@/components/ui-kit";
 import type { WorkspaceContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { MobileShellNav } from "./mobile-shell-nav";
 import { primaryNavigation, resolveActiveGroup, superAdminNavigation, utilityNavigation } from "./nav";
 
 export function AppShell({
@@ -152,26 +153,29 @@ export function AppShell({
           <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--header-backdrop)] backdrop-blur">
             <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-4 py-4 sm:px-6 xl:px-10">
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Arca</p>
-                <p className="truncate text-sm text-[var(--foreground)]">{context.profile.fullName ?? context.profile.email ?? "Usuario"}</p>
+                <div className="hidden lg:block">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Arca</p>
+                  <p className="truncate text-sm text-[var(--foreground)]">{context.profile.fullName ?? context.profile.email ?? "Usuario"}</p>
+                </div>
+                <MobileShellNav currentPath={currentPath} workspaceName={context.workspace.name} />
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <Link href="/app/registrar">
                   <Button size="sm">
                     <Plus size={16} />
-                    Registrar
+                    <span className="hidden sm:inline">Registrar</span>
                   </Button>
                 </Link>
                 <Link href="/app/transferir">
                   <Button size="sm" variant="secondary">
                     <ArrowRightLeft size={16} />
-                    Transferir
+                    <span className="hidden sm:inline">Transferir</span>
                   </Button>
                 </Link>
                 <form action={signOutAction}>
                   <Button type="submit" variant="secondary" size="sm">
                     <LogOut size={16} />
-                    Salir
+                    <span className="hidden sm:inline">Salir</span>
                   </Button>
                 </form>
               </div>
@@ -179,7 +183,7 @@ export function AppShell({
           </header>
 
           <main className="shell-grid min-h-[calc(100vh-73px)]">
-            <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 xl:px-10">{children}</div>
+            <div className="mx-auto max-w-[1240px] px-4 py-6 pb-28 sm:px-6 lg:pb-6 xl:px-10">{children}</div>
           </main>
         </div>
       </div>

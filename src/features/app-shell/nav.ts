@@ -75,7 +75,7 @@ export const primaryNavigation: AppNavGroup[] = [
 ];
 
 export const utilityNavigation: AppNavLeaf[] = [
-  { href: "/app/historial", label: "Historial", description: "Movimientos reales", icon: History },
+  { href: "/app/movimientos", label: "Movimientos", description: "Editar y borrar", icon: History },
   { href: "/app/configuracion", label: "Configuracion", description: "Cuenta y reglas", icon: Settings },
 ];
 

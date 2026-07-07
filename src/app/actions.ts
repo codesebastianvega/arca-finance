@@ -252,6 +252,11 @@ const adjustScheduledEventSchema = z.object({
 
 const reverseTransactionSchema = z.object({
   transactionId: z.string().uuid(),
+  returnTo: z.string().trim().optional(),
+});
+
+const updateTransactionSchema = transactionSchema.extend({
+  transactionId: z.string().uuid(),
 });
 
 function slugifyBusinessUnitKey(value: string) {
@@ -298,6 +303,204 @@ function normalizeTemplatePayload<T extends { recurrenceMode: string; frequency:
   };
 }
 
+function isMissingScheduledEventSchemaField(message?: string) {
+  const normalized = (message ?? "").toLowerCase();
+  return (
+    normalized.includes("schema cache") ||
+    normalized.includes("could not find") ||
+    normalized.includes("does not exist") ||
+    normalized.includes("column")
+  );
+}
+
+async function resolveMovementSourceInput(
+  input: {
+    unit: string;
+    sourceId?: string;
+    sourceType?: string;
+  },
+  workspaceId: string,
+  directClient: NonNullable<Awaited<ReturnType<typeof createSupabaseServerActionClient>>> | null
+) {
+  let resolvedUnit = input.unit;
+  let resolvedSourceType = input.sourceType;
+
+  if (input.sourceId && directClient) {
+    const { data: incomeSource, error: incomeSourceError } = await directClient
+      .from("income_sources")
+      .select("id, workspace_id, business_unit_key")
+      .eq("workspace_id", workspaceId)
+      .eq("id", input.sourceId)
+      .maybeSingle();
+
+    if (incomeSourceError) {
+      throw new Error(`No se pudo validar la fuente de ingreso: ${incomeSourceError.message}`);
+    }
+
+    if (!incomeSource) {
+      throw new Error("La fuente de ingreso elegida no existe en este espacio.");
+    }
+
+    resolvedUnit = String(incomeSource.business_unit_key ?? input.unit);
+    resolvedSourceType = "income_source";
+  }
+
+  return { resolvedUnit, resolvedSourceType };
+}
+
+async function undoTransactionById(client: NonNullable<Awaited<ReturnType<typeof createSupabaseServerActionClient>>>, workspaceId: string, transactionId: string) {
+  const { data: transaction, error } = await client
+    .from("transactions")
+    .select("id, workspace_id, kind, amount, account_id, concept, date, metadata, source_type, source_id")
+    .eq("id", transactionId)
+    .eq("workspace_id", workspaceId)
+    .single();
+
+  if (error || !transaction) {
+    throw new Error(`No se pudo leer el movimiento: ${error?.message ?? "sin respuesta"}`);
+  }
+
+  const movement = transaction as {
+    id: string;
+    kind: string;
+    amount: number;
+    account_id: string | null;
+    concept: string;
+    date: string;
+    metadata?: Record<string, unknown> | null;
+    source_type?: string | null;
+    source_id?: string | null;
+  };
+
+  const metadata = (movement.metadata ?? {}) as Record<string, unknown>;
+  const scheduledEventId = typeof metadata.scheduled_event_id === "string" ? metadata.scheduled_event_id : null;
+  const transferId = typeof metadata.transfer_id === "string" ? metadata.transfer_id : null;
+
+  if (movement.kind === "transfer" && transferId) {
+    const { data: transferTransactions, error: transferError } = await client
+      .from("transactions")
+      .select("id, amount, account_id, metadata")
+      .eq("workspace_id", workspaceId)
+      .contains("metadata", { transfer_id: transferId });
+
+    if (transferError) {
+      throw new Error(`No se pudo revertir la transferencia: ${transferError.message}`);
+    }
+
+    for (const item of transferTransactions ?? []) {
+      const direction = (item.metadata as Record<string, unknown> | null)?.direction;
+
+      if (!item.account_id) continue;
+
+      const { data: account, error: accountError } = await client.from("accounts").select("balance").eq("workspace_id", workspaceId).eq("id", item.account_id).single();
+
+      if (accountError) {
+        throw new Error(`No se pudo leer la cuenta de la transferencia: ${accountError.message}`);
+      }
+
+      const currentBalance = Number(account?.balance ?? 0);
+
+      if (direction === "out") {
+        await client.from("accounts").update({ balance: currentBalance + Number(item.amount) }).eq("workspace_id", workspaceId).eq("id", item.account_id);
+      }
+
+      if (direction === "in") {
+        if (currentBalance < Number(item.amount)) {
+          throw new Error("No se puede deshacer la transferencia porque la cuenta destino ya no tiene ese saldo disponible.");
+        }
+
+        await client.from("accounts").update({ balance: currentBalance - Number(item.amount) }).eq("workspace_id", workspaceId).eq("id", item.account_id);
+      }
+    }
+
+    await client.from("transactions").delete().eq("workspace_id", workspaceId).contains("metadata", { transfer_id: transferId });
+    return movement;
+  }
+
+  if (movement.account_id) {
+    const { data: account, error: accountError } = await client.from("accounts").select("balance").eq("workspace_id", workspaceId).eq("id", movement.account_id).single();
+
+    if (accountError) {
+      throw new Error(`No se pudo leer la cuenta del movimiento: ${accountError.message}`);
+    }
+
+    const currentBalance = Number(account?.balance ?? 0);
+    let nextBalance = currentBalance;
+
+    if (movement.kind === "income" || movement.kind === "saving_withdrawal") {
+      if (currentBalance < Number(movement.amount)) {
+        throw new Error("No se puede deshacer este movimiento porque la cuenta ya no tiene ese saldo disponible.");
+      }
+      nextBalance = currentBalance - Number(movement.amount);
+    }
+
+    if (["expense", "debt_payment", "card_payment", "saving_contribution"].includes(movement.kind)) {
+      nextBalance = currentBalance + Number(movement.amount);
+    }
+
+    if (nextBalance !== currentBalance) {
+      await client.from("accounts").update({ balance: nextBalance }).eq("workspace_id", workspaceId).eq("id", movement.account_id);
+    }
+  }
+
+  if (movement.kind === "debt_payment" && movement.source_type === "debt" && movement.source_id) {
+    const { data: debt, error: debtError } = await client.from("debts").select("balance").eq("workspace_id", workspaceId).eq("id", movement.source_id).single();
+
+    if (debtError) {
+      throw new Error(`No se pudo leer la deuda: ${debtError.message}`);
+    }
+
+    await client.from("debts").update({ balance: Number(debt?.balance ?? 0) + Number(movement.amount), status: "active" }).eq("workspace_id", workspaceId).eq("id", movement.source_id);
+  }
+
+  if ((movement.kind === "card_payment" || movement.kind === "card_purchase") && movement.source_type === "credit_card" && movement.source_id) {
+    const { data: card, error: cardError } = await client
+      .from("credit_cards")
+      .select("used, limit_value")
+      .eq("workspace_id", workspaceId)
+      .eq("id", movement.source_id)
+      .single();
+
+    if (cardError) {
+      throw new Error(`No se pudo leer la tarjeta: ${cardError.message}`);
+    }
+
+    const currentUsed = Number(card?.used ?? 0);
+    const nextUsed = movement.kind === "card_payment" ? currentUsed + Number(movement.amount) : Math.max(0, currentUsed - Number(movement.amount));
+
+    await client
+      .from("credit_cards")
+      .update({ used: nextUsed, status: Number(card?.limit_value ?? 0) > 0 && nextUsed >= Number(card?.limit_value ?? 0) ? "blocked" : "active" })
+      .eq("workspace_id", workspaceId)
+      .eq("id", movement.source_id);
+  }
+
+  if (movement.kind === "card_purchase" && movement.source_type === "credit_card" && movement.source_id) {
+    const { data: purchase } = await client
+      .from("credit_card_purchases")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("credit_card_id", movement.source_id)
+      .eq("concept", movement.concept)
+      .eq("amount", movement.amount)
+      .eq("purchase_date", movement.date)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (purchase?.id) {
+      await client.from("credit_card_purchases").delete().eq("workspace_id", workspaceId).eq("id", purchase.id);
+    }
+  }
+
+  if (scheduledEventId) {
+    await client.from("scheduled_events").update({ status: "scheduled" }).eq("workspace_id", workspaceId).eq("id", scheduledEventId);
+  }
+
+  await client.from("transactions").delete().eq("workspace_id", workspaceId).eq("id", movement.id);
+  return movement;
+}
+
 export async function createTransaction(formData: FormData) {
   const input = transactionSchema.parse({
     kind: formData.get("kind"),
@@ -316,28 +519,7 @@ export async function createTransaction(formData: FormData) {
   const context = await requireWorkspaceContext();
   const client = await getActionClient();
   const directClient = await createSupabaseServerActionClient();
-  let resolvedUnit = input.unit;
-  let resolvedSourceType = input.sourceType;
-
-  if (input.sourceId && directClient) {
-    const { data: incomeSource, error: incomeSourceError } = await directClient
-      .from("income_sources")
-      .select("id, workspace_id, business_unit_key")
-      .eq("workspace_id", context.workspace.id)
-      .eq("id", input.sourceId)
-      .maybeSingle();
-
-    if (incomeSourceError) {
-      throw new Error(`No se pudo validar la fuente de ingreso: ${incomeSourceError.message}`);
-    }
-
-    if (!incomeSource) {
-      throw new Error("La fuente de ingreso elegida no existe en este espacio.");
-    }
-
-    resolvedUnit = String(incomeSource.business_unit_key ?? input.unit);
-    resolvedSourceType = "income_source";
-  }
+  const { resolvedUnit, resolvedSourceType } = await resolveMovementSourceInput(input, context.workspace.id, directClient);
 
   await createMovementRpc(client, context.workspace.id, {
     kind: input.kind,
@@ -359,6 +541,81 @@ export async function createTransaction(formData: FormData) {
 
   revalidatePath("/app");
   redirect("/app/dashboard?saved=1");
+}
+
+export async function updateTransaction(formData: FormData) {
+  const input = updateTransactionSchema.parse({
+    transactionId: formData.get("transactionId"),
+    kind: formData.get("kind"),
+    status: formData.get("status"),
+    amount: formData.get("amount"),
+    concept: formData.get("concept"),
+    accountId: formData.get("accountId"),
+    category: formData.get("category"),
+    unit: formData.get("unit"),
+    date: formData.get("date"),
+    dueDate: formData.get("dueDate") || undefined,
+    sourceId: formData.get("sourceId") || undefined,
+    sourceType: formData.get("sourceType") || undefined,
+  });
+
+  const context = await requireWorkspaceContext();
+  const client = await getActionClient();
+  const directClient = await createSupabaseServerActionClient();
+
+  if (!directClient) {
+    throw new Error("Supabase no esta configurado en el servidor.");
+  }
+
+  const { data: current, error: currentError } = await directClient
+    .from("transactions")
+    .select("id, kind, source_type, source_id, metadata")
+    .eq("workspace_id", context.workspace.id)
+    .eq("id", input.transactionId)
+    .single();
+
+  if (currentError || !current) {
+    throw new Error(`No se pudo leer el movimiento a editar: ${currentError?.message ?? "sin respuesta"}`);
+  }
+
+  const metadata = (current.metadata ?? {}) as Record<string, unknown>;
+  const isProtectedMovement =
+    current.kind === "transfer" ||
+    current.kind === "debt_payment" ||
+    current.kind === "card_payment" ||
+    current.kind === "card_purchase" ||
+    typeof metadata.scheduled_event_id === "string" ||
+    current.source_type === "debt" ||
+    current.source_type === "credit_card";
+
+  if (isProtectedMovement) {
+    redirect("/app/movimientos?error=locked_edit");
+  }
+
+  await undoTransactionById(directClient, context.workspace.id, input.transactionId);
+  const { resolvedUnit, resolvedSourceType } = await resolveMovementSourceInput(input, context.workspace.id, directClient);
+
+  await createMovementRpc(client, context.workspace.id, {
+    kind: input.kind,
+    amount: input.amount,
+    concept: input.concept,
+    accountId: input.accountId,
+    category: input.category,
+    unit: resolvedUnit,
+    date: input.date,
+    dueDate: input.dueDate,
+    status: input.status,
+    sourceId: input.sourceId,
+    sourceType: resolvedSourceType,
+    metadata: {
+      source: "arca-ui",
+      created_by: "movement-edit",
+      replaces_transaction_id: input.transactionId,
+    },
+  });
+
+  revalidatePath("/app");
+  redirect("/app/movimientos?updated=1");
 }
 
 export async function createIncomeTemplate(formData: FormData) {
@@ -1256,7 +1513,19 @@ export async function confirmScheduledEventNow(formData: FormData) {
     .eq("id", input.eventId);
 
   if (updateError) {
-    throw new Error(`Se confirmo el evento, pero no se pudo cerrar en agenda: ${updateError.message}`);
+    if (isMissingScheduledEventSchemaField(updateError.message)) {
+      const { error: fallbackError } = await directClient
+        .from("scheduled_events")
+        .update({ status: "confirmed" })
+        .eq("workspace_id", context.workspace.id)
+        .eq("id", input.eventId);
+
+      if (fallbackError) {
+        throw new Error(`Se confirmo el evento, pero no se pudo cerrar en agenda: ${fallbackError.message}`);
+      }
+    } else {
+      throw new Error(`Se confirmo el evento, pero no se pudo cerrar en agenda: ${updateError.message}`);
+    }
   }
 
   revalidatePath("/app");
@@ -1364,11 +1633,35 @@ export async function adjustAndConfirmScheduledEvent(formData: FormData) {
     input.confirmedAt
   );
 
-  await directClient.from("scheduled_events").update({
-    ...nextEventState,
-    account_id: input.accountId,
-    amount: input.amount,
-  }).eq("workspace_id", context.workspace.id).eq("id", input.eventId);
+  const { error: updateError } = await directClient
+    .from("scheduled_events")
+    .update({
+      ...nextEventState,
+      account_id: input.accountId,
+      amount: input.amount,
+    })
+    .eq("workspace_id", context.workspace.id)
+    .eq("id", input.eventId);
+
+  if (updateError) {
+    if (isMissingScheduledEventSchemaField(updateError.message)) {
+      const { error: fallbackError } = await directClient
+        .from("scheduled_events")
+        .update({
+          status: "confirmed",
+          account_id: input.accountId,
+          amount: input.amount,
+        })
+        .eq("workspace_id", context.workspace.id)
+        .eq("id", input.eventId);
+
+      if (fallbackError) {
+        throw new Error(`Se confirmo el evento, pero no se pudo cerrar en agenda: ${fallbackError.message}`);
+      }
+    } else {
+      throw new Error(`Se confirmo el evento, pero no se pudo cerrar en agenda: ${updateError.message}`);
+    }
+  }
 
   revalidatePath("/app");
   redirect("/app/hoy?confirmed=1");
@@ -1392,6 +1685,7 @@ export async function ensureScheduledEventsForMonth(formData: FormData) {
 export async function reverseTransaction(formData: FormData) {
   const input = reverseTransactionSchema.parse({
     transactionId: formData.get("transactionId"),
+    returnTo: formData.get("returnTo") || undefined,
   });
 
   const context = await requireWorkspaceContext();
@@ -1401,199 +1695,10 @@ export async function reverseTransaction(formData: FormData) {
     throw new Error("Supabase no esta configurado en el servidor.");
   }
 
-  const { data: transaction, error } = await client
-    .from("transactions")
-    .select("id, workspace_id, kind, amount, account_id, concept, date, metadata, source_type, source_id")
-    .eq("id", input.transactionId)
-    .eq("workspace_id", context.workspace.id)
-    .single();
-
-  if (error || !transaction) {
-    throw new Error(`No se pudo leer el movimiento: ${error?.message ?? "sin respuesta"}`);
-  }
-
-  const movement = transaction as {
-    id: string;
-    kind: string;
-    amount: number;
-    account_id: string | null;
-    concept: string;
-    date: string;
-    metadata?: Record<string, unknown> | null;
-    source_type?: string | null;
-    source_id?: string | null;
-  };
-
-  const metadata = (movement.metadata ?? {}) as Record<string, unknown>;
-  const scheduledEventId = typeof metadata.scheduled_event_id === "string" ? metadata.scheduled_event_id : null;
-  const transferId = typeof metadata.transfer_id === "string" ? metadata.transfer_id : null;
-
-  if (movement.kind === "transfer" && transferId) {
-    const { data: transferTransactions, error: transferError } = await client
-      .from("transactions")
-      .select("id, amount, account_id, metadata")
-      .eq("workspace_id", context.workspace.id)
-      .contains("metadata", { transfer_id: transferId });
-
-    if (transferError) {
-      throw new Error(`No se pudo revertir la transferencia: ${transferError.message}`);
-    }
-
-    for (const item of transferTransactions ?? []) {
-      const direction = (item.metadata as Record<string, unknown> | null)?.direction;
-
-      if (!item.account_id) {
-        continue;
-      }
-
-      const { data: account, error: accountError } = await client
-        .from("accounts")
-        .select("balance")
-        .eq("workspace_id", context.workspace.id)
-        .eq("id", item.account_id)
-        .single();
-
-      if (accountError) {
-        throw new Error(`No se pudo leer la cuenta de la transferencia: ${accountError.message}`);
-      }
-
-      const currentBalance = Number(account?.balance ?? 0);
-
-      if (direction === "out") {
-        await client
-          .from("accounts")
-          .update({ balance: currentBalance + Number(item.amount) })
-          .eq("workspace_id", context.workspace.id)
-          .eq("id", item.account_id);
-      }
-
-      if (direction === "in") {
-        if (currentBalance < Number(item.amount)) {
-          throw new Error("No se puede deshacer la transferencia porque la cuenta destino ya no tiene ese saldo disponible.");
-        }
-
-        await client
-          .from("accounts")
-          .update({ balance: currentBalance - Number(item.amount) })
-          .eq("workspace_id", context.workspace.id)
-          .eq("id", item.account_id);
-      }
-    }
-
-    await client.from("transactions").delete().eq("workspace_id", context.workspace.id).contains("metadata", { transfer_id: transferId });
-  } else {
-    if (movement.account_id) {
-      const { data: account, error: accountError } = await client
-        .from("accounts")
-        .select("balance")
-        .eq("workspace_id", context.workspace.id)
-        .eq("id", movement.account_id)
-        .single();
-
-      if (accountError) {
-        throw new Error(`No se pudo leer la cuenta del movimiento: ${accountError.message}`);
-      }
-
-      const currentBalance = Number(account?.balance ?? 0);
-      let nextBalance = currentBalance;
-
-      if (movement.kind === "income" || movement.kind === "saving_withdrawal") {
-        if (currentBalance < Number(movement.amount)) {
-          throw new Error("No se puede deshacer este movimiento porque la cuenta ya no tiene ese saldo disponible.");
-        }
-        nextBalance = currentBalance - Number(movement.amount);
-      }
-
-      if (["expense", "debt_payment", "card_payment", "saving_contribution"].includes(movement.kind)) {
-        nextBalance = currentBalance + Number(movement.amount);
-      }
-
-      if (nextBalance !== currentBalance) {
-        await client
-          .from("accounts")
-          .update({ balance: nextBalance })
-          .eq("workspace_id", context.workspace.id)
-          .eq("id", movement.account_id);
-      }
-    }
-
-    if (movement.kind === "debt_payment" && movement.source_type === "debt" && movement.source_id) {
-      const { data: debt, error: debtError } = await client
-        .from("debts")
-        .select("balance")
-        .eq("workspace_id", context.workspace.id)
-        .eq("id", movement.source_id)
-        .single();
-
-      if (debtError) {
-        throw new Error(`No se pudo leer la deuda: ${debtError.message}`);
-      }
-
-      await client
-        .from("debts")
-        .update({
-          balance: Number(debt?.balance ?? 0) + Number(movement.amount),
-          status: "active",
-        })
-        .eq("workspace_id", context.workspace.id)
-        .eq("id", movement.source_id);
-    }
-
-    if ((movement.kind === "card_payment" || movement.kind === "card_purchase") && movement.source_type === "credit_card" && movement.source_id) {
-      const { data: card, error: cardError } = await client
-        .from("credit_cards")
-        .select("used, limit_value")
-        .eq("workspace_id", context.workspace.id)
-        .eq("id", movement.source_id)
-        .single();
-
-      if (cardError) {
-        throw new Error(`No se pudo leer la tarjeta: ${cardError.message}`);
-      }
-
-      const currentUsed = Number(card?.used ?? 0);
-      const nextUsed =
-        movement.kind === "card_payment"
-          ? currentUsed + Number(movement.amount)
-          : Math.max(0, currentUsed - Number(movement.amount));
-
-      await client
-        .from("credit_cards")
-        .update({
-          used: nextUsed,
-          status: Number(card?.limit_value ?? 0) > 0 && nextUsed >= Number(card?.limit_value ?? 0) ? "blocked" : "active",
-        })
-        .eq("workspace_id", context.workspace.id)
-        .eq("id", movement.source_id);
-    }
-
-    if (movement.kind === "card_purchase" && movement.source_type === "credit_card" && movement.source_id) {
-      const { data: purchase } = await client
-        .from("credit_card_purchases")
-        .select("id")
-        .eq("workspace_id", context.workspace.id)
-        .eq("credit_card_id", movement.source_id)
-        .eq("concept", movement.concept)
-        .eq("amount", movement.amount)
-        .eq("purchase_date", movement.date)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (purchase?.id) {
-        await client.from("credit_card_purchases").delete().eq("workspace_id", context.workspace.id).eq("id", purchase.id);
-      }
-    }
-
-    if (scheduledEventId) {
-      await client.from("scheduled_events").update({ status: "scheduled" }).eq("workspace_id", context.workspace.id).eq("id", scheduledEventId);
-    }
-
-    await client.from("transactions").delete().eq("workspace_id", context.workspace.id).eq("id", movement.id);
-  }
+  await undoTransactionById(client, context.workspace.id, input.transactionId);
 
   revalidatePath("/app");
-  redirect("/app/historial?reversed=1");
+  redirect(input.returnTo && input.returnTo.startsWith("/app") ? `${input.returnTo}${input.returnTo.includes("?") ? "&" : "?"}reversed=1` : "/app/movimientos?reversed=1");
 }
 
 export async function createBusinessUnit(formData: FormData) {

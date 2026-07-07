@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, Check } from "lucide-react";
 import { Button, Card, Logo, SectionHeader } from "@/components/ui-kit";
+import { getCurrentWorkspaceContext } from "@/lib/auth";
 
 const planCards: Array<{
   code: string;
@@ -34,7 +36,13 @@ const planCards: Array<{
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const { context } = await getCurrentWorkspaceContext();
+
+  if (context) {
+    redirect("/app/hoy");
+  }
+
   return (
     <main className="min-h-screen bg-[var(--background)]">
       <section className="border-b border-[var(--line)]">

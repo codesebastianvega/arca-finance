@@ -239,7 +239,7 @@ export function ObligationsScreen({
               <Link href="/app/planeacion/mes" className="arca-soft-block block rounded-xl px-4 py-3 text-[var(--foreground)]">
                 Ver mes
               </Link>
-              <Link href="/app/historial" className="arca-soft-block block rounded-xl px-4 py-3 text-[var(--foreground)]">
+              <Link href="/app/movimientos" className="arca-soft-block block rounded-xl px-4 py-3 text-[var(--foreground)]">
                 Ver historial
               </Link>
             </div>
