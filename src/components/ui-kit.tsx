@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "arca-focus inline-flex items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "arca-focus arca-active-scale inline-flex items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -90,9 +90,9 @@ export function MetricCard({
   } as const;
 
   return (
-    <Card className="p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">{label}</p>
-      <div className="mt-2 flex items-end justify-between gap-3">
+    <Card className="p-3 sm:p-4">
+      <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-[var(--muted)]">{label}</p>
+      <div className="mt-2 flex items-end justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           <p className="break-words text-xl font-semibold text-[var(--foreground)] xl:text-2xl">{value}</p>
           {delta ? <p className="mt-1 text-sm text-[var(--muted)]">{delta}</p> : null}
@@ -165,9 +165,9 @@ export function SectionHeader({
 }) {
   return (
     <div className={cn("max-w-4xl", align === "center" ? "mx-auto text-center" : "")}>
-      {eyebrow ? <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{eyebrow}</p> : null}
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">{title}</h1>
-      {description ? <p className="mt-4 text-sm leading-7 text-[var(--muted)] sm:text-base sm:leading-8">{description}</p> : null}
+      {eyebrow ? <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{eyebrow}</p> : null}
+      <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">{title}</h1>
+      {description ? <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-8">{description}</p> : null}
     </div>
   );
 }

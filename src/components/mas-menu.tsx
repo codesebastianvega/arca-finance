@@ -19,7 +19,7 @@ export function MasMenu() {
         <MenuRow href="/app/configuracion" label="Configuracion" icon={Settings} />
 
         <form action={signOutAction} className="border-t border-[var(--border)]">
-          <button type="submit" className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left">
+          <button type="submit" className="arca-active-scale flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-[color:color-mix(in_srgb,var(--surface)_84%,var(--surface-strong)_16%)]">
             <div className="flex items-center gap-3">
               <LogOut size={18} className="text-[var(--danger)]" />
               <span className="text-sm font-medium text-[var(--danger)]">Salir</span>
@@ -46,7 +46,7 @@ function MenuRow({
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-4 last:border-b-0"
+      className="arca-active-scale flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-4 last:border-b-0 transition hover:bg-[color:color-mix(in_srgb,var(--surface)_84%,var(--surface-strong)_16%)]"
     >
       <div className="flex items-center gap-3">
         <Icon size={18} className="text-[var(--text-primary)]" />

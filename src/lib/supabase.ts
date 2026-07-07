@@ -100,8 +100,3 @@ export function getSupabaseAdminClient() {
   return adminClient;
 }
 
-// Legacy alias kept so the previous shell can still render while the app moves
-// to user-scoped clients under /app.
-export function getSupabaseServerClient() {
-  return getSupabaseAdminClient();
-}

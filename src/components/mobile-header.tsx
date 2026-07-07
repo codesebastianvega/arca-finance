@@ -26,11 +26,11 @@ function formatHeaderDate() {
 
 export function MobileHeader({ context }: { context: WorkspaceContext }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--header-backdrop)] backdrop-blur md:hidden">
-      <div className="flex h-[72px] items-center justify-between gap-3 px-4">
+    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--header-backdrop)] backdrop-blur-xl md:hidden pt-[env(safe-area-inset-top)]">
+      <div className="flex h-[60px] items-center justify-between gap-3 px-4">
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-[var(--foreground)]">Hola, {getDisplayName(context)}</p>
-          <p className="mt-1 truncate text-sm capitalize text-[var(--muted)]">{formatHeaderDate()}</p>
+          <p className="truncate text-sm font-semibold text-[var(--foreground)]">Hola, {getDisplayName(context)}</p>
+          <p className="mt-0.5 truncate text-xs capitalize text-[var(--muted)]">{formatHeaderDate()}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="ghost" size="sm" aria-label="Notificaciones">
@@ -39,7 +39,7 @@ export function MobileHeader({ context }: { context: WorkspaceContext }) {
           <Link
             href="/app/configuracion"
             aria-label="Abrir configuracion"
-            className="arca-focus inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] text-sm font-semibold text-[var(--text-primary)]"
+            className="arca-focus arca-active-scale inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] text-xs font-semibold text-[var(--text-primary)]"
           >
             {getInitials(context)}
           </Link>

@@ -232,3 +232,11 @@ a {
   background: var(--accent-gradient);
   color: var(--on-accent);
 }
+
+.arca-active-scale {
+  transition: transform 0.15s ease-out;
+}
+
+.arca-active-scale:active {
+  transform: scale(0.97);
+}
