@@ -17,6 +17,7 @@ export function DecisionDashboardView({
   summary?: DecisionDashboard;
 }) {
   const summary = providedSummary ?? buildDecisionDashboard(data, month);
+  const cashAfterCommitments = summary.freeCash - summary.monthlyCommitments;
 
   return (
     <div className="space-y-6">
@@ -52,9 +53,9 @@ export function DecisionDashboardView({
         />
         <MetricCard
           label="Libre despues de pagos"
-          value={formatCOP(summary.monthRunway)}
-          delta={`Ahorro protegido: ${formatCOP(summary.protectedSavings)}`}
-          tone={summary.monthRunway >= 0 ? "success" : "danger"}
+          value={formatCOP(cashAfterCommitments)}
+          delta={`Sin contar ingresos esperados. Ahorro protegido: ${formatCOP(summary.protectedSavings)}`}
+          tone={cashAfterCommitments >= 0 ? "success" : "danger"}
         />
       </section>
 
