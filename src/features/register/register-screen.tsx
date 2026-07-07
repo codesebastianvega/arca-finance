@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRightLeft, BadgeDollarSign, CreditCard, Landmark, PiggyBank, Plus, Repeat, Wallet } from "lucide-react";
 import { createAccount, createCreditCard, createDebt, createExpenseTemplate, createIncomeTemplate, createSavingsGoal, createTransaction } from "@/app/actions";
@@ -12,7 +14,7 @@ const areaClass = `${fieldClass} arca-input-area`;
 const labelClass = "text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]";
 const dateFieldProps = { lang: "es-CO", inputMode: "numeric" as const };
 
-const segments = [
+export const registerSegments = [
   { key: "movimiento", label: "Movimiento", icon: Wallet },
   { key: "plantilla_ingreso", label: "Ingreso programado", icon: Repeat },
   { key: "plantilla_gasto", label: "Gasto programado", icon: Repeat },
@@ -22,7 +24,7 @@ const segments = [
   { key: "ahorro", label: "Ahorro", icon: PiggyBank },
 ] as const;
 
-type SegmentKey = (typeof segments)[number]["key"];
+export type RegisterSegmentKey = (typeof registerSegments)[number]["key"];
 
 export function RegisterScreen({
   data,
@@ -33,9 +35,7 @@ export function RegisterScreen({
   activeSegment?: string;
   welcome?: boolean;
 }) {
-  const segment = segments.some((item) => item.key === activeSegment) ? (activeSegment as SegmentKey) : "movimiento";
-  const businessOptions = data.business;
-  const incomeSourceOptions = data.incomeSources;
+  const segment = registerSegments.some((item) => item.key === activeSegment) ? (activeSegment as RegisterSegmentKey) : "movimiento";
 
   return (
     <div className="space-y-6">
@@ -68,7 +68,7 @@ export function RegisterScreen({
       ) : null}
 
       <section className="flex flex-wrap gap-2">
-        {segments.map((item) => {
+        {registerSegments.map((item) => {
           const Icon = item.icon;
           const active = item.key === segment;
 
@@ -87,13 +87,7 @@ export function RegisterScreen({
 
       <div className="grid gap-6 xl:grid-cols-[1.25fr,0.75fr]">
         <Card className="p-5 md:p-6">
-          {segment === "movimiento" ? <MovementForm data={data} businessOptions={businessOptions} incomeSourceOptions={incomeSourceOptions} /> : null}
-          {segment === "plantilla_ingreso" ? <IncomeTemplateForm data={data} businessOptions={businessOptions} incomeSourceOptions={incomeSourceOptions} /> : null}
-          {segment === "plantilla_gasto" ? <ExpenseTemplateForm data={data} businessOptions={businessOptions} /> : null}
-          {segment === "cuenta" ? <AccountForm /> : null}
-          {segment === "deuda" ? <DebtForm /> : null}
-          {segment === "tarjeta" ? <CardForm /> : null}
-          {segment === "ahorro" ? <SavingsForm /> : null}
+          <RegisterFormsPanel data={data} segment={segment} />
         </Card>
 
         <div className="space-y-4">
@@ -135,6 +129,29 @@ export function RegisterScreen({
         </div>
       </div>
     </div>
+  );
+}
+
+export function RegisterFormsPanel({
+  data,
+  segment,
+}: {
+  data: DashboardData;
+  segment: RegisterSegmentKey;
+}) {
+  const businessOptions = data.business;
+  const incomeSourceOptions = data.incomeSources;
+
+  return (
+    <>
+      {segment === "movimiento" ? <MovementForm data={data} businessOptions={businessOptions} incomeSourceOptions={incomeSourceOptions} /> : null}
+      {segment === "plantilla_ingreso" ? <IncomeTemplateForm data={data} businessOptions={businessOptions} incomeSourceOptions={incomeSourceOptions} /> : null}
+      {segment === "plantilla_gasto" ? <ExpenseTemplateForm data={data} businessOptions={businessOptions} /> : null}
+      {segment === "cuenta" ? <AccountForm /> : null}
+      {segment === "deuda" ? <DebtForm /> : null}
+      {segment === "tarjeta" ? <CardForm /> : null}
+      {segment === "ahorro" ? <SavingsForm /> : null}
+    </>
   );
 }
 

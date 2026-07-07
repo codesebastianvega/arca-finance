@@ -130,7 +130,7 @@ function getUrgency(event: ScheduledEvent, today: Date) {
 
 function buildTimeline(accounts: Account[], events: ScheduledEvent[], today: Date) {
   return events
-    .filter((event) => !settledStatuses.has(event.status))
+    .filter((event) => !settledStatuses.has(event.status) && !event.confirmedTransactionId)
     .map((event) => ({
       id: event.id,
       title: event.title,
@@ -153,13 +153,13 @@ function buildTimeline(accounts: Account[], events: ScheduledEvent[], today: Dat
 
 function getMonthlyExpectedIncome(events: ScheduledEvent[], month: Date) {
   return events
-    .filter((event) => event.kind === "income" && !settledStatuses.has(event.status) && isSameMonth(parseCalendarDate(event.dueDate), month))
+    .filter((event) => event.kind === "income" && !settledStatuses.has(event.status) && !event.confirmedTransactionId && isSameMonth(parseCalendarDate(event.dueDate), month))
     .reduce((total, event) => total + event.amount, 0);
 }
 
 function getMonthlyCommitments(events: ScheduledEvent[], month: Date) {
   return events
-    .filter((event) => outflowKinds.has(event.kind) && !settledStatuses.has(event.status) && isSameMonth(parseCalendarDate(event.dueDate), month))
+    .filter((event) => outflowKinds.has(event.kind) && !settledStatuses.has(event.status) && !event.confirmedTransactionId && isSameMonth(parseCalendarDate(event.dueDate), month))
     .reduce((total, event) => total + event.amount, 0);
 }
 
@@ -182,7 +182,7 @@ export function buildDecisionDashboard(data: DashboardData, month = new Date()):
   const urgentItems = buildTimeline(data.accounts, data.scheduledEvents, today);
   const overdueCount = urgentItems.filter((item) => item.urgency === "overdue").length;
   const nextIncome = data.scheduledEvents
-    .filter((item) => item.kind === "income" && !settledStatuses.has(item.status))
+    .filter((item) => item.kind === "income" && !settledStatuses.has(item.status) && !item.confirmedTransactionId)
     .sort((left, right) => parseCalendarDate(left.dueDate).getTime() - parseCalendarDate(right.dueDate).getTime())[0];
 
   return {
@@ -209,6 +209,8 @@ export function buildDecisionDashboard(data: DashboardData, month = new Date()):
 }
 
 export function mergeTodaySummaryWithData(summary: TodaySummary, data: DashboardData): DecisionDashboard {
+  const localSummary = buildDecisionDashboard(data);
+
   return {
     currentCash: summary.currentCash,
     protectedSavings: summary.protectedSavings,
@@ -218,25 +220,9 @@ export function mergeTodaySummaryWithData(summary: TodaySummary, data: Dashboard
     monthlyPostedExpenses: summary.monthlyPostedExpenses,
     monthRunway: summary.monthRunway,
     debtExposure: summary.debtExposure,
-    nextIncome: summary.nextIncome,
-    overdueCount: summary.overdueCount,
-    urgentItems: summary.urgentItems.map((item) => ({
-      id: item.id,
-      title: item.title,
-      dueDate: item.dueDate,
-      amount: item.amount,
-      kind: item.kind,
-      status: item.status as ScheduledEvent["status"],
-      accountId: data.scheduledEvents.find((event) => event.id === item.id)?.accountId,
-      urgency: item.urgency,
-      canConfirmQuickly: Boolean(data.scheduledEvents.find((event) => event.id === item.id)?.accountId),
-      funding: {
-        accountName: item.fundingAccountName ?? "Cuenta por definir",
-        status: item.fundingStatus,
-        balanceAfter: item.fundingBalanceAfter,
-        shortfall: item.fundingShortfall,
-      },
-    })),
+    nextIncome: localSummary.nextIncome,
+    overdueCount: localSummary.overdueCount,
+    urgentItems: localSummary.urgentItems,
     accountsByBalance: [...data.accounts].sort((left, right) => right.balance - left.balance),
     businesses: data.business,
     cards: data.cards,

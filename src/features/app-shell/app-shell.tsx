@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { ArrowRightLeft, ChevronRight, LogOut, Plus } from "lucide-react";
 import { signOutAction } from "@/app/auth-actions";
+import { MobileHeader } from "@/components/mobile-header";
+import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { Badge, Button, Logo } from "@/components/ui-kit";
+import { loadDashboardData } from "@/lib/dashboard-data";
 import type { WorkspaceContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { MobileShellNav } from "./mobile-shell-nav";
 import { primaryNavigation, resolveActiveGroup, superAdminNavigation, utilityNavigation } from "./nav";
 
-export function AppShell({
+export async function AppShell({
   currentPath,
   context,
   children,
@@ -16,13 +18,14 @@ export function AppShell({
   context: WorkspaceContext;
   children: React.ReactNode;
 }) {
+  const registerData = await loadDashboardData({ workspaceId: context.workspace.id, allowLegacyFallback: false });
   const utilityItems = context.profile.isSuperAdmin ? [...utilityNavigation, ...superAdminNavigation] : utilityNavigation;
   const accountLabel = context.subscription?.status === "active" ? "Lista" : "Pendiente";
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="hidden w-[320px] shrink-0 border-r border-[var(--line)] bg-[var(--surface)] lg:flex lg:flex-col">
+        <aside className="hidden w-[320px] shrink-0 border-r border-[var(--line)] bg-[var(--surface)] md:flex md:flex-col">
           <div className="border-b border-[var(--line)] p-6">
             <div className="space-y-3">
               <Logo href="/" compact />
@@ -150,14 +153,15 @@ export function AppShell({
         </aside>
 
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--header-backdrop)] backdrop-blur">
+          <MobileHeader context={context} />
+
+          <header className="sticky top-0 z-20 hidden border-b border-[var(--line)] bg-[var(--header-backdrop)] backdrop-blur md:block">
             <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-4 py-4 sm:px-6 xl:px-10">
               <div className="min-w-0">
-                <div className="hidden lg:block">
+                <div>
                   <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Arca</p>
                   <p className="truncate text-sm text-[var(--foreground)]">{context.profile.fullName ?? context.profile.email ?? "Usuario"}</p>
                 </div>
-                <MobileShellNav currentPath={currentPath} workspaceName={context.workspace.name} mode="trigger" />
               </div>
               <div className="flex items-center gap-2 sm:gap-3">
                 <Link href="/app/registrar">
@@ -183,11 +187,11 @@ export function AppShell({
           </header>
 
           <main className="shell-grid min-h-[calc(100vh-73px)]">
-            <div className="mx-auto max-w-[1240px] px-4 py-6 pb-28 sm:px-6 lg:pb-6 xl:px-10">{children}</div>
+            <div className="mx-auto max-w-[1240px] px-4 py-6 pb-32 sm:px-6 md:pb-6 xl:px-10">{children}</div>
           </main>
         </div>
       </div>
-      <MobileShellNav currentPath={currentPath} workspaceName={context.workspace.name} mode="bottom" />
+      <MobileTabBar currentPath={currentPath} registerData={registerData} />
     </div>
   );
 }

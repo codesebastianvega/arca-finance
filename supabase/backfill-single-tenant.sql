@@ -6,8 +6,8 @@
 do $$
 declare
   owner_user_id uuid;
-  owner_email text := 'reemplazar@correo.com';
-  workspace_name text := 'Arca principal';
+  owner_email text := 'sebaschanvega@gmail.com';
+  workspace_name text := 'Arca Chanvega';
   workspace_slug text;
   target_workspace_id uuid;
 begin

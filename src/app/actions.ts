@@ -1428,7 +1428,55 @@ export async function confirmScheduledEventNow(formData: FormData) {
     throw new Error("El evento programado no tiene un frente economico asociado.");
   }
 
+  const { data: existingMovement, error: existingMovementError } = await directClient
+    .from("transactions")
+    .select("id")
+    .eq("workspace_id", context.workspace.id)
+    .contains("metadata", { scheduled_event_id: event.id })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingMovementError) {
+    throw new Error(`No se pudo validar si el evento ya estaba confirmado: ${existingMovementError.message}`);
+  }
+
   if (["paid", "confirmed", "cancelled"].includes(String(event.status))) {
+    redirect("/app/hoy?confirmed=1");
+  }
+
+  if (existingMovement?.id) {
+    const healedEventState = await buildScheduledEventUpdateOnConfirm(
+      directClient as never,
+      context.workspace.id,
+      input.eventId,
+      String(existingMovement.id),
+      today
+    );
+
+    const { error: healError } = await directClient
+      .from("scheduled_events")
+      .update(healedEventState)
+      .eq("workspace_id", context.workspace.id)
+      .eq("id", input.eventId);
+
+    if (healError) {
+      if (isMissingScheduledEventSchemaField(healError.message)) {
+        const { error: fallbackHealError } = await directClient
+          .from("scheduled_events")
+          .update({ status: "confirmed" })
+          .eq("workspace_id", context.workspace.id)
+          .eq("id", input.eventId);
+
+        if (fallbackHealError) {
+          throw new Error(`El evento ya tenia movimiento real, pero no se pudo cerrar en agenda: ${fallbackHealError.message}`);
+        }
+      } else {
+        throw new Error(`El evento ya tenia movimiento real, pero no se pudo cerrar en agenda: ${healError.message}`);
+      }
+    }
+
+    revalidatePath("/app");
     redirect("/app/hoy?confirmed=1");
   }
 
