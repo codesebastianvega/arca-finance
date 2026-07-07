@@ -25,18 +25,25 @@ export function GoogleAuthButton({
     setLoading(true);
     setError(null);
 
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-    const { error: authError } = await supabase.auth.signInWithOAuth({
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+    const baseOrigin = isLocalhost ? "http://localhost:3000" : window.location.origin;
+    const redirectTo = `${baseOrigin}/auth/callback?next=${encodeURIComponent(next)}`;
+    const { data, error: authError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo,
+        skipBrowserRedirect: true,
       },
     });
 
-    if (authError) {
+    if (authError || !data?.url) {
       setLoading(false);
       setError("No pudimos completar el acceso. Intenta de nuevo.");
+      return;
     }
+
+    window.location.assign(data.url);
   }
 
   return (

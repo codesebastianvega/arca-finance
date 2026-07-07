@@ -157,7 +157,7 @@ export function AppShell({
                   <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Arca</p>
                   <p className="truncate text-sm text-[var(--foreground)]">{context.profile.fullName ?? context.profile.email ?? "Usuario"}</p>
                 </div>
-                <MobileShellNav currentPath={currentPath} workspaceName={context.workspace.name} />
+                <MobileShellNav currentPath={currentPath} workspaceName={context.workspace.name} mode="trigger" />
               </div>
               <div className="flex items-center gap-2 sm:gap-3">
                 <Link href="/app/registrar">
@@ -187,6 +187,7 @@ export function AppShell({
           </main>
         </div>
       </div>
+      <MobileShellNav currentPath={currentPath} workspaceName={context.workspace.name} mode="bottom" />
     </div>
   );
 }

@@ -27,22 +27,26 @@ function isActivePath(currentPath: string, href: string) {
 export function MobileShellNav({
   currentPath,
   workspaceName,
+  mode = "full",
 }: {
   currentPath: string;
   workspaceName: string;
+  mode?: "full" | "trigger" | "bottom";
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <div className="flex items-center gap-3 lg:hidden">
-        <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)} aria-label="Abrir menu">
-          <Menu size={16} />
-        </Button>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[var(--foreground)]">{workspaceName}</p>
+      {mode !== "bottom" ? (
+        <div className="flex items-center gap-3 lg:hidden">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)} aria-label="Abrir menu">
+            <Menu size={16} />
+          </Button>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[var(--foreground)]">{workspaceName}</p>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -82,37 +86,39 @@ export function MobileShellNav({
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--header-backdrop)] px-2 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 backdrop-blur lg:hidden">
-        <div className="grid grid-cols-5 gap-2">
-          {bottomItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActivePath(currentPath, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex min-h-[58px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-[11px] font-medium transition",
-                  active
-                    ? "bg-[var(--accent-gradient)] text-[var(--on-accent)] shadow-[var(--elevation-soft)]"
-                    : "border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] text-[var(--text-primary)]"
-                )}
-              >
-                <Icon size={16} />
-                <span className="mt-1 truncate">{item.label}</span>
-              </Link>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex min-h-[58px] flex-col items-center justify-center rounded-2xl border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] px-2 py-2 text-[11px] font-medium text-[var(--text-primary)]"
-          >
-            <Menu size={16} />
-            <span className="mt-1">Mas</span>
-          </button>
-        </div>
-      </nav>
+      {mode !== "trigger" ? (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--header-backdrop)] px-2 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 backdrop-blur lg:hidden">
+          <div className="grid grid-cols-5 gap-2">
+            {bottomItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActivePath(currentPath, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex min-h-[58px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-[11px] font-medium transition",
+                    active
+                      ? "bg-[var(--accent-gradient)] text-[var(--on-accent)] shadow-[var(--elevation-soft)]"
+                      : "border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] text-[var(--text-primary)]"
+                  )}
+                >
+                  <Icon size={16} />
+                  <span className="mt-1 truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex min-h-[58px] flex-col items-center justify-center rounded-2xl border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] px-2 py-2 text-[11px] font-medium text-[var(--text-primary)]"
+            >
+              <Menu size={16} />
+              <span className="mt-1">Mas</span>
+            </button>
+          </div>
+        </nav>
+      ) : null}
     </>
   );
 }
