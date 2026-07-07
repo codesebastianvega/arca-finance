@@ -42,20 +42,20 @@ export function ObligationsScreen({
   const message = getObligationFeedback(feedback);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Obligaciones</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Obligaciones</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
             Deudas, servicios, tarjetas y pagos por resolver.
           </h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
             Vista operativa unica para decidir que vence, con que se paga y que impacto deja sobre la caja.
           </p>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Obligaciones abiertas" value={String(openEvents.length)} delta={formatCOP(totalOpen)} tone="warning" />
         <MetricCard label="Vencidas" value={String(overdueCount)} delta="requieren accion hoy" tone={overdueCount > 0 ? "danger" : "success"} />
         <MetricCard label="Proximos 7 dias" value={String(nextSevenDays.length)} delta={formatCOP(nextSevenDays.reduce((sum, event) => sum + event.amount, 0))} tone="neutral" />

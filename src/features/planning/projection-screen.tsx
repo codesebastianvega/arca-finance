@@ -8,20 +8,20 @@ export function ProjectionScreen({ data }: { data: DashboardData }) {
   const latest = projections[projections.length - 1];
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Planeacion / Proyeccion</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Planeacion / Proyeccion</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
             Escenarios y futuro, sin inventar datos.
           </h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
             Esta vista solo mostrara proyecciones cuando existan escenarios guardados. Mientras tanto, se queda en cero y explicita que falta construir esa capa.
           </p>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Escenarios" value={String(projections.length)} delta="Base de proyecciones" tone="neutral" />
         <MetricCard label="Ingreso esperado" value={formatCOP(latest?.expectedIncome ?? 0)} delta="Ultimo escenario" tone="success" />
         <MetricCard label="Gasto esperado" value={formatCOP(latest?.expectedExpenses ?? 0)} delta="Ultimo escenario" tone="warning" />

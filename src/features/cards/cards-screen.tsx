@@ -116,13 +116,13 @@ export function CardsScreen({
   const message = getCardsFeedback(feedback);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Tarjetas</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Gestion de tarjetas y lectura de credito.</h1>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Aqui controlas cupo, uso, pago minimo y fechas clave de cada tarjeta.</p>
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Tarjetas</p>
+            <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Gestion de tarjetas y lectura de credito.</h1>
+            <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">Aqui controlas cupo, uso, pago minimo y fechas clave de cada tarjeta.</p>
           </div>
           <Link href="/app/registrar?segment=tarjeta">
             <Button size="sm">
@@ -142,7 +142,7 @@ export function CardsScreen({
         </Card>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Tarjetas activas" value={String(data.cards.length)} delta="Bloqueadas y activas" tone="neutral" />
         <MetricCard label="Uso total" value={formatCOP(data.cards.reduce((sum, card) => sum + card.used, 0))} delta="Exposicion rotativa" tone="warning" />
         <MetricCard label="Cupo total" value={formatCOP(data.cards.reduce((sum, card) => sum + card.limit, 0))} delta="Base para uso %" tone="neutral" />

@@ -64,12 +64,12 @@ export function BusinessScreen({
   const message = getBusinessFeedback(feedback);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Fuentes y frentes</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Origen del ingreso y lectura por frente real.</h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Fuentes y frentes</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Origen del ingreso y lectura por frente real.</h1>
+          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
             Aqui separas dos cosas distintas: el frente economico y la fuente concreta que trae la plata.
           </p>
         </div>
@@ -84,7 +84,7 @@ export function BusinessScreen({
         </Card>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Ingreso real" value={formatCOP(totals.realIncome)} delta="Movimientos confirmados" tone="success" />
         <MetricCard label="Gasto real" value={formatCOP(totals.realExpense)} delta="Solo caja posteada" tone="warning" />
         <MetricCard label="Ingreso esperado" value={formatCOP(totals.expectedIncome)} delta={`${totals.pendingEvents} eventos abiertos`} tone="neutral" />

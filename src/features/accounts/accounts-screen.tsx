@@ -24,13 +24,13 @@ export function AccountsScreen({
   const message = getFeedbackMessage(feedback);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Cuentas</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Donde vive la caja real.</h1>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Cuentas, billeteras y efectivo. Aqui solo ves lo que ya existe de verdad.</p>
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Cuentas</p>
+            <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Donde vive la caja real.</h1>
+            <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">Cuentas, billeteras y efectivo. Aqui solo ves lo que ya existe de verdad.</p>
           </div>
           <Link href="/app/registrar?segment=cuenta">
             <Button size="sm">
@@ -53,7 +53,7 @@ export function AccountsScreen({
         </Card>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <MetricCard label="Cuentas activas" value={String(accounts.length)} delta="Banco, billetera o efectivo" tone="neutral" />
         <MetricCard label="Caja total" value={formatCOP(total)} delta="Saldo sumado" tone="success" />
         <MetricCard label="Cuenta principal" value={accounts[0] ? formatCOP(accounts[0].balance) : formatCOP(0)} delta={accounts[0]?.name ?? "Sin cuentas"} tone="neutral" />

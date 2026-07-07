@@ -16,16 +16,16 @@ export function CalendarScreen({ data, monthKey }: { data: DashboardData; monthK
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Calendario</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Agenda financiera mensual.</h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Cuadricula mensual alimentada por ingresos esperados y pagos programados.</p>
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Calendario</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Agenda financiera mensual.</h1>
+          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">Cuadricula mensual alimentada por ingresos esperados y pagos programados.</p>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-3">
         <MetricCard label="Eventos del mes" value={String(events.length)} delta={monthKey} tone="neutral" />
         <MetricCard label="Ingresos del mes" value={formatCOP(events.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0))} delta="Agenda esperada" tone="success" />
         <MetricCard label="Salidas del mes" value={formatCOP(events.filter((item) => item.kind !== "income").reduce((sum, item) => sum + item.amount, 0))} delta="Compromisos programados" tone="warning" />

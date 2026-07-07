@@ -11,23 +11,23 @@ export function TransferScreen({ data }: { data: DashboardData }) {
   const accounts = [...data.accounts].sort((left, right) => right.balance - left.balance);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Transferir</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Transferir</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
             Mover caja entre cuentas sin perder trazabilidad.
           </h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
             Esta accion no crea gasto ni ingreso. Solo mueve liquidez entre tus cuentas.
           </p>
-          <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)] sm:leading-7">
             Si una entrada sigue como pendiente o programada, aun no aparece aqui como saldo real. Primero confirmala en Hoy.
           </p>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-3">
         <MetricCard label="Cuentas disponibles" value={String(accounts.length)} delta="Origen y destino" tone="neutral" />
         <MetricCard label="Mayor saldo" value={formatCOP(accounts[0]?.balance ?? 0)} delta={accounts[0]?.name ?? "Sin cuentas"} tone="success" />
         <MetricCard label="Caja total" value={formatCOP(accounts.reduce((sum, account) => sum + account.balance, 0))} delta="Antes de mover" tone="neutral" />

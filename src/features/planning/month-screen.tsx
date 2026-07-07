@@ -32,12 +32,12 @@ export function MonthScreen({
   const message = getMonthFeedback(feedback);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Planeacion / Mes</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Agenda operativa del mes.</h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Planeacion / Mes</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Agenda operativa del mes.</h1>
+          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
             Esta vista separa dos capas de forma explicita: lo real ya posteado y lo esperado que todavia no se confirma.
           </p>
         </div>
@@ -52,7 +52,7 @@ export function MonthScreen({
         </Card>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Ingresos esperados" value={formatCOP(expectedIncome)} delta={`Mes ${monthKey}`} tone="neutral" />
         <MetricCard label="Salidas esperadas" value={formatCOP(expectedOutflow)} delta={`${events.length} eventos en agenda`} tone="warning" />
         <MetricCard label="Ingreso real" value={formatCOP(realIncome)} delta="Movimientos confirmados" tone="success" />

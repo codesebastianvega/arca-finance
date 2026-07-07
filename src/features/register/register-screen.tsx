@@ -38,15 +38,15 @@ export function RegisterScreen({
   const segment = registerSegments.some((item) => item.key === activeSegment) ? (activeSegment as RegisterSegmentKey) : "movimiento";
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Registrar</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Registrar</p>
+            <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
               Captura manual sin mezclar todo en un solo formulario.
             </h1>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
               Cada bloque registra algo distinto: caja, deudas, tarjetas o ahorro real.
             </p>
           </div>

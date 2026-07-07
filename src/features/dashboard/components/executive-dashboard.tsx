@@ -11,12 +11,12 @@ import type { DashboardSummary } from "@/lib/types";
 export function ExecutiveDashboardView({ summary, isEmpty = false }: { summary: DashboardSummary; isEmpty?: boolean }) {
   if (isEmpty) {
     return (
-      <div className="space-y-6">
-        <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+      <div className="space-y-4 sm:space-y-6">
+        <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
           <div className="max-w-4xl">
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Dashboard</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Lectura ejecutiva de tu dinero.</h1>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Cuando empieces a registrar movimientos, aqui veras tu caja real, compromisos y tendencia.</p>
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Dashboard</p>
+            <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Lectura ejecutiva de tu dinero.</h1>
+            <p className="mt-2 sm:mt-4 text-sm leading-6 sm:leading-7 text-[var(--muted)]">Cuando empieces a registrar movimientos, aqui veras tu caja real, compromisos y tendencia.</p>
           </div>
         </section>
         <EmptyState
@@ -40,16 +40,16 @@ export function ExecutiveDashboardView({ summary, isEmpty = false }: { summary: 
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--elevation-strong)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
         <div className="max-w-4xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Dashboard</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">Lectura ejecutiva de caja y presion financiera.</h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">Panel de control del mes. Aqui solo viven metricas, tendencia y accesos rapidos a decisiones.</p>
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Dashboard</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Lectura ejecutiva de caja y presion financiera.</h1>
+          <p className="mt-2 sm:mt-4 text-sm leading-6 sm:leading-7 text-[var(--muted)]">Panel de control del mes. Aqui solo viven metricas, tendencia y accesos rapidos a decisiones.</p>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Caja total" value={formatCOP(summary.currentCash)} delta={`Libre: ${formatCOP(summary.freeCash)}`} tone="success" />
         <MetricCard label="Entradas del mes" value={formatCOP(summary.monthlyIncome)} delta={`Compromisos: ${formatCOP(summary.monthlyCommitments)}`} tone="neutral" />
         <MetricCard label="Salidas del mes" value={formatCOP(summary.monthlyExpenses)} delta={`Ahorro protegido: ${formatCOP(summary.protectedSavings)}`} tone="warning" />
@@ -148,7 +148,7 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="arca-soft-block flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-[color:color-mix(in_srgb,var(--surface)_84%,var(--surface-strong)_16%)]"
+      className="arca-soft-block arca-active-scale flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-[color:color-mix(in_srgb,var(--surface)_84%,var(--surface-strong)_16%)]"
     >
       <div className="flex items-start gap-3">
         <div className="arca-soft-block mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl">{icon}</div>

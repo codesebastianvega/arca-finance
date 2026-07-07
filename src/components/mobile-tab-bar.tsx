@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CalendarClock, Home, Menu, Plus, Wallet } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard-data";
 import { RegisterBottomSheet } from "@/components/register-bottom-sheet";
+import { MasDrawer } from "@/components/mas-drawer";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -22,16 +23,17 @@ export function MobileTabBar({
   registerData: DashboardData;
 }) {
   const [open, setOpen] = useState(false);
+  const [masOpen, setMasOpen] = useState(false);
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface)] pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--header-backdrop)] backdrop-blur-xl pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 md:hidden">
         <div className="mx-auto grid max-w-xl grid-cols-5 items-end px-3">
           {tabs.slice(0, 2).map((item) => {
             const Icon = item.icon;
             const active = item.match(currentPath);
             return (
-              <Link key={item.href} href={item.href} className="flex min-h-[58px] flex-col items-center justify-center gap-1 text-center">
+              <Link key={item.href} href={item.href} className="arca-active-scale flex min-h-[58px] flex-col items-center justify-center gap-1 text-center">
                 <Icon size={19} className={active ? "text-[var(--accent)]" : "text-[var(--text-muted)]"} />
                 <span className={cn("text-[11px] font-medium", active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{item.label}</span>
               </Link>
@@ -43,7 +45,7 @@ export function MobileTabBar({
               type="button"
               onClick={() => setOpen(true)}
               aria-label="Registrar"
-              className="arca-focus relative -mt-5 inline-flex h-14 w-14 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent)_72%,var(--border)_28%)] border-t-[var(--border-top-highlight)] bg-[var(--accent-gradient)] text-[var(--on-accent)] shadow-[var(--elevation-strong)]"
+              className="arca-focus arca-active-scale relative -mt-5 inline-flex h-14 w-14 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent)_72%,var(--border)_28%)] border-t-[var(--border-top-highlight)] bg-[var(--accent-gradient)] text-[var(--on-accent)] shadow-[var(--elevation-strong)]"
             >
               <Plus size={22} />
             </button>
@@ -52,8 +54,23 @@ export function MobileTabBar({
           {tabs.slice(2).map((item) => {
             const Icon = item.icon;
             const active = item.match(currentPath);
+            
+            if (item.href === "/app/mas") {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => setMasOpen(true)}
+                  className="arca-active-scale flex min-h-[58px] flex-col items-center justify-center gap-1 text-center"
+                >
+                  <Icon size={19} className={active || masOpen ? "text-[var(--accent)]" : "text-[var(--text-muted)]"} />
+                  <span className={cn("text-[11px] font-medium", active || masOpen ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{item.label}</span>
+                </button>
+              );
+            }
+
             return (
-              <Link key={item.href} href={item.href} className="flex min-h-[58px] flex-col items-center justify-center gap-1 text-center">
+              <Link key={item.href} href={item.href} className="arca-active-scale flex min-h-[58px] flex-col items-center justify-center gap-1 text-center">
                 <Icon size={19} className={active ? "text-[var(--accent)]" : "text-[var(--text-muted)]"} />
                 <span className={cn("text-[11px] font-medium", active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{item.label}</span>
               </Link>
@@ -63,6 +80,7 @@ export function MobileTabBar({
       </nav>
 
       <RegisterBottomSheet data={registerData} open={open} onClose={() => setOpen(false)} />
+      <MasDrawer open={masOpen} onClose={() => setMasOpen(false)} />
     </>
   );
 }

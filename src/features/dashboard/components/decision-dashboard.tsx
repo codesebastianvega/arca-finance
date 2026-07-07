@@ -20,14 +20,14 @@ export function DecisionDashboardView({
   const cashAfterCommitments = summary.freeCash - summary.monthlyCommitments;
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
+    <div className="space-y-4 sm:space-y-6">
+      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
         <div className="max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Hoy</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Hoy</p>
+          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
             Caja disponible, compromisos y decisiones del mes.
           </h1>
-          <div className="arca-soft-block mt-5 rounded-2xl p-4">
+          <div className="arca-soft-block mt-3 sm:mt-5 rounded-2xl p-3 sm:p-4">
             <p className="text-sm font-medium text-[var(--foreground)]">Lectura rapida</p>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
               Tienes {formatCOP(summary.currentCash)} en caja visible. El mes exige {formatCOP(summary.monthlyCommitments)} en
@@ -37,7 +37,7 @@ export function DecisionDashboardView({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Dinero actual" value={formatCOP(summary.currentCash)} delta={`Caja libre hoy: ${formatCOP(summary.freeCash)}`} tone="success" />
         <MetricCard
           label="Ingresos estimados"
