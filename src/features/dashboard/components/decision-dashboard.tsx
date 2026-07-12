@@ -1,261 +1,215 @@
-import { AlertTriangle, ArrowDownLeft, ArrowRightLeft, PiggyBank, ShieldAlert } from "lucide-react";
-import { confirmScheduledEventNow } from "@/app/actions";
-import { Badge, Card, MetricCard } from "@/components/ui-kit";
-import type { DashboardData } from "@/lib/dashboard-data";
-import { formatCOP, formatDate } from "@/lib/finance";
-import { getScheduledEventStatusLabel } from "@/lib/template-generation";
-import { cn } from "@/lib/utils";
-import { buildDecisionDashboard, getFundingLabel, type DecisionDashboard } from "../services/build-decision-dashboard";
+"use client";
 
-export function DecisionDashboardView({
-  data,
-  month,
-  summary: providedSummary,
-}: {
-  data: DashboardData;
-  month?: Date;
-  summary?: DecisionDashboard;
-}) {
-  const summary = providedSummary ?? buildDecisionDashboard(data, month);
-  const cashAfterCommitments = summary.freeCash - summary.monthlyCommitments;
+import { CheckCircle2, ArrowUpRight, Clock, Receipt, AlertTriangle, Bell, Search, Send, Zap, HandCoins } from "lucide-react";
+import type { TodayViewModel } from "@/src/lib/today-data";
+
+function formatCOP(amount: number | null | undefined): string {
+  if (amount == null) return "$0";
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+export default function DecisionDashboard({ data }: { data: TodayViewModel }) {
+  const { greeting, budget, metrics, cash, criticalPayments, receivables, nextIncome } = data;
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
-        <div className="max-w-3xl">
-          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Hoy</p>
-          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
-            Caja disponible, compromisos y decisiones del mes.
-          </h1>
-          <div className="arca-soft-block mt-3 sm:mt-5 rounded-2xl p-3 sm:p-4">
-            <p className="text-sm font-medium text-[var(--foreground)]">Lectura rapida</p>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Tienes {formatCOP(summary.currentCash)} en caja visible. El mes exige {formatCOP(summary.monthlyCommitments)} en
-              compromisos programados, con {formatCOP(summary.monthlyExpectedIncome)} entrando si se cumple el flujo esperado.
-            </p>
-          </div>
+    <div className="flex flex-col gap-4 font-sans w-full">
+      
+      {/* Header */}
+      <header className="flex justify-between items-center mb-4">
+        <div>
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">{greeting.dateLabel}</p>
+          <h1 className="text-3xl font-black tracking-tighter text-white">Hola, {greeting.firstName}</h1>
+        </div>
+        <div className="flex space-x-2">
+          <button className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+            <Search size={18} className="text-zinc-400" />
+          </button>
+          <button className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center relative">
+            <Bell size={18} className="text-zinc-400" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-black" />
+          </button>
+        </div>
+      </header>
+
+      {/* Quick Actions Horizontal List */}
+      <section className="mb-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex space-x-4 min-w-max">
+          {[
+            { label: 'Transferir', icon: Send, color: 'bg-blue-500' },
+            { label: 'Pago Rápido', icon: Zap, color: 'bg-orange-500' },
+            { label: 'Subir Recibo', icon: Receipt, color: 'bg-zinc-700' },
+            { label: 'Prestar', icon: HandCoins, color: 'bg-emerald-500' },
+          ].map((action, i) => (
+            <button 
+              key={i}
+              className="flex flex-col items-center space-y-2 group active:scale-95 transition-transform"
+            >
+              <div className={`w-14 h-14 ${action.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:-translate-y-1 transition-transform`}>
+                <action.icon size={24} className="text-white" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{action.label}</span>
+            </button>
+          ))}
         </div>
       </section>
 
-      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Dinero actual" value={formatCOP(summary.currentCash)} delta={`Caja libre hoy: ${formatCOP(summary.freeCash)}`} tone="success" />
-        <MetricCard
-          label="Ingresos estimados"
-          value={formatCOP(summary.monthlyExpectedIncome)}
-          delta={summary.nextIncome ? `Siguiente entrada: ${summary.nextIncome.title}` : "Sin ingresos programados"}
-          tone="neutral"
-        />
-        <MetricCard
-          label="Compromisos del mes"
-          value={formatCOP(summary.monthlyCommitments)}
-          delta={`${summary.overdueCount} vencidos o atrasados`}
-          tone={summary.overdueCount > 0 ? "danger" : "warning"}
-        />
-        <MetricCard
-          label="Libre despues de pagos"
-          value={formatCOP(cashAfterCommitments)}
-          delta={`Sin contar ingresos esperados. Ahorro protegido: ${formatCOP(summary.protectedSavings)}`}
-          tone={cashAfterCommitments >= 0 ? "success" : "danger"}
-        />
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-        <Card className="overflow-hidden">
-          <div className="border-b border-[var(--line)] px-5 py-4">
-            <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Linea de caja</p>
-            <div className="mt-2 flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold text-[var(--foreground)]">Urgente y pagable</h2>
-              <Badge tone={summary.overdueCount > 0 ? "danger" : "neutral"}>{summary.urgentItems.length} eventos</Badge>
-            </div>
-          </div>
-          <div className="max-h-[720px] divide-y divide-[var(--line)] overflow-y-auto">
-            {summary.urgentItems.map((item) => {
-              const tone =
-                item.urgency === "overdue" ? "danger" : item.funding.status === "wait" ? "warning" : item.kind === "income" ? "success" : "neutral";
-
-              return (
-                <div key={item.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1.4fr,140px,1fr] md:items-center">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className={cn("text-lg font-semibold", item.urgency === "overdue" ? "text-[var(--danger)]" : "text-[var(--foreground)]")}>
-                        {item.title}
-                      </p>
-                      <Badge tone={tone}>
-                        {item.urgency === "overdue"
-                          ? "vencido"
-                          : item.kind === "income"
-                            ? "entra plata"
-                            : item.funding.status === "wait"
-                              ? "falta caja"
-                              : item.funding.status === "combine"
-                                ? "mover entre cuentas"
-                                : "se puede pagar"}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {getScheduledEventStatusLabel(item.status)} - {formatDate(item.dueDate)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className={cn("text-xl font-semibold", item.kind === "income" ? "text-[var(--success)]" : "text-[var(--foreground)]")}>
-                      {item.kind === "income" ? "+" : "-"}
-                      {formatCOP(item.amount)}
-                    </p>
-                  </div>
-                  <div className="arca-soft-block rounded-2xl p-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Accion sugerida</p>
-                    <p className={cn("mt-2 text-sm font-semibold", item.funding.status === "wait" ? "text-[var(--danger)]" : "text-[var(--foreground)]")}>
-                      {getFundingLabel(item)}
-                    </p>
-                    {item.funding.balanceAfter != null ? (
-                      <p className="mt-1 text-sm text-[var(--muted)]">Caja despues: {formatCOP(item.funding.balanceAfter)}</p>
-                    ) : null}
-                    {item.canConfirmQuickly ? (
-                      <form action={confirmScheduledEventNow} className="mt-3">
-                        <input type="hidden" name="eventId" value={item.id} />
-                        <button
-                          type="submit"
-                          className="arca-primary-action arca-focus inline-flex h-9 items-center rounded-xl px-3 text-sm font-medium"
-                        >
-                          Confirmar
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <div className="space-y-6">
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--danger-bg)] text-[var(--danger)]">
-                <ShieldAlert size={18} />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Riesgo</p>
-                <h2 className="text-xl font-semibold">Presion financiera</h2>
-              </div>
-            </div>
-            <div className="mt-4 space-y-3">
-              <div className="arca-soft-block rounded-2xl p-4">
-                <p className="text-sm text-[var(--muted)]">Deuda viva</p>
-                <p className="mt-1 text-2xl font-semibold">{formatCOP(summary.debtExposure)}</p>
-              </div>
-              <div className="arca-soft-block rounded-2xl p-4">
-                <p className="text-sm text-[var(--muted)]">Gasto ya posteado este mes</p>
-                <p className="mt-1 text-2xl font-semibold">{formatCOP(summary.monthlyPostedExpenses)}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--success-bg)] text-[var(--success)]">
-                <PiggyBank size={18} />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Ahorro</p>
-                <h2 className="text-xl font-semibold">Bolsillos protegidos</h2>
-              </div>
-            </div>
-            <div className="mt-4 space-y-3">
-              {summary.savings.length > 0 ? (
-                summary.savings.map((goal) => (
-                  <div key={goal.id} className="arca-soft-block rounded-2xl p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">{goal.name}</p>
-                      <p className="text-sm text-[var(--muted)]">{formatCOP(goal.current)}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="arca-muted-block rounded-2xl p-4 text-sm text-[var(--muted)]">
-                  Aun no hay bolsillos o metas creadas.
-                </div>
-              )}
-            </div>
-          </Card>
+      {/* PRESUPUESTO MENSUAL */}
+      <div className="rounded-[20px] p-4 flex flex-col gap-3" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+        <div className="flex justify-between items-center text-[11px] font-bold tracking-wider text-[#A08E83]">
+          <span>PRESUPUESTO MENSUAL</span>
+          <span className="text-[#4ADE80] uppercase">
+            {budget.hasBudget ? "DEFINIDO" : "SIN DEFINIR"}
+          </span>
         </div>
-      </section>
+        <div className="h-1.5 w-full rounded-full bg-[#2A2420] overflow-hidden">
+          <div 
+            className="h-full bg-[#4ADE80]" 
+            style={{ width: `${budget.utilization ?? 0}%` }}
+          ></div>
+        </div>
+        <div className="flex justify-between items-center text-[10px] font-bold text-[#7A6A61]">
+          <span>CONSUMIDO: {budget.consumed != null ? formatCOP(budget.consumed) : "SIN DATO"}</span>
+          <span>LÍMITE: {budget.limit != null ? formatCOP(budget.limit) : "SIN DEFINIR"}</span>
+        </div>
+      </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-2)]">
-              <ArrowRightLeft size={18} />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Cuentas</p>
-              <p className="text-lg font-semibold">Donde esta la caja</p>
-            </div>
-          </div>
-          <div className="mt-4 space-y-3">
-            {summary.accountsByBalance.slice(0, 5).map((account) => (
-              <div key={account.id} className="arca-soft-block flex items-center justify-between gap-3 rounded-2xl px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{account.name}</p>
-                  <p className="text-sm text-[var(--muted)]">{account.type}</p>
-                </div>
-                <p className="text-sm font-semibold">{formatCOP(account.balance)}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
+      {/* TRES TARJETAS */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-col items-center justify-center rounded-[20px] p-3 gap-1 cursor-pointer hover:opacity-80 transition-opacity" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+          <CheckCircle2 size={18} className="text-[#4ADE80]" />
+          <span className="text-xl font-bold text-[#E5A874]">{metrics.onTime}</span>
+          <span className="text-[10px] font-bold tracking-wider text-[#A08E83]">A TIEMPO</span>
+        </div>
+        <div className="flex flex-col items-center justify-center rounded-[20px] p-3 gap-1 cursor-pointer hover:opacity-80 transition-opacity" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+          <ArrowUpRight size={18} className="text-[#E5A874]" />
+          <span className="text-xl font-bold text-[#E5A874]">{metrics.advanced}</span>
+          <span className="text-[10px] font-bold tracking-wider text-[#A08E83]">ADELANTADOS</span>
+        </div>
+        <div className="flex flex-col items-center justify-center rounded-[20px] p-3 gap-1 cursor-pointer hover:opacity-80 transition-opacity" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+          <Clock size={18} className="text-[#F87171]" />
+          <span className="text-xl font-bold text-[#F87171]">{metrics.late}</span>
+          <span className="text-[10px] font-bold tracking-wider text-[#A08E83]">ATRASADOS</span>
+        </div>
+      </div>
 
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--success-bg)] text-[var(--success)]">
-              <ArrowDownLeft size={18} />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Siguiente entrada</p>
-              <p className="text-lg font-semibold">{summary.nextIncome?.title ?? "Sin flujo cargado"}</p>
-            </div>
+      {/* CAJA LIBRE */}
+      <div className="rounded-[20px] p-5 flex flex-col gap-4" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-bold tracking-wider text-[#A08E83]">CAJA LIBRE (SAFE TO SPEND)</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-white">{formatCOP(cash.safeToSpend)}</span>
+            <span className="text-sm font-bold text-[#A08E83]">COP</span>
           </div>
-          <div className="arca-soft-block mt-4 rounded-2xl p-4">
-            {summary.nextIncome ? (
-              <>
-                <p className="text-2xl font-semibold text-[var(--success)]">{formatCOP(summary.nextIncome.amount)}</p>
-                <p className="mt-1 text-sm text-[var(--muted)]">Fecha esperada: {formatDate(summary.nextIncome.dueDate)}</p>
-              </>
-            ) : (
-              <p className="text-sm text-[var(--muted)]">Todavia no hay ingresos programados para alimentar decisiones.</p>
-            )}
+        </div>
+        <div className="w-full h-[1px] bg-[#2A2420]"></div>
+        <div className="flex justify-between items-center text-[11px] font-bold">
+          <div className="flex flex-col gap-1 text-[#A08E83]">
+            <span>BALANCE TOTAL</span>
+            <span className="text-white text-sm">{formatCOP(cash.totalBalance)}</span>
           </div>
-        </Card>
+          <div className="flex flex-col gap-1 text-right text-[#F87171]">
+            <span>PENDIENTE</span>
+            <span className="text-sm">-{formatCOP(cash.pendingCritical)}</span>
+          </div>
+        </div>
+      </div>
 
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--danger-bg)] text-[var(--danger)]">
-              <AlertTriangle size={18} />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Atrasos</p>
-              <p className="text-lg font-semibold">Lo que aprieta hoy</p>
-            </div>
-          </div>
-          <div className="mt-4 space-y-3">
-            {summary.urgentItems.filter((item) => item.urgency === "overdue").length > 0 ? (
-              summary.urgentItems
-                .filter((item) => item.urgency === "overdue")
-                .slice(0, 4)
-                .map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-[var(--danger)]/15 bg-[var(--danger-bg)] px-4 py-3">
-                    <p className="font-medium text-[var(--danger)]">{item.title}</p>
-                    <p className="mt-1 text-sm text-[var(--danger)]">{formatDate(item.dueDate)} - {formatCOP(item.amount)}</p>
+      {/* PAGOS CRITICOS */}
+      <div className="flex flex-col gap-3 mt-2">
+        <div className="flex justify-between items-center px-1">
+          <span className="text-[12px] font-bold tracking-wider text-[#E5A874]">PAGOS CRÍTICOS</span>
+          <span className="text-[10px] font-bold tracking-wider text-[#A08E83]">{criticalPayments.length} VISIBLES</span>
+        </div>
+        <div className="rounded-[20px] overflow-hidden flex flex-col" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+          {criticalPayments.length > 0 ? (
+            <div className="divide-y divide-[#2A2420]">
+              {criticalPayments.map((p) => (
+                <div key={p.id} className="p-4 flex justify-between items-center">
+                  <div className="flex flex-col gap-1">
+                    <span className={cn("text-sm font-bold", p.status === "overdue" ? "text-[#F87171]" : "text-white")}>{p.title}</span>
+                    <span className="text-[10px] text-[#A08E83] font-bold">{p.dueLabel}</span>
                   </div>
-                ))
-            ) : (
-              <div className="arca-muted-block rounded-2xl p-4 text-sm text-[var(--muted)]">
-                No hay vencidos en el corte actual.
-              </div>
-            )}
+                  <span className={cn("text-sm font-bold", p.kind === "income" ? "text-[#4ADE80]" : "text-white")}>
+                    {p.kind === "income" ? "+" : "-"}{formatCOP(p.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 flex items-center justify-center">
+              <span className="text-sm text-[#7A6A61] font-medium">No hay pagos críticos para mostrar.</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PRESTAMOS A COBRAR */}
+      <div className="flex flex-col gap-3 mt-2">
+        <div className="flex justify-between items-center px-1">
+          <div className="flex items-center gap-2 text-[#E5A874]">
+            <Receipt size={14} />
+            <span className="text-[12px] font-bold tracking-wider">PRÉSTAMOS A COBRAR</span>
           </div>
-        </Card>
-      </section>
+          <span className="text-[10px] font-bold tracking-wider text-[#A08E83]">{receivables.length} ABIERTOS</span>
+        </div>
+        <div className="rounded-[20px] overflow-hidden flex flex-col" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+          {receivables.length > 0 ? (
+            <div className="divide-y divide-[#2A2420]">
+              {receivables.map((r) => (
+                <div key={r.id} className="p-4 flex justify-between items-center">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-bold text-white">{r.debtorName || r.title}</span>
+                    <span className="text-[10px] text-[#A08E83] font-bold">{r.dueLabel}</span>
+                  </div>
+                  <span className="text-sm font-bold text-[#4ADE80]">{formatCOP(r.amount)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-5 flex items-center">
+              <span className="text-sm text-[#7A6A61] font-medium">Aún no hay cobros pendientes.</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SIGUIENTE INGRESO */}
+      <div className="rounded-[20px] p-4 mt-2 flex items-center justify-between" style={{ backgroundColor: "#1A1614", border: "1px solid #2A2420" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#2A2420] flex items-center justify-center">
+            <div className={cn("w-2.5 h-2.5 rounded-full", nextIncome ? "bg-[#4ADE80]" : "bg-[#A08E83]")}></div>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm text-[#A08E83]">
+              Siguiente ingreso: <br/>
+              <span className="text-[#E5A874] font-semibold">{nextIncome ? nextIncome.title : "Sin ingresos programados"}</span>
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col text-right">
+          {nextIncome ? (
+            <>
+              <span className="text-sm text-[#4ADE80] font-semibold">{formatCOP(nextIncome.amount)}</span>
+              <span className="text-[10px] text-[#A08E83] font-bold">{nextIncome.dueLabel}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm text-[#A08E83] font-semibold">Sin</span>
+              <span className="text-sm text-[#A08E83] font-semibold">fecha</span>
+            </>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 }

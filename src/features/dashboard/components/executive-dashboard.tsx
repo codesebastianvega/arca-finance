@@ -1,172 +1,252 @@
-"use client";
+import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft, Sparkles } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
-import type React from "react";
-import Link from "next/link";
-import { ArrowRight, BadgeDollarSign, PencilLine, Sparkles } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Badge, Button, Card, EmptyState, MetricCard } from "@/components/ui-kit";
-import { formatCOP } from "@/lib/finance";
-import type { DashboardSummary } from "@/lib/types";
+const DATA = [
+  { name: 'Ene', ingresos: 4500, gastos: 3200, flujo: 1300 },
+  { name: 'Feb', ingresos: 4800, gastos: 3500, flujo: 1300 },
+  { name: 'Mar', ingresos: 4200, gastos: 3800, flujo: 400 },
+  { name: 'Abr', ingresos: 5100, gastos: 3100, flujo: 2000 },
+  { name: 'May', ingresos: 4900, gastos: 3400, flujo: 1500 },
+  { name: 'Jun', ingresos: 5500, gastos: 4000, flujo: 1500 },
+];
 
-export function ExecutiveDashboardView({ summary, isEmpty = false }: { summary: DashboardSummary; isEmpty?: boolean }) {
-  if (isEmpty) {
-    return (
-      <div className="space-y-4 sm:space-y-6">
-        <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
-          <div className="max-w-4xl">
-            <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Dashboard</p>
-            <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Lectura ejecutiva de tu dinero.</h1>
-            <p className="mt-2 sm:mt-4 text-sm leading-6 sm:leading-7 text-[var(--muted)]">Cuando empieces a registrar movimientos, aqui veras tu caja real, compromisos y tendencia.</p>
-          </div>
-        </section>
-        <EmptyState
-          title="Todavia no tienes movimientos"
-          description="Crea tu primera cuenta o registra un ingreso para empezar a ver tu caja real."
-          actions={
-            <>
-              <Link href="/app/registrar?segment=cuenta">
-                <Button size="sm">Crear cuenta</Button>
-              </Link>
-              <Link href="/app/registrar?segment=movimiento">
-                <Button size="sm" variant="secondary">
-                  Registrar movimiento
-                </Button>
-              </Link>
-            </>
-          }
-        />
-      </div>
-    );
-  }
+export default function ExecutiveDashboard({ onBack }: { onBack: () => void }) {
+  const [insight, setInsight] = useState<string | null>(null);
+  const [isLoadingInsight, setIsLoadingInsight] = useState(false);
+  const [forecast, setForecast] = useState<string | null>(null);
+  const [isLoadingForecast, setIsLoadingForecast] = useState(false);
+  const [spendingInsight, setSpendingInsight] = useState<string | null>(null);
+  const [isLoadingSpendingInsight, setIsLoadingSpendingInsight] = useState(false);
+
+  useEffect(() => {
+    async function fetchWithDelay(url: string, body: any, delay: number) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!res.ok || !contentType.includes('application/json')) {
+        return null;
+      }
+
+      return res.json();
+    }
+
+    async function fetchAI() {
+      setIsLoadingInsight(true);
+      setIsLoadingForecast(true);
+      setIsLoadingSpendingInsight(true);
+      
+      try {
+        // Stagger requests by 1 second each
+        const insightData = await fetchWithDelay('/api/insights', { spendingData: DATA }, 0);
+        setInsight(insightData?.insight ?? null);
+        setIsLoadingInsight(false);
+
+        const forecastData = await fetchWithDelay('/api/forecast', { spendingData: DATA }, 1000);
+        setForecast(forecastData?.forecast ?? null);
+        setIsLoadingForecast(false);
+
+        const spendingDataRes = await fetchWithDelay('/api/spending-insight', { 
+          transactions: [
+            { name: 'Restaurante', amount: 45000, date: '2023-07-05' },
+            { name: 'Supermercado', amount: 120000, date: '2023-07-06' },
+            { name: 'Uber', amount: 15000, date: '2023-07-07' },
+            { name: 'Restaurante', amount: 35000, date: '2023-07-08' },
+          ] 
+        }, 1000);
+        setSpendingInsight(spendingDataRes?.insight ?? null);
+      } catch (error) {
+        console.error('Failed to fetch AI data:', error);
+      } finally {
+        setIsLoadingInsight(false);
+        setIsLoadingForecast(false);
+        setIsLoadingSpendingInsight(false);
+      }
+    }
+    fetchAI();
+  }, []);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
-        <div className="max-w-4xl">
-          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Dashboard</p>
-          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Lectura ejecutiva de caja y presion financiera.</h1>
-          <p className="mt-2 sm:mt-4 text-sm leading-6 sm:leading-7 text-[var(--muted)]">Panel de control del mes. Aqui solo viven metricas, tendencia y accesos rapidos a decisiones.</p>
+    <div className="space-y-6">
+      <header className="flex items-center space-x-4">
+        <button onClick={onBack} className="text-arca-text-dim hover:text-arca-accent transition-colors">
+          <ArrowDownLeft className="rotate-45" size={24} />
+        </button>
+        <h2 className="text-lg font-bold text-arca-text-primary light:text-arca-light-text-primary uppercase tracking-widest">Dashboard</h2>
+      </header>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="card-arca p-4 space-y-2">
+          <div className="flex items-center space-x-2 text-arca-positive">
+            <TrendingUp size={14} />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Ingresos</span>
+          </div>
+          <p className="text-lg font-bold text-arca-text-primary light:text-arca-light-text-primary">$5.5M</p>
+        </div>
+        <div className="card-arca p-4 space-y-2">
+          <div className="flex items-center space-x-2 text-arca-alert">
+            <TrendingDown size={14} />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Gastos</span>
+          </div>
+          <p className="text-lg font-bold text-arca-text-primary light:text-arca-light-text-primary">$4.0M</p>
+        </div>
+      </div>
+
+      {/* AI Insight Section */}
+      <section className="card-arca p-5 bg-arca-accent/5 border-arca-accent/20">
+        <div className="flex items-center space-x-2 mb-3">
+          <Sparkles size={14} className="text-arca-accent" />
+          <h3 className="text-[10px] font-bold text-arca-accent uppercase tracking-widest">Weekly Insight</h3>
+        </div>
+        <div className="min-h-[40px]">
+          {isLoadingInsight ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-2 bg-arca-accent/10 rounded w-full" />
+              <div className="h-2 bg-arca-accent/10 rounded w-2/3" />
+            </div>
+          ) : (
+            <p className="text-xs text-arca-text-secondary leading-relaxed italic">
+              {insight || "Analizando tus patrones de gasto..."}
+            </p>
+          )}
         </div>
       </section>
 
-      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Caja total" value={formatCOP(summary.currentCash)} delta={`Libre: ${formatCOP(summary.freeCash)}`} tone="success" />
-        <MetricCard label="Entradas del mes" value={formatCOP(summary.monthlyIncome)} delta={`Compromisos: ${formatCOP(summary.monthlyCommitments)}`} tone="neutral" />
-        <MetricCard label="Salidas del mes" value={formatCOP(summary.monthlyExpenses)} delta={`Ahorro protegido: ${formatCOP(summary.protectedSavings)}`} tone="warning" />
-        <MetricCard
-          label="% caja comprometido"
-          value={`${summary.commitmentRatio.toFixed(1)}%`}
-          delta={`${summary.overdueCount} vencidos - ${summary.openObligations} abiertos`}
-          tone={summary.overdueCount > 0 ? "danger" : "neutral"}
-        />
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.7fr,1fr]">
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Tendencia</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Flujo y balance de 6 meses</h2>
+      {/* Spending Insight Section */}
+      <section className="card-arca p-5 bg-arca-surface-2 border-arca-border">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <Sparkles size={14} className="text-arca-accent" />
+            <h3 className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest">Spending Insight</h3>
+          </div>
+          <span className="text-[8px] font-bold text-arca-text-dim uppercase tracking-widest bg-arca-surface-3 px-2 py-0.5 rounded-full">New</span>
+        </div>
+        <div className="min-h-[40px]">
+          {isLoadingSpendingInsight ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-2 bg-arca-border rounded w-full" />
+              <div className="h-2 bg-arca-border rounded w-1/2" />
             </div>
-            <Badge tone="neutral">Serie base</Badge>
-          </div>
-          <div className="mt-6 h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={summary.timeline}>
-                <CartesianGrid stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatCOP(Number(value))} width={96} />
-                <Tooltip formatter={(value) => formatCOP(Number(value ?? 0))} contentStyle={{ border: "1px solid var(--border)", background: "var(--surface)" }} />
-                <Legend />
-                <Line type="monotone" dataKey="closingBalance" name="Saldo" stroke="var(--accent)" strokeWidth={3} dot={false} />
-                <Line type="monotone" dataKey="commitments" name="Compromisos" stroke="var(--danger)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Atajos</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Ir a operar</h2>
-          <div className="mt-5 space-y-3">
-            <QuickLink href="/app/hoy" icon={<Sparkles size={16} />} title="Hoy" text="Urgencias, pagos sugeridos y siguiente ingreso." />
-            <QuickLink href="/app/registrar" icon={<PencilLine size={16} />} title="Registrar" text="Captura manual de movimientos, deuda, tarjeta o ahorro." />
-            <QuickLink href="/app/obligaciones" icon={<BadgeDollarSign size={16} />} title="Obligaciones" text="Pagos, deudas y servicios por resolver." />
-          </div>
-          <div className="arca-soft-block mt-6 rounded-2xl p-4">
-            <p className="text-sm text-[var(--muted)]">Deuda viva</p>
-            <p className="mt-1 text-3xl font-semibold text-[var(--foreground)]">{formatCOP(summary.debtExposure)}</p>
-          </div>
-        </Card>
+          ) : (
+            <div className="flex items-start space-x-3">
+              <div className="mt-1 w-1.5 h-1.5 rounded-full bg-arca-accent shrink-0" />
+              <p className="text-xs text-arca-text-primary leading-relaxed font-medium">
+                {spendingInsight || "Identificando patrones en tus movimientos semanales..."}
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr,1fr]">
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Mensual</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Entradas vs salidas</h2>
-          <div className="mt-6 h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={summary.timeline}>
-                <CartesianGrid stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatCOP(Number(value))} width={96} />
-                <Tooltip formatter={(value) => formatCOP(Number(value ?? 0))} contentStyle={{ border: "1px solid var(--border)", background: "var(--surface)" }} />
-                <Legend />
-                <Bar dataKey="income" name="Ingresos" fill="var(--success)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="expenses" name="Gastos posteados" fill="var(--accent-2)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
+      {/* AI Forecast Section */}
+      <section className="card-arca p-5 bg-arca-positive/5 border-arca-positive/20">
+        <div className="flex items-center space-x-2 mb-3">
+          <TrendingUp size={14} className="text-arca-positive" />
+          <h3 className="text-[10px] font-bold text-arca-positive uppercase tracking-widest">AI Forecast (Fin de Mes)</h3>
+        </div>
+        <div className="min-h-[40px]">
+          {isLoadingForecast ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-2 bg-arca-positive/10 rounded w-full" />
+              <div className="h-2 bg-arca-positive/10 rounded w-2/3" />
+            </div>
+          ) : (
+            <p className="text-xs text-arca-text-secondary leading-relaxed">
+              {forecast || "Proyectando tu cierre de mes..."}
+            </p>
+          )}
+        </div>
+      </section>
 
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Riesgo</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Estado del mes</h2>
-          <div className="mt-5 space-y-3">
-            <StatusRow label="Compromisos abiertos" value={String(summary.openObligations)} />
-            <StatusRow label="Vencidos" value={String(summary.overdueCount)} tone={summary.overdueCount > 0 ? "danger" : "success"} />
-            <StatusRow label="Caja libre" value={formatCOP(summary.freeCash)} />
-            <StatusRow label="Compromisos del mes" value={formatCOP(summary.monthlyCommitments)} />
-          </div>
-        </Card>
+      <section className="card-arca p-5">
+        <h3 className="text-xs font-bold text-arca-text-dim uppercase tracking-widest mb-6">Flujo de Caja Mensual</h3>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={DATA}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#33291B" vertical={false} />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#7C7159', fontSize: 10, fontWeight: 'bold' }}
+              />
+              <YAxis hide />
+              <Tooltip 
+                cursor={{ fill: 'rgba(198,138,69,0.05)' }}
+                contentStyle={{ 
+                  backgroundColor: '#1E1811', 
+                  border: '1px solid #33291B',
+                  borderRadius: '12px'
+                }}
+              />
+              <Bar dataKey="ingresos" fill="#8FA66A" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="gastos" fill="#C68A45" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="card-arca p-5">
+        <h3 className="text-xs font-bold text-arca-text-dim uppercase tracking-widest mb-6">Net Cash Flow (6 meses)</h3>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={DATA}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#33291B" vertical={false} />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#7C7159', fontSize: 10, fontWeight: 'bold' }}
+              />
+              <YAxis hide />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#1E1811', 
+                  border: '1px solid #33291B',
+                  borderRadius: '12px'
+                }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="flujo" 
+                stroke="#C68A45" 
+                strokeWidth={3} 
+                dot={{ fill: '#8FA66A', strokeWidth: 2, r: 4 }} 
+                activeDot={{ r: 6, stroke: '#F3ECDC', strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="card-arca p-5 space-y-4">
+        <h3 className="text-xs font-bold text-arca-text-dim uppercase tracking-widest">Resumen de Balance</h3>
+        <div className="space-y-3">
+          <BalanceItem label="Saldo Operativo" amount="$12.450.000" percentage="+12%" isPositive />
+          <BalanceItem label="Deuda Total" amount="$8.200.000" percentage="-5%" />
+          <BalanceItem label="Inversiones" amount="$25.000.000" percentage="+3%" isPositive />
+        </div>
       </section>
     </div>
   );
 }
 
-function QuickLink({
-  href,
-  icon,
-  title,
-  text,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  text: string;
-}) {
+function BalanceItem({ label, amount, percentage, isPositive }: any) {
   return (
-    <Link
-      href={href}
-      className="arca-soft-block arca-active-scale flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition hover:bg-[color:color-mix(in_srgb,var(--surface)_84%,var(--surface-strong)_16%)]"
-    >
-      <div className="flex items-start gap-3">
-        <div className="arca-soft-block mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl">{icon}</div>
-        <div>
-          <p className="text-sm font-semibold text-[var(--foreground)]">{title}</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{text}</p>
-        </div>
+    <div className="flex justify-between items-center py-2 border-b border-arca-border last:border-0">
+      <div>
+        <p className="text-xs font-medium text-arca-text-secondary">{label}</p>
+        <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary">{amount}</p>
       </div>
-      <ArrowRight size={16} className="text-[var(--muted)]" />
-    </Link>
-  );
-}
-
-function StatusRow({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "success" | "danger" }) {
-  return (
-    <div className="arca-soft-block flex items-center justify-between gap-3 rounded-2xl px-4 py-3">
-      <p className="text-sm text-[var(--muted)]">{label}</p>
-      <Badge tone={tone === "danger" ? "danger" : tone === "success" ? "success" : "neutral"}>{value}</Badge>
+      <span className={`text-[10px] font-bold ${isPositive ? 'text-arca-positive' : 'text-arca-alert'}`}>
+        {percentage}
+      </span>
     </div>
   );
 }

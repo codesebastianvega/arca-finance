@@ -83,13 +83,17 @@ create table if not exists public.accounts (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid references public.workspaces(id) on delete cascade,
   name text not null,
+  entity text,
   type text not null,
   balance numeric not null default 0,
   color text not null default '#163a5f',
+  archived boolean not null default false,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.accounts add column if not exists entity text;
 
 create table if not exists public.business_units (
   id uuid primary key default gen_random_uuid(),
@@ -131,10 +135,13 @@ create table if not exists public.income_sources (
   workspace_id uuid references public.workspaces(id) on delete cascade,
   name text not null,
   business_unit_key text not null,
+  default_account_id uuid references public.accounts(id) on delete set null,
   type text not null default 'manual',
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+alter table public.income_sources add column if not exists default_account_id uuid references public.accounts(id) on delete set null;
 
 create table if not exists public.expense_categories (
   id uuid primary key default gen_random_uuid(),
@@ -268,6 +275,9 @@ create table if not exists public.credit_cards (
   estimated_payoff_months integer,
   estimated_total_payment numeric,
   payment_strategy text not null default 'minimum',
+  brand_color text,
+  text_color text,
+  archived boolean not null default false,
   notes text,
   status text not null,
   created_at timestamptz not null default now(),
@@ -312,10 +322,17 @@ create table if not exists public.savings_goals (
   target numeric not null default 0,
   current numeric not null default 0,
   color text not null default '#16735b',
+  goal_type text not null default 'goal',
+  archived boolean not null default false,
   due_date timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.savings_goals drop constraint if exists savings_goals_goal_type_check;
+alter table public.savings_goals
+  add constraint savings_goals_goal_type_check
+  check (goal_type in ('goal', 'pocket'));
 
 create table if not exists public.savings_transactions (
   id uuid primary key default gen_random_uuid(),
@@ -352,6 +369,37 @@ drop index if exists monthly_projections_month_key;
 create unique index if not exists monthly_projections_workspace_month_unique
   on public.monthly_projections(workspace_id, month);
 
+create table if not exists public.monthly_budgets (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  month date not null,
+  limit_amount numeric not null default 0,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists monthly_budgets_workspace_month_unique
+  on public.monthly_budgets(workspace_id, month);
+
+create table if not exists public.receivables (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  title text not null,
+  debtor_name text not null,
+  amount numeric not null default 0,
+  due_date date,
+  status text not null default 'pending',
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists receivables_workspace_status_idx
+  on public.receivables(workspace_id, status);
+create index if not exists receivables_workspace_due_date_idx
+  on public.receivables(workspace_id, due_date);
+
 create table if not exists public.scheduled_events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid references public.workspaces(id) on delete cascade,
@@ -360,10 +408,15 @@ create table if not exists public.scheduled_events (
   amount numeric not null default 0,
   kind text not null,
   status text not null default 'scheduled',
+  priority text not null default 'medium',
   business_unit_key text,
   account_id uuid references public.accounts(id) on delete set null,
+  suggested_account_id uuid references public.accounts(id) on delete set null,
   linked_entity_type text,
   linked_entity_id uuid,
+  paid_amount numeric not null default 0,
+  paid_at timestamptz,
+  cancelled_at timestamptz,
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -372,6 +425,10 @@ create table if not exists public.scheduled_events (
 alter table public.scheduled_events add column if not exists template_id uuid;
 alter table public.scheduled_events add column if not exists timing_status text;
 alter table public.scheduled_events add column if not exists confirmed_transaction_id uuid references public.transactions(id) on delete set null;
+alter table public.scheduled_events drop constraint if exists scheduled_events_priority_check;
+alter table public.scheduled_events
+  add constraint scheduled_events_priority_check
+  check (priority in ('high', 'medium', 'low'));
 
 create index if not exists scheduled_events_workspace_due_date_idx
   on public.scheduled_events(workspace_id, due_date);
@@ -379,6 +436,10 @@ create index if not exists scheduled_events_workspace_status_idx
   on public.scheduled_events(workspace_id, status);
 create index if not exists scheduled_events_workspace_template_idx
   on public.scheduled_events(workspace_id, template_id);
+create index if not exists scheduled_events_workspace_priority_idx
+  on public.scheduled_events(workspace_id, priority);
+create index if not exists scheduled_events_workspace_kind_status_idx
+  on public.scheduled_events(workspace_id, kind, status);
 
 create table if not exists public.income_templates (
   id uuid primary key default gen_random_uuid(),
@@ -499,6 +560,7 @@ $$;
 
 create or replace function public.create_account(
   p_name text,
+  p_entity text default null,
   p_type text,
   p_balance numeric default 0,
   p_color text default '#163a5f'
@@ -522,8 +584,8 @@ begin
     raise exception 'Workspace no disponible para el usuario actual.';
   end if;
 
-  insert into public.accounts (workspace_id, name, type, balance, color, active)
-  values (v_workspace_id, p_name, p_type, coalesce(p_balance, 0), coalesce(p_color, '#163a5f'), true)
+  insert into public.accounts (workspace_id, name, entity, type, balance, color, active)
+  values (v_workspace_id, p_name, p_entity, p_type, coalesce(p_balance, 0), coalesce(p_color, '#163a5f'), true)
   returning id into v_account_id;
 
   return jsonb_build_object('account_id', v_account_id, 'workspace_id', v_workspace_id);
@@ -1264,6 +1326,8 @@ alter table public.credit_card_payments enable row level security;
 alter table public.savings_goals enable row level security;
 alter table public.savings_transactions enable row level security;
 alter table public.monthly_projections enable row level security;
+alter table public.monthly_budgets enable row level security;
+alter table public.receivables enable row level security;
 alter table public.scheduled_events enable row level security;
 alter table public.income_templates enable row level security;
 alter table public.expense_templates enable row level security;
@@ -1288,6 +1352,8 @@ alter table public.credit_card_payments force row level security;
 alter table public.savings_goals force row level security;
 alter table public.savings_transactions force row level security;
 alter table public.monthly_projections force row level security;
+alter table public.monthly_budgets force row level security;
+alter table public.receivables force row level security;
 alter table public.scheduled_events force row level security;
 alter table public.income_templates force row level security;
 alter table public.expense_templates force row level security;
@@ -1455,6 +1521,18 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
+  create policy "monthly budgets workspace access" on public.monthly_budgets
+    for all using (public.user_has_workspace_access(workspace_id))
+    with check (public.user_has_workspace_access(workspace_id));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "receivables workspace access" on public.receivables
+    for all using (public.user_has_workspace_access(workspace_id))
+    with check (public.user_has_workspace_access(workspace_id));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
   create policy "scheduled events workspace access" on public.scheduled_events
     for all using (public.user_has_workspace_access(workspace_id))
     with check (public.user_has_workspace_access(workspace_id));
@@ -1506,6 +1584,10 @@ drop trigger if exists set_updated_at_savings_goals on public.savings_goals;
 create trigger set_updated_at_savings_goals before update on public.savings_goals for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_monthly_projections on public.monthly_projections;
 create trigger set_updated_at_monthly_projections before update on public.monthly_projections for each row execute function public.set_updated_at();
+drop trigger if exists set_updated_at_monthly_budgets on public.monthly_budgets;
+create trigger set_updated_at_monthly_budgets before update on public.monthly_budgets for each row execute function public.set_updated_at();
+drop trigger if exists set_updated_at_receivables on public.receivables;
+create trigger set_updated_at_receivables before update on public.receivables for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_scheduled_events on public.scheduled_events;
 create trigger set_updated_at_scheduled_events before update on public.scheduled_events for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_income_templates on public.income_templates;

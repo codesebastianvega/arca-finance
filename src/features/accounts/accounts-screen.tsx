@@ -1,218 +1,900 @@
-import Link from "next/link";
-import { Landmark, PencilLine, Plus, Trash2, Wallet } from "lucide-react";
-import { deleteAccount, updateAccount } from "@/app/actions";
-import { Badge, Button, Card, EmptyState, MetricCard } from "@/components/ui-kit";
-import { AccountEditorFields } from "@/features/accounts/account-editor-fields";
-import { getAccountPresetVisual } from "@/lib/account-presets";
-import type { DashboardData } from "@/lib/dashboard-data";
-import { formatCOP } from "@/lib/finance";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  PiggyBank,
+  CreditCard as CardIcon,
+  PieChart as ChartIcon,
+  Trophy,
+  Edit2,
+  Trash2,
+  AlertCircle,
+} from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import confetti from "canvas-confetti";
+import {
+  archiveAccount,
+  archiveCreditCard,
+  archiveSavingsGoal,
+  createSavingsContribution,
+  updateAccount,
+  updateCreditCardFull,
+  updateSavingsGoal,
+} from "@/app/actions";
+import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel } from "@/src/lib/money-data";
+import { haptics } from "../../lib/haptics";
 
-export function AccountsScreen({
+const ACCOUNT_ENTITIES = [
+  { id: "nequi", name: "Nequi", color: "#8235E6", textColor: "#FFFFFF" },
+  { id: "daviplata", name: "Daviplata", color: "#E51C1A", textColor: "#FFFFFF" },
+  { id: "bancolombia", name: "Bancolombia", color: "#FDDA24", textColor: "#2A2117" },
+  { id: "davivienda", name: "Davivienda", color: "#ED1C24", textColor: "#FFFFFF" },
+  { id: "bbva", name: "BBVA", color: "#004481", textColor: "#FFFFFF" },
+  { id: "nu", name: "Nu", color: "#820AD1", textColor: "#FFFFFF" },
+  { id: "rappipay", name: "RappiPay", color: "#111111", textColor: "#FFFFFF" },
+  { id: "falabella", name: "Falabella", color: "#7CB342", textColor: "#FFFFFF" },
+  { id: "banco-bogota", name: "Banco de Bogota", color: "#D71920", textColor: "#FFFFFF" },
+  { id: "banco-caja-social", name: "Banco Caja Social", color: "#1D4F91", textColor: "#FFFFFF" },
+  { id: "av-villas", name: "AV Villas", color: "#F58220", textColor: "#2A2117" },
+  { id: "banco-popular", name: "Banco Popular", color: "#2B5CAB", textColor: "#FFFFFF" },
+  { id: "colpatria", name: "Scotiabank Colpatria", color: "#E31837", textColor: "#FFFFFF" },
+  { id: "itau", name: "Itau", color: "#FF6A13", textColor: "#2A2117" },
+  { id: "pichincha", name: "Banco Pichincha", color: "#FFCC00", textColor: "#2A2117" },
+  { id: "finandina", name: "Finandina", color: "#6A1B9A", textColor: "#FFFFFF" },
+  { id: "serfinanza", name: "Serfinanza", color: "#00A19A", textColor: "#FFFFFF" },
+  { id: "movii", name: "Movii", color: "#00C853", textColor: "#2A2117" },
+  { id: "lulobank", name: "Lulo Bank", color: "#5B2EFF", textColor: "#FFFFFF" },
+  { id: "dale", name: "Dale!", color: "#00AEEF", textColor: "#FFFFFF" },
+  { id: "paypal", name: "PayPal", color: "#003087", textColor: "#FFFFFF" },
+  { id: "efectivo", name: "Efectivo", color: "#2E7D32", textColor: "#FFFFFF" },
+];
+
+type TabId = "cuentas" | "tarjetas" | "ahorro";
+type EditableEntity =
+  | ({ entityType: "cuenta" } & MoneyAccount)
+  | ({ entityType: "tarjeta" } & MoneyCard)
+  | ({ entityType: "ahorro" } & MoneySaving);
+
+function money(value: number) {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  })
+    .format(value)
+    .replace(/\s?COP$/, "")
+    .trim();
+}
+
+export default function AccountsScreen({
+  defaultTab = "cuentas",
   data,
-  feedback,
 }: {
-  data: DashboardData;
-  feedback?: {
-    saved?: boolean;
-    updated?: boolean;
-    deleted?: boolean;
-    error?: string;
-  };
+  defaultTab?: TabId;
+  data: MoneyViewModel;
 }) {
-  const accounts = [...data.accounts].sort((left, right) => right.balance - left.balance);
-  const total = accounts.reduce((sum, account) => sum + account.balance, 0);
-  const message = getFeedbackMessage(feedback);
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+  const [selectedEntity, setSelectedEntity] = useState<EditableEntity | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [selectedMeta, setSelectedMeta] = useState<string | null>(null);
+  const [selectedFundingAccount, setSelectedFundingAccount] = useState<string | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [entityName, setEntityName] = useState("");
+  const [entityAmount, setEntityAmount] = useState("");
+  const [accountTypeValue, setAccountTypeValue] = useState("Wallet");
+  const [accountEntityId, setAccountEntityId] = useState("nequi");
+  const [cardIssuer, setCardIssuer] = useState("");
+  const [cardLimit, setCardLimit] = useState("");
+  const [cardCutOffDay, setCardCutOffDay] = useState("");
+  const [cardPayDueDay, setCardPayDueDay] = useState("");
+  const [cardMinimumPayment, setCardMinimumPayment] = useState("");
+  const [cardAnnualInterestRate, setCardAnnualInterestRate] = useState("");
+  const [cardInterestType, setCardInterestType] = useState("unknown");
+  const [cardEstimatedPayoffMonths, setCardEstimatedPayoffMonths] = useState("");
+  const [cardEstimatedTotalPayment, setCardEstimatedTotalPayment] = useState("");
+  const [cardPaymentStrategy, setCardPaymentStrategy] = useState("minimum");
+  const [cardNotes, setCardNotes] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
+  useEffect(() => {
+    if (!selectedEntity) return;
+    setEntityName(selectedEntity.name);
+    if (selectedEntity.entityType === "cuenta") {
+      setEntityAmount(String(selectedEntity.balance));
+      setAccountTypeValue(selectedEntity.type);
+      const matchedEntity =
+        ACCOUNT_ENTITIES.find((item) => selectedEntity.entity && item.name.toLowerCase() === selectedEntity.entity.toLowerCase()) ??
+        ACCOUNT_ENTITIES.find((item) => item.color.toLowerCase() === selectedEntity.color.toLowerCase());
+      setAccountEntityId(matchedEntity?.id ?? "nequi");
+    } else if (selectedEntity.entityType === "tarjeta") {
+      setEntityAmount(String(selectedEntity.used));
+      setCardIssuer(selectedEntity.issuer);
+      setCardLimit(String(selectedEntity.limit));
+      setCardCutOffDay(String(selectedEntity.cutOffDay));
+      setCardPayDueDay(String(selectedEntity.payDueDay));
+      setCardMinimumPayment(String(selectedEntity.minimumPayment));
+      setCardAnnualInterestRate(selectedEntity.annualInterestRate == null ? "" : String(selectedEntity.annualInterestRate));
+      setCardInterestType(selectedEntity.interestType);
+      setCardEstimatedPayoffMonths(selectedEntity.estimatedPayoffMonths == null ? "" : String(selectedEntity.estimatedPayoffMonths));
+      setCardEstimatedTotalPayment(selectedEntity.estimatedTotalPayment == null ? "" : String(selectedEntity.estimatedTotalPayment));
+      setCardPaymentStrategy(selectedEntity.paymentStrategy);
+      setCardNotes(selectedEntity.notes);
+    } else {
+      setEntityAmount(String(selectedEntity.current));
+    }
+  }, [selectedEntity]);
+
+  const tabs = [
+    { id: "cuentas", label: "Cuentas" },
+    { id: "tarjetas", label: "Tarjetas" },
+    { id: "ahorro", label: "Ahorro" },
+  ] as const;
+
+  const goals = data.savings.filter((item) => item.goalType === "goal");
+  const pockets = data.savings.filter((item) => item.goalType === "pocket");
+
+  const hasData =
+    (activeTab === "cuentas" && data.accounts.length > 0) ||
+    (activeTab === "tarjetas" && data.cards.length > 0) ||
+    (activeTab === "ahorro" && data.savings.length > 0);
+
+  const savingsForDeposit = useMemo(() => goals.length > 0 ? goals : data.savings, [goals, data.savings]);
+
+  const openEntity = (entity: EditableEntity) => {
+    haptics.medium();
+    setActionError(null);
+    setSelectedEntity(entity);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEntity = () => {
+    setIsEditModalOpen(false);
+    setSelectedEntity(null);
+    setActionError(null);
+  };
+
+  const handleSaveEntity = () => {
+    if (!selectedEntity) return;
+    const amount = Number(entityAmount || "0");
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        if (selectedEntity.entityType === "cuenta") {
+          const selectedAccountEntity = ACCOUNT_ENTITIES.find((item) => item.id === accountEntityId) ?? ACCOUNT_ENTITIES[0];
+          await updateAccount({
+            id: selectedEntity.id,
+            name: entityName,
+            entity: selectedAccountEntity.name,
+            balance: amount,
+            type: accountTypeValue,
+            color: selectedAccountEntity.color,
+          });
+        } else if (selectedEntity.entityType === "tarjeta") {
+          await updateCreditCardFull({
+            id: selectedEntity.id,
+            name: entityName,
+            issuer: cardIssuer,
+            limitValue: Number(cardLimit || "0"),
+            used: amount,
+            cutOffDate: Number(cardCutOffDay || "1"),
+            payDueDate: Number(cardPayDueDay || "1"),
+            minimumPayment: Number(cardMinimumPayment || "0"),
+            annualInterestRate: cardAnnualInterestRate ? Number(cardAnnualInterestRate) : null,
+            interestType: cardInterestType,
+            estimatedPayoffMonths: cardEstimatedPayoffMonths ? Number(cardEstimatedPayoffMonths) : null,
+            estimatedTotalPayment: cardEstimatedTotalPayment ? Number(cardEstimatedTotalPayment) : null,
+            paymentStrategy: cardPaymentStrategy,
+            notes: cardNotes,
+          });
+        } else {
+          await updateSavingsGoal({ id: selectedEntity.id, name: entityName, current: amount });
+        }
+        haptics.success();
+        router.refresh();
+        closeEntity();
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : "No se pudo guardar.");
+        haptics.error();
+      }
+    });
+  };
+
+  const handleArchiveEntity = () => {
+    if (!selectedEntity) return;
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        if (selectedEntity.entityType === "cuenta") {
+          await archiveAccount(selectedEntity.id);
+        } else if (selectedEntity.entityType === "tarjeta") {
+          await archiveCreditCard(selectedEntity.id);
+        } else {
+          await archiveSavingsGoal(selectedEntity.id);
+        }
+        haptics.success();
+        router.refresh();
+        closeEntity();
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : "No se pudo archivar.");
+        haptics.error();
+      }
+    });
+  };
+
+  const handleDeposit = () => {
+    if (!selectedMeta || !depositAmount || !selectedFundingAccount) return;
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await createSavingsContribution({
+          goalId: selectedMeta,
+          amount: Number(depositAmount),
+          accountId: selectedFundingAccount,
+        });
+        haptics.success();
+        router.refresh();
+        setIsDepositModalOpen(false);
+        setDepositAmount("");
+        setSelectedMeta(null);
+        setSelectedFundingAccount(null);
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : "No se pudo registrar el aporte.");
+        haptics.error();
+      }
+    });
+  };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-4xl">
-            <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Cuentas</p>
-            <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Donde vive la caja real.</h1>
-            <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">Cuentas, billeteras y efectivo. Aqui solo ves lo que ya existe de verdad.</p>
-          </div>
-          <Link href="/app/registrar?segment=cuenta">
-            <Button size="sm">
-              <Plus size={16} />
-              Nueva cuenta
-            </Button>
-          </Link>
-        </div>
-      </section>
-
-      {message ? (
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Estado</p>
-              <p className="mt-2 text-sm text-[var(--foreground)]">{message.text}</p>
-            </div>
-            <Badge tone={message.tone}>{message.label}</Badge>
-          </div>
-        </Card>
-      ) : null}
-
-      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-        <MetricCard label="Cuentas activas" value={String(accounts.length)} delta="Banco, billetera o efectivo" tone="neutral" />
-        <MetricCard label="Caja total" value={formatCOP(total)} delta="Saldo sumado" tone="success" />
-        <MetricCard label="Cuenta principal" value={accounts[0] ? formatCOP(accounts[0].balance) : formatCOP(0)} delta={accounts[0]?.name ?? "Sin cuentas"} tone="neutral" />
-      </section>
-
-      <Card className="p-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-2)]">
-            <Landmark size={18} />
-          </div>
+    <div className="space-y-6">
+      <section className="card-arca p-5">
+        <div className="flex justify-between items-center mb-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Listado</p>
-            <h2 className="text-2xl font-semibold text-[var(--foreground)]">Tus cuentas reales</h2>
+            <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-widest">Gastos del mes</p>
+            <h4 className="text-xl font-bold text-arca-text-primary light:text-arca-light-text-primary">{data.spending.totalLabel}</h4>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-arca-surface-2 flex items-center justify-center">
+            <ChartIcon size={18} className="text-arca-accent" />
           </div>
         </div>
-        <div className="mt-5 space-y-3">
-          {accounts.length ? (
-            accounts.map((account) => (
-              <div key={account.id} className={`rounded-2xl border p-4 ${getAccountPresetVisual(account.color).shellClassName}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-1 flex h-10 w-10 items-center justify-center rounded-2xl border ${getAccountPresetVisual(account.color).badgeClassName}`}>
-                      <Wallet size={18} />
-                    </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-[var(--foreground)]">{account.name}</p>
-                        {!account.active ? <Badge tone="warning">Inactiva</Badge> : null}
-                        <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium ${getAccountPresetVisual(account.color).badgeClassName}`}>
-                          <span className={`h-2.5 w-2.5 rounded-full ${getAccountPresetVisual(account.color).dotClassName}`} />
-                          {getAccountPresetVisual(account.color).label}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-[var(--muted)]">{getAccountTypeLabel(account.type)}</p>
-                    </div>
-                  </div>
-                  <p className="text-lg font-semibold text-[var(--foreground)]">{formatCOP(account.balance)}</p>
-                </div>
 
-                <details className="mt-4 rounded-2xl border border-[var(--line)] bg-[color:color-mix(in_srgb,var(--surface-2)_82%,transparent)] p-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-[var(--foreground)]">
-                    <span className="inline-flex items-center gap-2">
-                      <PencilLine size={16} />
-                      Editar o borrar cuenta
-                    </span>
-                    <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Abrir</span>
-                  </summary>
-
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[1fr,auto]">
-                    <form action={updateAccount} className="grid gap-4">
-                      <input type="hidden" name="accountId" value={account.id} />
-                      <label className="space-y-2">
-                        <span className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">Nombre</span>
-                        <input name="name" className="arca-focus arca-input text-sm" defaultValue={account.name} required />
-                      </label>
-
-                      <AccountEditorFields initialType={account.type} initialColor={account.color} />
-
-                      <label className="flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-sm text-[var(--foreground)]">
-                        <input
-                          type="checkbox"
-                          name="active"
-                          defaultChecked={account.active}
-                          value="true"
-                          className="h-4 w-4 accent-[var(--accent)]"
-                        />
-                        Cuenta activa
-                      </label>
-
-                      <div className="flex flex-wrap gap-3">
-                        <Button type="submit" size="sm">
-                          Guardar cambios
-                        </Button>
-                        <span className="self-center text-xs text-[var(--muted)]">
-                          El saldo no se edita aqui. Cambia con movimientos o transferencias para no romper el historial.
-                        </span>
-                      </div>
-                    </form>
-
-                    <form action={deleteAccount} className="xl:w-[240px]">
-                      <input type="hidden" name="accountId" value={account.id} />
-                      <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--danger)_30%,var(--line)_70%)] bg-[color:color-mix(in_srgb,var(--danger-bg)_72%,transparent)] p-4">
-                        <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Borrado</p>
-                        <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
-                          Solo puedes borrar una cuenta sin movimientos, agenda ni saldo pendiente.
-                        </p>
-                        <Button type="submit" size="sm" variant="secondary" className="mt-4 w-full justify-center">
-                          <Trash2 size={16} />
-                          Borrar cuenta
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                </details>
-              </div>
-            ))
+        <div className="h-40 w-full">
+          {data.spending.breakdown.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={data.spending.breakdown} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={8} dataKey="value" stroke="none">
+                  {data.spending.breakdown.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1E1811",
+                    borderRadius: "12px",
+                    border: "1px solid #33291B",
+                    fontSize: "10px",
+                    fontWeight: "bold",
+                    color: "#F3ECDC",
+                  }}
+                  itemStyle={{ color: "#F3ECDC" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
           ) : (
-            <EmptyState
-              title="Aun no tienes cuentas"
-              description="Agrega tu primera cuenta para empezar a ver tu caja real."
-              actions={
-                <Link href="/app/registrar?segment=cuenta">
-                  <Button size="sm">Crear cuenta</Button>
-                </Link>
-              }
-            />
+            <div className="h-full flex items-center justify-center text-xs text-arca-text-dim">Aún no hay gastos reales este mes.</div>
           )}
         </div>
-      </Card>
+
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          {data.spending.breakdown.map((item) => (
+            <div key={item.name} className="flex items-center space-x-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-[10px] text-arca-text-secondary font-medium">{item.name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="flex bg-arca-surface-2 light:bg-arca-light-surface-2 p-1 rounded-full border border-arca-border light:border-arca-light-border">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-2 text-xs font-bold rounded-full transition-all ${
+              activeTab === tab.id ? "bg-arca-surface-1 light:bg-arca-light-surface-1 text-arca-accent light:text-arca-light-accent shadow-sm" : "text-arca-text-dim"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        {!hasData ? (
+          <div className="py-12 flex flex-col items-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-arca-surface-2 flex items-center justify-center border border-arca-border">
+              <Plus size={32} className="text-arca-text-dim opacity-30" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary uppercase tracking-widest">Sin {activeTab}</p>
+              <p className="text-xs text-arca-text-dim mt-1">Todavía no hay registros reales en esta sección.</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeTab === "cuentas" && (
+              <div className="space-y-3">
+                {data.accounts.map((acc) => (
+                  <AccountRow key={acc.id} name={acc.name} entity={acc.entity} type={acc.type} balance={acc.balanceLabel} color={acc.color} onClick={() => openEntity({ ...acc, entityType: "cuenta" })} />
+                ))}
+              </div>
+            )}
+
+            {activeTab === "tarjetas" && (
+              <div className="space-y-4">
+                {data.cards.map((card) => (
+                  <WalletCard
+                    key={card.id}
+                    name={card.name}
+                    issuer={card.issuer}
+                    used={card.used}
+                    limit={card.limit}
+                    dueDate={card.dueDateLabel}
+                    color={card.color}
+                    darkText={card.darkText}
+                    onClick={() => openEntity({ ...card, entityType: "tarjeta" })}
+                  />
+                ))}
+              </div>
+            )}
+
+            {activeTab === "ahorro" && (
+              <div className="space-y-4">
+                <section className="card-arca p-5 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Metas de ahorro</h3>
+                    <button
+                      onClick={() => {
+                        haptics.medium();
+                        setActionError(null);
+                        setSelectedFundingAccount(data.accounts[0]?.id ?? null);
+                        setIsDepositModalOpen(true);
+                      }}
+                      className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    {goals.length > 0 ? (
+                      goals.map((goal) => (
+                        <div key={goal.id} className="space-y-2">
+                          <div className="flex justify-between items-baseline">
+                            <p className="text-xs font-bold text-arca-text-primary">{goal.name}</p>
+                            <p className="text-[10px] font-medium text-arca-text-dim">
+                              {goal.currentLabel} / {goal.targetLabel}
+                            </p>
+                          </div>
+                          <div className="h-1.5 w-full bg-arca-surface-2 rounded-full overflow-hidden">
+                            <motion.div initial={{ width: 0 }} animate={{ width: `${goal.progress}%` }} className="h-full bg-arca-accent rounded-full" />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-arca-text-dim">No hay metas definidas todavía.</div>
+                    )}
+                  </div>
+                </section>
+
+                {(pockets.length > 0 ? pockets : data.savings).map((item) => (
+                  <SavingPocket
+                    key={item.id}
+                    name={item.name}
+                    current={item.currentLabel}
+                    target={item.targetLabel}
+                    progress={item.progress}
+                    color={item.color}
+                    onClick={() => openEntity({ ...item, entityType: "ahorro" })}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {isEditModalOpen && selectedEntity && (
+          <div className="fixed inset-0 z-[550] flex items-end justify-center">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeEntity} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-lg max-h-[88dvh] overflow-hidden bg-arca-surface-1 rounded-t-[32px] shadow-2xl"
+            >
+              <div className="sticky top-0 z-10 bg-arca-surface-1 px-8 pt-5 pb-4 border-b border-arca-border/60">
+                <div className="w-12 h-1.5 bg-arca-border rounded-full mx-auto mb-5" />
+                <div className="flex justify-between items-start gap-4">
+                  <div className="space-y-1 min-w-0">
+                    <h3 className="text-xl font-bold text-arca-text-primary uppercase tracking-tight truncate">Gestionar {selectedEntity.name}</h3>
+                    <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
+                      {selectedEntity.entityType === "cuenta" ? selectedEntity.type : selectedEntity.entityType === "tarjeta" ? selectedEntity.issuer : selectedEntity.goalType}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 rounded-2xl bg-arca-accent/10 flex items-center justify-center text-arca-accent shrink-0">
+                    <Edit2 size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 overflow-y-auto px-8 py-6 max-h-[calc(88dvh-96px)]">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Nombre</label>
+                  <input
+                    type="text"
+                    value={entityName}
+                    onChange={(e) => setEntityName(e.target.value)}
+                    className="w-full h-14 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+                    {selectedEntity.entityType === "tarjeta" ? "Deuda actual" : "Saldo actual"}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
+                    <input
+                      type="number"
+                      value={entityAmount}
+                      onChange={(e) => setEntityAmount(e.target.value)}
+                      className="w-full h-14 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-lg font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                    />
+                  </div>
+                </div>
+
+                {selectedEntity.entityType === "cuenta" ? (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Entidad o marca</label>
+                      <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto rounded-2xl border border-arca-border p-2 bg-arca-surface-2">
+                        {ACCOUNT_ENTITIES.map((entity) => (
+                          <button
+                            key={entity.id}
+                            type="button"
+                            onClick={() => {
+                              haptics.light();
+                              setAccountEntityId(entity.id);
+                            }}
+                            className={`rounded-xl border px-3 py-3 text-left transition-all ${
+                              accountEntityId === entity.id
+                                ? "border-arca-accent bg-arca-accent/10"
+                                : "border-arca-border bg-arca-surface-1"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-black"
+                                style={{ backgroundColor: entity.color, color: entity.textColor }}
+                              >
+                                {entity.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <span className="text-[11px] font-bold text-arca-text-primary">{entity.name}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Tipo de cuenta</label>
+                      <select
+                        value={accountTypeValue}
+                        onChange={(e) => setAccountTypeValue(e.target.value)}
+                        className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                      >
+                        <option>Ahorros</option>
+                        <option>Corriente</option>
+                        <option>Wallet</option>
+                        <option>Efectivo</option>
+                        <option>Bolsillo</option>
+                      </select>
+                    </div>
+                  </>
+                ) : null}
+
+                {selectedEntity.entityType === "tarjeta" ? (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Emisor</label>
+                      <input
+                        type="text"
+                        value={cardIssuer}
+                        onChange={(e) => setCardIssuer(e.target.value)}
+                        className="w-full h-14 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Cupo total">
+                        <input type="number" value={cardLimit} onChange={(e) => setCardLimit(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                      <Field label="Pago minimo">
+                        <input type="number" value={cardMinimumPayment} onChange={(e) => setCardMinimumPayment(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Dia de corte">
+                        <input type="number" value={cardCutOffDay} onChange={(e) => setCardCutOffDay(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                      <Field label="Dia de pago">
+                        <input type="number" value={cardPayDueDay} onChange={(e) => setCardPayDueDay(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Tasa anual">
+                        <input type="number" step="0.01" value={cardAnnualInterestRate} onChange={(e) => setCardAnnualInterestRate(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                      <Field label="Tipo interes">
+                        <select value={cardInterestType} onChange={(e) => setCardInterestType(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent">
+                          <option value="effective_annual">EA</option>
+                          <option value="nominal_monthly">Nominal mensual</option>
+                          <option value="unknown">Sin definir</option>
+                        </select>
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Meses estimados">
+                        <input type="number" value={cardEstimatedPayoffMonths} onChange={(e) => setCardEstimatedPayoffMonths(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                      <Field label="Total estimado">
+                        <input type="number" value={cardEstimatedTotalPayment} onChange={(e) => setCardEstimatedTotalPayment(e.target.value)} className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent" />
+                      </Field>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Estrategia</label>
+                      <select
+                        value={cardPaymentStrategy}
+                        onChange={(e) => setCardPaymentStrategy(e.target.value)}
+                        className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                      >
+                        <option value="minimum">Pagar minimo</option>
+                        <option value="fixed">Monto fijo</option>
+                        <option value="avalanche">Reducir intereses</option>
+                        <option value="snowball">Liberar cupo rapido</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Notas</label>
+                      <textarea
+                        rows={3}
+                        value={cardNotes}
+                        onChange={(e) => setCardNotes(e.target.value)}
+                        className="w-full resize-none px-4 py-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                      />
+                    </div>
+                  </>
+                ) : null}
+
+                {actionError ? <div className="text-xs text-arca-alert">{actionError}</div> : null}
+
+                <div className="grid grid-cols-2 gap-3 pt-4">
+                  <button
+                    onClick={handleArchiveEntity}
+                    disabled={isPending}
+                    className="h-14 bg-arca-alert/10 text-arca-alert rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center space-x-2 border border-arca-alert/20 disabled:opacity-60"
+                  >
+                    <Trash2 size={14} />
+                    <span>Archivar</span>
+                  </button>
+                  <button
+                    onClick={handleSaveEntity}
+                    disabled={isPending}
+                    className="h-14 bg-arca-accent text-white rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-arca-accent/20 disabled:opacity-60"
+                  >
+                    {isPending ? "Guardando..." : "Guardar cambios"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isDepositModalOpen && (
+          <div className="fixed inset-0 z-[500] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsDepositModalOpen(false);
+                setSelectedFundingAccount(null);
+                setSelectedMeta(null);
+                setDepositAmount("");
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-arca-surface-1 rounded-t-[32px] p-8 space-y-6 pb-12 shadow-2xl"
+            >
+              <div className="w-12 h-1.5 bg-arca-border rounded-full mx-auto" />
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-arca-text-primary">Aportar a ahorro</h3>
+                <p className="text-xs text-arca-text-dim">Selecciona una meta o bolsillo y registra el aporte.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {savingsForDeposit.map((goal) => (
+                    <button
+                      key={goal.id}
+                      onClick={() => {
+                        haptics.light();
+                        setSelectedMeta(goal.id);
+                      }}
+                      className={`p-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${
+                        selectedMeta === goal.id ? "bg-arca-accent text-white border-arca-accent shadow-lg shadow-arca-accent/20" : "bg-arca-surface-2 text-arca-text-dim border-arca-border"
+                      }`}
+                    >
+                      {goal.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Sale de esta cuenta</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {data.accounts.map((account) => (
+                      <button
+                        key={account.id}
+                        onClick={() => {
+                          haptics.light();
+                          setSelectedFundingAccount(account.id);
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          selectedFundingAccount === account.id
+                            ? "bg-arca-accent text-white border-arca-accent shadow-lg shadow-arca-accent/20"
+                            : "bg-arca-surface-2 text-arca-text-primary border-arca-border"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: account.color }} />
+                            <div>
+                            <p className="text-xs font-bold uppercase tracking-widest">{account.name}</p>
+                            <p className={`text-[10px] uppercase tracking-wider ${selectedFundingAccount === account.id ? "text-white/80" : "text-arca-text-dim"}`}>
+                              {account.type}
+                            </p>
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold">{account.balanceLabel}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Monto a depositar</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      className="w-full h-14 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-lg font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                    />
+                  </div>
+                </div>
+
+                {actionError ? <div className="text-xs text-arca-alert">{actionError}</div> : null}
+
+                <button
+                  onClick={handleDeposit}
+                  disabled={!selectedMeta || !depositAmount || !selectedFundingAccount || isPending}
+                  className="w-full h-14 bg-arca-accent text-white rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-arca-accent/20 disabled:opacity-50 disabled:shadow-none"
+                >
+                  {isPending ? "Confirmando..." : "Confirmar depósito"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function getAccountTypeLabel(type: string) {
-  const labels: Record<string, string> = {
-    cash: "Efectivo",
-    bank: "Banco",
-    wallet: "Billetera",
-    savings: "Ahorro",
-    other: "Otra cuenta",
-  };
-
-  return labels[type] ?? type;
+function AccountRow({ name, entity, type, balance, color, onClick }: { name: string; entity?: string | null; type: string; balance: string; color: string; onClick: () => void }) {
+  return (
+    <motion.div whileTap={{ scale: 0.98 }} onClick={onClick} className="card-arca p-4 flex justify-between items-center cursor-pointer active:bg-arca-surface-2">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl shrink-0 border border-white/10" style={{ backgroundColor: color }} />
+        <div>
+        <p className="text-sm font-semibold text-arca-text-primary light:text-arca-light-text-primary">{name}</p>
+        <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-wider">{entity ? `${entity} · ${type}` : type}</p>
+        </div>
+      </div>
+      <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary">{balance}</p>
+    </motion.div>
+  );
 }
 
-function getFeedbackMessage(feedback?: {
-  saved?: boolean;
-  updated?: boolean;
-  deleted?: boolean;
-  error?: string;
+function WalletCard({
+  name,
+  issuer,
+  used,
+  limit,
+  dueDate,
+  color,
+  darkText,
+  onClick,
+}: {
+  name: string;
+  issuer: string;
+  used: number;
+  limit: number;
+  dueDate: string;
+  color: string;
+  darkText: boolean;
+  onClick: () => void;
 }) {
-  if (!feedback) return null;
-  if (feedback.updated) return { text: "La cuenta se actualizo correctamente.", tone: "success" as const, label: "Actualizada" };
-  if (feedback.deleted) return { text: "La cuenta se borro correctamente.", tone: "success" as const, label: "Borrada" };
-  if (feedback.saved) return { text: "La cuenta se creo correctamente.", tone: "success" as const, label: "Guardada" };
+  const percentage = limit > 0 ? (used / limit) * 100 : 0;
+  const available = Math.max(limit - used, 0);
+  const tone =
+    percentage >= 100 ? "full" :
+    percentage >= 80 ? "warning" :
+    "healthy";
 
-  if (feedback.error === "linked") {
-    return {
-      text: "No puedes borrar una cuenta que ya tiene movimientos o agenda asociada.",
-      tone: "danger" as const,
-      label: "Bloqueada",
-    };
-  }
+  return (
+    <motion.div
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className="rounded-2xl p-5 border border-arca-border light:border-arca-light-border relative overflow-hidden cursor-pointer active:brightness-95"
+      style={{ backgroundColor: color }}
+    >
+      <div className="absolute -right-10 -bottom-10 w-32 h-32 rounded-full bg-white/10" />
 
-  if (feedback.error === "balance") {
-    return {
-      text: "Primero deja el saldo en cero con movimientos o transferencias antes de borrar la cuenta.",
-      tone: "warning" as const,
-      label: "Saldo pendiente",
-    };
-  }
+      <div className={`relative z-10 space-y-6 ${darkText ? "text-[#2A2117]" : "text-white"}`}>
+        <div className="flex justify-between items-start">
+          <CardIcon size={24} opacity={0.8} />
+          <div className="text-right space-y-1">
+            <span className="block text-[10px] font-bold uppercase tracking-widest opacity-80">Vence {dueDate}</span>
+            <span
+              className={`inline-flex rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-wider ${
+                tone === "full"
+                  ? "bg-black/25 text-white"
+                  : tone === "warning"
+                    ? "bg-white/20 text-white"
+                    : "bg-white/16 text-white"
+              }`}
+            >
+              {tone === "full" ? "Cupo lleno" : tone === "warning" ? "Uso alto" : "Disponible"}
+            </span>
+          </div>
+        </div>
 
-  if (feedback.error) {
-    return {
-      text: "No se pudo completar la accion sobre la cuenta. Intenta de nuevo.",
-      tone: "danger" as const,
-      label: "Error",
-    };
-  }
+        <div>
+          <p className="text-xs font-medium opacity-80">{name}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mt-1">{issuer}</p>
+          <p className="text-xl font-bold mt-1">{money(used)}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest opacity-70 mt-2">
+            Disponible: {money(available)}
+          </p>
+        </div>
 
-  return null;
+        <div className="space-y-1.5">
+          <div className="h-1.5 w-full bg-black/20 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${
+                tone === "full" ? "bg-[#FFE0D8]" : tone === "warning" ? "bg-[#FFF1CC]" : "bg-white/60"
+              }`}
+              style={{ width: `${Math.min(100, percentage)}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider opacity-60">
+            <span>{Math.round(percentage)}% usado</span>
+            <span>Cupo: {money(limit)}</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 }
+
+function SavingPocket({
+  name,
+  current,
+  target,
+  progress,
+  color,
+  onClick,
+}: {
+  name: string;
+  current: string;
+  target: string;
+  progress: number;
+  color: string;
+  onClick: () => void;
+}) {
+  const isGoalReached = progress >= 100;
+
+  useEffect(() => {
+    if (isGoalReached) {
+      haptics.success();
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ["#C68A45", "#8FA66A", "#F3ECDC"],
+      });
+    }
+  }, [isGoalReached]);
+
+  return (
+    <motion.div
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={`card-arca p-4 space-y-3 relative overflow-hidden transition-colors cursor-pointer active:bg-arca-surface-2 ${isGoalReached ? "bg-arca-positive/10 border-arca-positive" : ""}`}
+    >
+      {isGoalReached && (
+        <div className="absolute -right-4 -top-4 opacity-10">
+          <Trophy size={80} className="text-arca-positive rotate-12" />
+        </div>
+      )}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isGoalReached ? "bg-arca-positive" : "bg-arca-positive/10"}`}>
+            <PiggyBank size={16} className={isGoalReached ? "text-white" : "text-arca-positive"} />
+          </div>
+          <p className="text-sm font-semibold text-arca-text-primary light:text-arca-light-text-primary">{name}</p>
+        </div>
+        <span className={`${isGoalReached ? "text-arca-positive" : "text-arca-positive light:text-arca-light-positive"} text-xs font-bold`}>{progress}%</span>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="h-2 w-full bg-arca-surface-2 light:bg-arca-light-surface-2 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${isGoalReached ? "shadow-[0_0_12px_rgba(143,166,106,0.6)]" : ""}`}
+            style={{ width: `${progress}%`, backgroundColor: color }}
+          />
+        </div>
+        <div className="flex justify-between text-[10px] font-medium text-arca-text-dim">
+          <span>{current}</span>
+          <span>Meta: {target}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="space-y-2 block">
+      <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+

@@ -1,61 +1,89 @@
-import Link from "next/link";
-import { Button, Card, MetricCard } from "@/components/ui-kit";
-import type { DashboardData } from "@/lib/dashboard-data";
-import { formatCOP } from "@/lib/finance";
+'use client';
 
-export function ProjectionScreen({ data }: { data: DashboardData }) {
-  const projections = data.projections;
-  const latest = projections[projections.length - 1];
+import { ArrowDownLeft, BarChart3, PieChart, TrendingUp } from 'lucide-react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import type { ProjectionViewModel } from '@/src/lib/projection-types';
 
+export default function ProjectionScreen({
+  onBack,
+  data,
+}: {
+  onBack: () => void;
+  data: ProjectionViewModel;
+}) {
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_16px_44px_rgba(16,16,16,0.06)]">
-        <div className="max-w-4xl">
-          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Planeacion / Proyeccion</p>
-          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
-            Escenarios y futuro, sin inventar datos.
-          </h1>
-          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
-            Esta vista solo mostrara proyecciones cuando existan escenarios guardados. Mientras tanto, se queda en cero y explicita que falta construir esa capa.
-          </p>
+    <div className="space-y-6">
+      <header className="flex items-center space-x-4">
+        <button onClick={onBack} className="text-arca-text-dim hover:text-arca-accent transition-colors">
+          <ArrowDownLeft className="rotate-45" size={24} />
+        </button>
+        <h2 className="text-lg font-bold text-arca-text-primary uppercase tracking-widest">Proyeccion</h2>
+      </header>
+
+      <section className="card-arca p-5 space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Evolucion esperada</h3>
+          <TrendingUp size={16} className="text-arca-positive" />
+        </div>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data.chart}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
+              <YAxis hide />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--bg-surface-1)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  color: 'var(--text-primary)',
+                }}
+              />
+              <Area type="monotone" dataKey="projected" stroke="var(--accent)" fill="color-mix(in srgb, var(--accent) 18%, transparent)" strokeWidth={3} />
+              <Area type="monotone" dataKey="actual" stroke="var(--color-positive)" fill="color-mix(in srgb, var(--color-positive) 18%, transparent)" strokeWidth={3} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </section>
 
-      <section className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Escenarios" value={String(projections.length)} delta="Base de proyecciones" tone="neutral" />
-        <MetricCard label="Ingreso esperado" value={formatCOP(latest?.expectedIncome ?? 0)} delta="Ultimo escenario" tone="success" />
-        <MetricCard label="Gasto esperado" value={formatCOP(latest?.expectedExpenses ?? 0)} delta="Ultimo escenario" tone="warning" />
-        <MetricCard label="Cierre estimado" value={formatCOP(latest?.closingBalance ?? 0)} delta={latest?.scenario ?? "Sin escenario"} tone="neutral" />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="card-arca p-4 space-y-2">
+          <BarChart3 size={20} className="text-arca-accent" />
+          <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Escenario base</p>
+          <p className="text-lg font-bold text-arca-text-primary">{data.baseScenarioLabel}</p>
+          <p className="text-[10px] uppercase tracking-wider text-arca-text-dim">{data.monthsProjected} meses cargados</p>
+        </div>
+        <div className="card-arca p-4 space-y-2">
+          <PieChart size={20} className="text-arca-positive" />
+          <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Meta de ahorro</p>
+          <p className="text-lg font-bold text-arca-text-primary">{data.savingsTargetLabel}</p>
+          <p className="text-[10px] uppercase tracking-wider text-arca-text-dim">Faltan {data.savingsGapLabel}</p>
+        </div>
+      </div>
+
+      <section className="card-arca p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Avance de ahorro</span>
+          <span className="text-xs font-semibold text-arca-positive">{data.savingsProgress}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-arca-surface-2 overflow-hidden">
+          <div className="h-full rounded-full bg-arca-positive" style={{ width: `${data.savingsProgress}%` }} />
+        </div>
+        <div className="grid grid-cols-2 gap-4 text-xs">
+          <div>
+            <p className="text-arca-text-dim uppercase tracking-wider">Posicion actual</p>
+            <p className="mt-1 font-bold text-arca-text-primary">{data.currentPositionLabel}</p>
+          </div>
+          <div>
+            <p className="text-arca-text-dim uppercase tracking-wider">Cierre proyectado</p>
+            <p className="mt-1 font-bold text-arca-text-primary">{data.baseScenarioLabel}</p>
+          </div>
+        </div>
       </section>
 
-      <Card className="p-5">
-        <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Estado actual</p>
-        <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Proyeccion todavia no operativa</h2>
-        {projections.length ? (
-          <div className="mt-5 space-y-3">
-            {projections.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-[var(--foreground)]">{item.scenario}</p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">{item.month}</p>
-                  </div>
-                  <p className="font-semibold text-[var(--foreground)]">{formatCOP(item.closingBalance)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-5 rounded-2xl border border-dashed border-[var(--line)] bg-white/50 p-6 text-sm text-[var(--muted)]">
-            No hay escenarios guardados. El siguiente paso correcto es definir primero cuentas, obligaciones e ingresos reales; luego construimos proyeccion sobre esa base.
-          </div>
-        )}
-        <div className="mt-5">
-          <Link href="/app/planeacion/mes">
-            <Button size="sm">Ir al mes</Button>
-          </Link>
-        </div>
-      </Card>
+      <section className="card-arca p-5 bg-arca-accent/5 border-arca-accent/20">
+        <p className="text-xs text-arca-text-secondary leading-relaxed">{data.narrative}</p>
+      </section>
     </div>
   );
 }

@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
-import type { Profile, Workspace, WorkspaceContext, WorkspaceMembership, WorkspaceSubscription } from "@/lib/types";
-import { createSupabaseServerComponentClient, getSupabaseAdminClient } from "@/lib/supabase";
-
-type SchemaState = "ready" | "missing";
+import type { Profile, Workspace, WorkspaceContext, WorkspaceMembership, WorkspaceSubscription } from "@/src/lib/auth-types";
+import { createSupabaseServerComponentClient, getSupabaseAdminClient } from "@/src/lib/supabase";
 
 async function readSessionUser() {
   const supabase = await createSupabaseServerComponentClient();
@@ -45,11 +43,7 @@ async function readProfile(userId: string) {
     .eq("id", userId)
     .maybeSingle();
 
-  if (error) {
-    throw error;
-  }
-
-  if (!data) {
+  if (error || !data) {
     return null;
   }
 
@@ -68,7 +62,7 @@ async function readWorkspaceContext(userId: string) {
   const supabase = await createSupabaseServerComponentClient();
 
   if (!supabase) {
-    return { schemaState: "missing" as SchemaState, context: null };
+    return null;
   }
 
   const membershipResult = await supabase
@@ -82,7 +76,7 @@ async function readWorkspaceContext(userId: string) {
     .maybeSingle();
 
   if (membershipResult.error) {
-    return { schemaState: "missing" as SchemaState, context: null };
+    return null;
   }
 
   const membershipRow = membershipResult.data as
@@ -117,10 +111,15 @@ async function readWorkspaceContext(userId: string) {
     | null;
 
   if (!membershipRow || !membershipRow.workspaces) {
-    return { schemaState: "ready" as SchemaState, context: null };
+    return null;
   }
 
   const workspaceRow = Array.isArray(membershipRow.workspaces) ? membershipRow.workspaces[0] : membershipRow.workspaces;
+  const profile = await readProfile(userId);
+
+  if (!profile) {
+    return null;
+  }
 
   const membership: WorkspaceMembership = {
     workspaceId: String(membershipRow.workspace_id),
@@ -163,12 +162,6 @@ async function readWorkspaceContext(userId: string) {
     };
   }
 
-  const profile = await readProfile(userId);
-
-  if (!profile) {
-    return { schemaState: "ready" as SchemaState, context: null };
-  }
-
   const context: WorkspaceContext = {
     profile,
     workspace,
@@ -176,14 +169,14 @@ async function readWorkspaceContext(userId: string) {
     subscription,
   };
 
-  return { schemaState: "ready" as SchemaState, context };
+  return context;
 }
 
 export async function getCurrentWorkspaceContext() {
   const user = await getCurrentUser();
 
   if (!user) {
-    return { schemaState: "ready" as SchemaState, context: null };
+    return null;
   }
 
   return readWorkspaceContext(user.id);
@@ -191,24 +184,10 @@ export async function getCurrentWorkspaceContext() {
 
 export async function requireWorkspaceContext() {
   const user = await requireUser();
-  const result = await readWorkspaceContext(user.id);
+  const context = await readWorkspaceContext(user.id);
 
-  if (result.schemaState === "missing") {
-    redirect("/onboarding?mode=schema");
-  }
-
-  if (!result.context) {
-    redirect("/onboarding");
-  }
-
-  return result.context;
-}
-
-export async function requireSuperAdmin() {
-  const context = await requireWorkspaceContext();
-
-  if (!context.profile.isSuperAdmin) {
-    redirect("/app/hoy");
+  if (!context) {
+    redirect("/sign-in?message=Completa%20tu%20acceso%20de%20nuevo");
   }
 
   return context;
@@ -222,22 +201,24 @@ export async function bootstrapWorkspaceForUser(params: { userId: string; email?
   }
 
   const workspaceName = params.workspaceName?.trim() || "Arca principal";
-  const slugBase = workspaceName
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "") || "arca";
+  const slugBase =
+    workspaceName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") || "arca";
   const slug = `${slugBase}-${params.userId.slice(0, 8)}`;
 
-  const profileInsert = {
-    id: params.userId,
-    email: params.email ?? null,
-    full_name: params.fullName ?? null,
-    is_superadmin: false,
-  };
-
-  const { error: profileError } = await admin.from("profiles").upsert(profileInsert, { onConflict: "id" });
+  const { error: profileError } = await admin.from("profiles").upsert(
+    {
+      id: params.userId,
+      email: params.email ?? null,
+      full_name: params.fullName ?? null,
+      is_superadmin: false,
+    },
+    { onConflict: "id" }
+  );
 
   if (profileError) {
     throw new Error(`No se pudo crear el perfil: ${profileError.message}`);

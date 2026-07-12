@@ -1,193 +1,128 @@
-import type React from "react";
-import Link from "next/link";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import React from 'react';
+import { motion, type HTMLMotionProps } from 'motion/react';
+import { LucideIcon } from 'lucide-react';
 
-const buttonVariants = cva(
-  "arca-focus arca-active-scale inline-flex items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
-  {
-    variants: {
-      variant: {
-        primary: "arca-primary-action",
-        secondary:
-          "border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[var(--bg-surface-2)] text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--surface-2)_78%,var(--surface-strong)_22%)]",
-        ghost: "bg-transparent text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--surface)_58%,transparent)]",
-      },
-      size: {
-        sm: "h-9 px-3",
-        md: "h-10 px-4",
-        lg: "h-11 px-5",
-      },
-    },
-    defaultVariants: {
-      variant: "primary",
-      size: "md",
-    },
-  }
-);
+// --- BUTTON ---
+type ButtonProps = Omit<HTMLMotionProps<'button'>, 'children'> & {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  icon?: LucideIcon;
+  fullWidth?: boolean;
+  children?: React.ReactNode;
+};
 
-export function Button({
-  className,
-  variant,
-  size,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants>) {
-  return <button className={cn(buttonVariants({ variant, size, className }))} {...props} />;
-}
+export const Button = ({ 
+  children, 
+  variant = 'primary', 
+  size = 'md', 
+  icon: Icon, 
+  fullWidth, 
+  className = '', 
+  ...props 
+}: ButtonProps) => {
+  const variants = {
+    primary: 'bg-arca-accent text-white shadow-lg shadow-arca-accent/20 hover:bg-arca-accent/90',
+    secondary: 'bg-arca-surface-2 text-arca-text-primary border border-arca-border hover:bg-arca-surface-1',
+    ghost: 'bg-transparent text-arca-text-dim hover:text-arca-accent hover:bg-arca-accent/5',
+    danger: 'bg-arca-alert/10 text-arca-alert border border-arca-alert/20 hover:bg-arca-alert hover:text-white',
+  };
 
-const cardVariants = cva("rounded-2xl", {
-  variants: {
-    variant: {
-      default: "arca-panel",
-      featured: "arca-panel-featured",
-    },
-  },
-  defaultVariants: {
-    variant: "default",
-  },
-});
-
-export function Card({
-  className,
-  variant,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> &
-  VariantProps<typeof cardVariants>) {
-  return <div className={cn(cardVariants({ variant, className }))} {...props} />;
-}
-
-export function Badge({
-  className,
-  tone = "neutral",
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement> & { tone?: "neutral" | "success" | "warning" | "danger" }) {
-  const tones = {
-    neutral: "bg-[color:color-mix(in_srgb,var(--surface-2)_78%,var(--surface-strong)_22%)] text-[var(--text-primary)]",
-    success: "bg-[var(--success-bg)] text-[var(--success)]",
-    warning: "bg-[var(--warning-bg)] text-[var(--warning)]",
-    danger: "bg-[var(--danger-bg)] text-[var(--danger)]",
-  } as const;
-  return <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", tones[tone], className)} {...props} />;
-}
-
-export function MetricCard({
-  label,
-  value,
-  delta,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  delta?: string;
-  tone?: "neutral" | "success" | "warning" | "danger";
-}) {
-  const toneLabels = {
-    neutral: "Info",
-    success: "Bien",
-    warning: "Atento",
-    danger: "Riesgo",
-  } as const;
+  const sizes = {
+    sm: 'h-8 px-3 text-[10px]',
+    md: 'h-10 px-4 text-xs',
+    lg: 'h-12 px-6 text-sm',
+    xl: 'h-14 px-8 text-base',
+  };
 
   return (
-    <Card className="p-3 sm:p-4">
-      <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-[var(--muted)]">{label}</p>
-      <div className="mt-2 flex items-end justify-between gap-2 sm:gap-3">
-        <div className="min-w-0">
-          <p className="break-words text-xl font-semibold text-[var(--foreground)] xl:text-2xl">{value}</p>
-          {delta ? <p className="mt-1 text-sm text-[var(--muted)]">{delta}</p> : null}
-        </div>
-        <Badge tone={tone}>{toneLabels[tone]}</Badge>
+    <motion.button
+      whileTap={{ scale: 0.98 }}
+      className={`rounded-xl font-bold uppercase tracking-widest flex items-center justify-center space-x-2 transition-all disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
+      {...props}
+    >
+      {Icon && <Icon size={size === 'sm' ? 14 : 16} />}
+      {children && <span>{children}</span>}
+    </motion.button>
+  );
+};
+
+// --- CARD ---
+export const Card = ({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) => (
+  <div 
+    onClick={onClick}
+    className={`card-arca ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''} ${className}`}
+  >
+    {children}
+  </div>
+);
+
+// --- BADGE ---
+export const Badge = ({ children, variant = 'neutral' }: { children: React.ReactNode; variant?: 'positive' | 'alert' | 'accent' | 'neutral' }) => {
+  const variants = {
+    positive: 'bg-arca-positive/10 text-arca-positive',
+    alert: 'bg-arca-alert/10 text-arca-alert',
+    accent: 'bg-arca-accent/10 text-arca-accent',
+    neutral: 'bg-arca-surface-2 text-arca-text-dim',
+  };
+
+  return (
+    <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest ${variants[variant]}`}>
+      {children}
+    </span>
+  );
+};
+
+// --- METRIC CARD ---
+export const MetricCard = ({ label, value, trend, icon: Icon, variant = 'neutral' }: { label: string; value: string; trend?: string; icon?: LucideIcon; variant?: 'positive' | 'alert' | 'neutral' }) => {
+  const colors = {
+    positive: 'text-arca-positive',
+    alert: 'text-arca-alert',
+    neutral: 'text-arca-text-primary',
+  };
+
+  return (
+    <Card className="p-4 space-y-2">
+      <div className={`flex items-center space-x-2 ${colors[variant]}`}>
+        {Icon && <Icon size={14} />}
+        <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
+      </div>
+      <div className="flex items-baseline justify-between">
+        <p className="text-lg font-bold text-arca-text-primary">{value}</p>
+        {trend && <span className={`text-[10px] font-medium ${trend.startsWith('+') ? 'text-arca-positive' : 'text-arca-alert'}`}>{trend}</span>}
       </div>
     </Card>
   );
-}
+};
 
-export function Logo({
-  compact = false,
-  withWordmark = true,
-  href,
-  className,
-}: {
-  compact?: boolean;
-  withWordmark?: boolean;
-  href?: string;
-  className?: string;
-}) {
-  const content = (
-    <div className={cn("flex items-center gap-3", className)}>
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] border-t-[var(--border-top-highlight)] bg-[color:color-mix(in_srgb,var(--surface)_90%,var(--surface-strong)_10%)] shadow-[var(--elevation-soft)]">
-        <img
-          src="/brand/arca/logo-mark-transparent.svg"
-          alt="Arca"
-          className={cn("h-7 w-7 object-contain", compact ? "h-6 w-6" : "h-7 w-7")}
-        />
-      </div>
-      {withWordmark ? (
-        <div className="flex min-w-0 flex-col">
-          <div className="flex items-baseline gap-1 leading-none">
-            <span
-              className={cn(
-                "font-semibold uppercase text-[var(--accent)]",
-                compact ? "text-[0.82rem] tracking-[0.24em]" : "text-[1rem] tracking-[0.28em]"
-              )}
-            >
-              A
-            </span>
-            <span
-              className={cn(
-                "font-semibold uppercase text-[var(--foreground)]",
-                compact ? "text-[0.74rem] tracking-[0.28em]" : "text-[0.92rem] tracking-[0.34em]"
-              )}
-            >
-              RCA
-            </span>
-          </div>
-          {!compact ? <p className="mt-1 text-sm text-[var(--muted)]">Control claro de dinero</p> : null}
-        </div>
-      ) : null}
+// --- SECTION HEADER ---
+export const SectionHeader = ({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) => (
+  <div className="flex items-center justify-between px-1">
+    <div className="space-y-0.5">
+      <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">{title}</h3>
+      {subtitle && <p className="text-[9px] text-arca-text-dim/60 font-medium">{subtitle}</p>}
     </div>
-  );
+    {action && <div>{action}</div>}
+  </div>
+);
 
-  return href ? <Link href={href}>{content}</Link> : content;
-}
+// --- LOGO ---
+export const Logo = ({ size = 24, className = '' }: { size?: number; className?: string }) => (
+  <div className={`font-black tracking-tighter text-arca-accent flex items-center space-x-2 ${className}`} style={{ fontSize: size }}>
+    <span>ARCA</span>
+    <div className="w-1.5 h-1.5 rounded-full bg-arca-accent mt-1" />
+  </div>
+);
 
-export function SectionHeader({
-  eyebrow,
-  title,
-  description,
-  align = "left",
-}: {
-  eyebrow?: string;
-  title: string;
-  description?: string;
-  align?: "left" | "center";
-}) {
-  return (
-    <div className={cn("max-w-4xl", align === "center" ? "mx-auto text-center" : "")}>
-      {eyebrow ? <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{eyebrow}</p> : null}
-      <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">{title}</h1>
-      {description ? <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-8">{description}</p> : null}
+// --- EMPTY STATE ---
+export const EmptyState = ({ title, message, icon: Icon, action }: { title: string; message: string; icon: LucideIcon; action?: React.ReactNode }) => (
+  <div className="flex flex-col items-center justify-center py-12 px-6 text-center space-y-4">
+    <div className="w-16 h-16 rounded-full bg-arca-surface-2 flex items-center justify-center text-arca-text-dim">
+      <Icon size={32} />
     </div>
-  );
-}
-
-export function EmptyState({
-  title,
-  description,
-  actions,
-  className,
-}: {
-  title: string;
-  description: string;
-  actions?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("arca-muted-block rounded-2xl p-6", className)}>
-      <h3 className="text-xl font-semibold text-[var(--foreground)]">{title}</h3>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--muted)]">{description}</p>
-      {actions ? <div className="mt-5 flex flex-wrap gap-3">{actions}</div> : null}
+    <div className="space-y-1">
+      <h3 className="text-sm font-bold text-arca-text-primary uppercase tracking-widest">{title}</h3>
+      <p className="text-xs text-arca-text-dim max-w-[240px]">{message}</p>
     </div>
-  );
-}
+    {action && <div className="pt-2">{action}</div>}
+  </div>
+);

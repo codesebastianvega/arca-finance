@@ -2,15 +2,10 @@
 
 import { useState } from "react";
 import { Chrome, LoaderCircle } from "lucide-react";
-import { Button } from "@/components/ui-kit";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { Button } from "@/src/components/ui-kit";
+import { getSupabaseBrowserClient } from "@/src/lib/supabase-browser";
 
-export function GoogleAuthButton({
-  next = "/app/hoy",
-}: {
-  mode: "sign-in" | "sign-up";
-  next?: string;
-}) {
+export function GoogleAuthButton({ next = "/app" }: { next?: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +29,9 @@ export function GoogleAuthButton({
       options: {
         redirectTo,
         skipBrowserRedirect: true,
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
 
@@ -52,7 +50,7 @@ export function GoogleAuthButton({
         {loading ? <LoaderCircle size={16} className="animate-spin" /> : <Chrome size={16} />}
         Continuar con Google
       </Button>
-      {error ? <p className="rounded-2xl bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
+      {error ? <p className="rounded-2xl bg-arca-alert/10 px-4 py-3 text-sm text-arca-alert">{error}</p> : null}
     </div>
   );
 }

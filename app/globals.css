@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-arca-base: #15110B;
+  --color-arca-surface-1: #1E1811;
+  --color-arca-surface-2: #271F16;
+  --color-arca-border: #33291B;
+  --color-arca-border-strong: #4A3B26;
+  --color-arca-text-primary: #F3ECDC;
+  --color-arca-text-secondary: #B9AC90;
+  --color-arca-text-dim: #7C7159;
+  --color-arca-accent: #C68A45;
+  --color-arca-accent-hover: #D89C56;
+  --color-arca-positive: #8FA66A;
+  --color-arca-alert: #C1543A;
+
+  --color-arca-light-base: #F8F2E4;
+  --color-arca-light-surface-1: #FFFDF8;
+  --color-arca-light-surface-2: #F1E8D4;
+  --color-arca-light-border: #E3D8C1;
+  --color-arca-light-text-primary: #2A2117;
+  --color-arca-light-text-secondary: #6B5F4B;
+  --color-arca-light-accent: #A9713C;
+  --color-arca-light-positive: #5F7A44;
+  --color-arca-light-alert: #B84632;
+}
+
+@layer base {
+  html, body {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-arca-base text-arca-text-primary antialiased;
+  }
+
+  .light {
+    @apply bg-arca-light-base text-arca-light-text-primary;
+  }
+}
+
+.card-arca {
+  @apply bg-arca-surface-1 border-t border-arca-border-strong border-x border-arca-border border-b border-arca-border rounded-2xl shadow-sm;
+}
+
+.light .card-arca {
+  @apply bg-arca-light-surface-1 border-t border-white border-x border-arca-light-border border-b border-arca-light-border shadow-sm;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}

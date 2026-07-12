@@ -33,17 +33,6 @@ function getSupabaseServiceRoleKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 }
 
-export function isSupabaseConfigured() {
-  return Boolean(getSupabaseUrl() && getSupabaseAnonKey());
-}
-
-export function getSupabaseConfig() {
-  return {
-    url: getSupabaseUrl(),
-    anonKey: getSupabaseAnonKey(),
-  };
-}
-
 function getServerCookieAdapter(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   return {
     getAll() {
@@ -55,7 +44,7 @@ function getServerCookieAdapter(cookieStore: Awaited<ReturnType<typeof cookies>>
           cookieStore.set(name, value, options);
         });
       } catch {
-        // Server Components may call this in a read-only context.
+        // read-only server component context
       }
     },
   };
@@ -74,10 +63,6 @@ export async function createSupabaseServerComponentClient() {
   return createServerClient<GenericDatabase>(url, anonKey, {
     cookies: getServerCookieAdapter(cookieStore),
   });
-}
-
-export async function createSupabaseServerActionClient() {
-  return createSupabaseServerComponentClient();
 }
 
 export function getSupabaseAdminClient() {
@@ -99,4 +84,3 @@ export function getSupabaseAdminClient() {
 
   return adminClient;
 }
-

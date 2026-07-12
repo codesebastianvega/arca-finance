@@ -1,86 +1,194 @@
-import { addDays, endOfMonth, endOfWeek, format, isSameMonth, startOfMonth, startOfWeek } from "date-fns";
-import { Card, MetricCard } from "@/components/ui-kit";
-import type { DashboardData } from "@/lib/dashboard-data";
-import { formatCOP, parseCalendarDate } from "@/lib/finance";
+'use client';
 
-export function CalendarScreen({ data, monthKey }: { data: DashboardData; monthKey: string }) {
-  const monthDate = parseMonthKey(monthKey);
-  const events = data.scheduledEvents.filter((item) => monthMatches(item.dueDate, monthKey));
-  const monthStart = startOfMonth(monthDate);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calendarEnd = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 });
-  const days: Date[] = [];
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
+import { ArrowDownLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { CalendarMonth, CalendarViewModel } from '@/src/lib/calendar-types';
 
-  for (let cursor = new Date(calendarStart); cursor <= calendarEnd; cursor = addDays(cursor, 1)) {
-    days.push(new Date(cursor));
-  }
+const WEEK_DAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+export default function CalendarScreen({
+  onBack,
+  data,
+}: {
+  onBack: () => void;
+  data: CalendarViewModel;
+}) {
+  const initialIndex = Math.max(0, data.months.findIndex((month) => month.key === data.initialMonthKey));
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  const currentMonth = data.months[currentIndex];
+  const nextDisabled = currentIndex >= data.months.length - 1;
+  const prevDisabled = currentIndex <= 0;
+
+  useEffect(() => {
+    setSelectedDay(null);
+  }, [currentIndex]);
+
+  const gridDays = useMemo(() => {
+    const leading = Array.from({ length: currentMonth.firstWeekday }, (_, index) => ({ key: `empty-${index}`, day: null }));
+    const days = Array.from({ length: currentMonth.daysInMonth }, (_, index) => ({ key: `day-${index + 1}`, day: index + 1 }));
+    return [...leading, ...days];
+  }, [currentMonth]);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<number, CalendarMonth['events']>();
+    for (const event of currentMonth.events) {
+      const bucket = map.get(event.day) ?? [];
+      bucket.push(event);
+      map.set(event.day, bucket);
+    }
+    return map;
+  }, [currentMonth]);
+
+  const visibleEvents = useMemo(() => {
+    if (!selectedDay) return currentMonth.events;
+    return currentMonth.events.filter((event) => event.day === selectedDay);
+  }, [currentMonth.events, selectedDay]);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="rounded-2xl sm:rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[var(--elevation-strong)]">
-        <div className="max-w-4xl">
-          <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Calendario</p>
-          <h1 className="mt-2 sm:mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">Agenda financiera mensual.</h1>
-          <p className="mt-2 sm:mt-4 text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">Cuadricula mensual alimentada por ingresos esperados y pagos programados.</p>
-        </div>
-      </section>
+    <div className="space-y-6">
+      <header className="flex items-center space-x-4">
+        <button onClick={onBack} className="text-arca-text-dim hover:text-arca-accent transition-colors">
+          <ArrowDownLeft className="rotate-45" size={24} />
+        </button>
+        <h2 className="text-lg font-bold text-arca-text-primary uppercase tracking-widest">Calendario</h2>
+      </header>
 
-      <section className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-        <MetricCard label="Eventos del mes" value={String(events.length)} delta={monthKey} tone="neutral" />
-        <MetricCard label="Ingresos del mes" value={formatCOP(events.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0))} delta="Agenda esperada" tone="success" />
-        <MetricCard label="Salidas del mes" value={formatCOP(events.filter((item) => item.kind !== "income").reduce((sum, item) => sum + item.amount, 0))} delta="Compromisos programados" tone="warning" />
-      </section>
-
-      <Card className="p-5">
-        <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Vista mensual</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{format(monthDate, "MMMM yyyy")}</h2>
+      <section className="card-arca p-5">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-sm font-bold text-arca-text-primary capitalize">{currentMonth.label}</h3>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => !prevDisabled && setCurrentIndex((value) => value - 1)}
+              disabled={prevDisabled}
+              className="p-2 text-arca-text-dim hover:text-arca-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={() => !nextDisabled && setCurrentIndex((value) => value + 1)}
+              disabled={nextDisabled}
+              className="p-2 text-arca-text-dim hover:text-arca-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
         </div>
-        <div className="mt-5 grid grid-cols-7 gap-2 text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-          {["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"].map((day) => (
-            <div key={day} className="px-2 py-1">
+
+        <div className="grid grid-cols-7 gap-2">
+          {WEEK_DAYS.map((day) => (
+            <div key={day} className="text-center text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mb-2">
               {day}
             </div>
           ))}
-        </div>
-        <div className="mt-2 grid grid-cols-7 gap-2">
-          {days.map((day) => {
-            const dayEvents = events.filter((event) => sameDay(parseCalendarDate(event.dueDate), day));
-            const outside = !isSameMonth(day, monthDate);
+          {gridDays.map((cell) => {
+            if (!cell.day) {
+              return <div key={cell.key} className="aspect-square" />;
+            }
+
+            const dayEvents = eventsByDay.get(cell.day) ?? [];
+            const isToday = currentMonth.key === data.initialMonthKey && cell.day === Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
+            const tone =
+              dayEvents.some((event) => event.status === 'overdue')
+                ? 'bg-arca-alert'
+                : dayEvents.some((event) => event.kind === 'income' || event.kind === 'receivable')
+                  ? 'bg-arca-positive'
+                  : 'bg-arca-accent';
 
             return (
-              <div
-                key={day.toISOString()}
-                className={`rounded-2xl border p-2 ${outside ? "arca-muted-block min-h-[120px]" : "arca-soft-block min-h-[120px]"}`}
+              <motion.button
+                key={cell.key}
+                whileTap={{ scale: 0.96 }}
+                type="button"
+                onClick={() => setSelectedDay(cell.day)}
+                className={`aspect-square rounded-xl flex flex-col items-center justify-center relative border border-arca-border ${
+                  selectedDay === cell.day
+                    ? 'bg-arca-accent/15 text-arca-accent border-arca-accent/30'
+                    : isToday
+                      ? 'bg-arca-accent text-white shadow-lg shadow-arca-accent/20'
+                      : 'bg-arca-surface-2 text-arca-text-dim'
+                }`}
               >
-                <p className={`text-sm font-semibold ${outside ? "text-[var(--muted)]" : "text-[var(--foreground)]"}`}>{format(day, "d")}</p>
-                <div className="mt-2 space-y-2">
-                  {dayEvents.slice(0, 3).map((event) => (
-                    <div key={event.id} className="rounded-xl bg-[var(--surface-2)] px-2 py-1">
-                      <p className="truncate text-xs font-medium text-[var(--foreground)]">{event.title}</p>
-                      <p className="text-xs text-[var(--muted)]">{formatCOP(event.amount)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                <span className="text-xs font-bold">{cell.day}</span>
+                {dayEvents.length > 0 && !isToday && <div className={`w-1.5 h-1.5 rounded-full absolute bottom-2 ${tone}`} />}
+                {dayEvents.length > 1 && !isToday && (
+                  <span className="absolute top-1 right-1 text-[8px] font-bold text-arca-text-dim">{dayEvents.length}</span>
+                )}
+              </motion.button>
             );
           })}
         </div>
-      </Card>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
+            {selectedDay ? `Agenda del ${selectedDay}` : 'Agenda del mes'}
+          </h3>
+          {selectedDay ? (
+            <button
+              type="button"
+              onClick={() => setSelectedDay(null)}
+              className="text-[10px] font-bold uppercase tracking-widest text-arca-accent"
+            >
+              Ver todo
+            </button>
+          ) : null}
+        </div>
+        <div className="card-arca divide-y divide-arca-border overflow-hidden">
+          {visibleEvents.length > 0 ? (
+            visibleEvents.map((event) => (
+              <div key={`${event.kind}-${event.id}`} className="flex items-center justify-between p-4 bg-arca-surface-1">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconTone(event)}`}>
+                    <CalendarIcon size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-arca-text-primary">{event.title}</p>
+                    <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-tighter">
+                      {event.dateLabel} · {event.secondaryLabel}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm font-bold ${amountTone(event)}`}>{event.amountLabel}</p>
+                  <span className={`inline-flex mt-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${badgeTone(event)}`}>
+                    {labelForEvent(event)}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-4 text-xs text-arca-text-dim">No hay eventos programados para este mes.</div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function parseMonthKey(value: string) {
-  const [year, month] = value.split("-").map(Number);
-  return new Date(year, (month || 1) - 1, 1);
+function labelForEvent(event: CalendarMonth['events'][number]) {
+  if (event.kind === 'income') return 'Ingreso';
+  if (event.kind === 'receivable') return 'Cobro';
+  return 'Pago';
 }
 
-function monthMatches(value: string, monthKey: string) {
-  const date = parseCalendarDate(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` === monthKey;
+function iconTone(event: CalendarMonth['events'][number]) {
+  if (event.status === 'overdue') return 'bg-arca-alert/10 text-arca-alert';
+  if (event.kind === 'income' || event.kind === 'receivable') return 'bg-arca-positive/10 text-arca-positive';
+  return 'bg-arca-accent/10 text-arca-accent';
 }
 
-function sameDay(left: Date, right: Date) {
-  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+function amountTone(event: CalendarMonth['events'][number]) {
+  if (event.kind === 'income' || event.kind === 'receivable') return 'text-arca-positive';
+  if (event.status === 'overdue') return 'text-arca-alert';
+  return 'text-arca-text-primary';
+}
+
+function badgeTone(event: CalendarMonth['events'][number]) {
+  if (event.status === 'overdue') return 'bg-arca-alert/10 text-arca-alert';
+  if (event.kind === 'income' || event.kind === 'receivable') return 'bg-arca-positive/10 text-arca-positive';
+  return 'bg-arca-accent/10 text-arca-accent';
 }

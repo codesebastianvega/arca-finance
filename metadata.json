@@ -1,0 +1,8 @@
+{
+  "name": "Arca",
+  "description": "Personal financial control prototype with a premium, warm aesthetic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

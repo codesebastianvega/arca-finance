@@ -1,6 +1,0 @@
-<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
-  <rect width="96" height="96" rx="22" fill="var(--accent)" />
-  <path d="M27 65L42.6 31H53.4L69 65H58.5L55.9 58.8H39.8L37.2 65H27ZM43 50.7H52.8L47.9 38.8L43 50.7Z" fill="var(--on-accent)" />
-  <path d="M27 70H69" stroke="var(--accent-2)" stroke-width="5" stroke-linecap="round" />
-  <circle cx="48" cy="48" r="34" stroke="var(--on-accent)" stroke-opacity="0.18" stroke-width="2" />
-</svg>
