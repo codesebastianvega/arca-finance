@@ -67,7 +67,15 @@ export default function App({
     const backToMas = () => setCurrentScreen('mas');
     
     switch (currentScreen) {
-      case 'hoy': return <DecisionDashboard data={initialTodayData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
+      case 'hoy': return <DecisionDashboard 
+        data={initialTodayData} 
+        onOpenMovements={() => setCurrentScreen('movimientos')} 
+        onOpenTransfer={() => setCurrentScreen('transferir')}
+        onOpenObligations={() => setCurrentScreen('obligaciones')}
+        onOpenRegister={() => setCurrentScreen('registrar')}
+        onOpenBusiness={() => setCurrentScreen('negocios')}
+        onOpenMonthPlan={() => setCurrentScreen('planeacion_mes')}
+      />;
       case 'dinero_cuentas': return <AccountsScreen defaultTab="cuentas" data={initialMoneyData} />;
       case 'dinero_tarjetas': return <AccountsScreen defaultTab="tarjetas" data={initialMoneyData} />;
       case 'dinero_ahorro': return <AccountsScreen defaultTab="ahorro" data={initialMoneyData} />;
