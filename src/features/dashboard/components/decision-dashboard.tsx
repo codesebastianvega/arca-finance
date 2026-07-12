@@ -2,6 +2,7 @@
 
 import { CheckCircle2, ArrowUpRight, Clock, Receipt, AlertTriangle, Bell, Search, Send, Zap, HandCoins } from "lucide-react";
 import type { TodayViewModel } from "@/src/lib/today-data";
+import { haptics } from "@/src/lib/haptics";
 
 function formatCOP(amount: number | null | undefined): string {
   if (amount == null) return "$0";
@@ -55,6 +56,28 @@ export default function DecisionDashboard({
           </button>
         </div>
       </header>
+
+      {/* Onboarding Alert Card if no accounts exist */}
+      {data.accountOptions.length === 0 && (
+        <div 
+          onClick={() => {
+            haptics.medium();
+            window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Cuenta" } }));
+          }}
+          className="card-arca p-5 flex flex-col gap-3 cursor-pointer hover:bg-arca-surface-2/30 border-dashed border-arca-accent/40 bg-arca-accent/5 transition-all"
+        >
+          <div className="flex items-center gap-3 text-arca-accent">
+            <AlertTriangle size={20} />
+            <span className="text-xs font-bold uppercase tracking-wider">¡Bienvenido a Arca!</span>
+          </div>
+          <p className="text-xs text-arca-text-secondary leading-relaxed">
+            Para empezar a controlar tu dinero y proyectar tu flujo de caja, necesitas registrar tu primera cuenta bancaria, billetera digital o efectivo.
+          </p>
+          <button className="h-11 w-full bg-arca-accent text-white text-xs font-bold rounded-xl uppercase tracking-widest shadow-lg shadow-arca-accent/20 hover:brightness-110 active:scale-95 transition-all">
+            Crear mi primera cuenta
+          </button>
+        </div>
+      )}
 
       {/* Quick Actions Horizontal List */}
       <section className="mb-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">

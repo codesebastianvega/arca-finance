@@ -21,6 +21,7 @@ import {
   updateAccount,
   updateCreditCardFull,
   updateSavingsGoal,
+  deleteAccount,
 } from "@/app/actions";
 import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel } from "@/src/lib/money-data";
 import { haptics } from "../../lib/haptics";
@@ -213,7 +214,7 @@ export default function AccountsScreen({
     startTransition(async () => {
       try {
         if (selectedEntity.entityType === "cuenta") {
-          await archiveAccount(selectedEntity.id);
+          await deleteAccount(selectedEntity.id);
         } else if (selectedEntity.entityType === "tarjeta") {
           await archiveCreditCard(selectedEntity.id);
         } else {
@@ -223,7 +224,7 @@ export default function AccountsScreen({
         router.refresh();
         closeEntity();
       } catch (error) {
-        setActionError(error instanceof Error ? error.message : "No se pudo archivar.");
+        setActionError(error instanceof Error ? error.message : "No se pudo eliminar.");
         haptics.error();
       }
     });
@@ -318,19 +319,47 @@ export default function AccountsScreen({
 
       <div className="space-y-4">
         {!hasData ? (
-          <div className="py-12 flex flex-col items-center text-center space-y-4">
+          <button
+            onClick={() => {
+              haptics.medium();
+              const segmentMap: Record<TabId, string> = {
+                cuentas: "Cuenta",
+                tarjetas: "Tarjeta",
+                ahorro: "Ahorro",
+              };
+              window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: segmentMap[activeTab] } }));
+            }}
+            className="w-full py-12 flex flex-col items-center text-center space-y-4 cursor-pointer hover:bg-arca-surface-2/30 rounded-2xl transition-all border border-dashed border-arca-border"
+          >
             <div className="w-16 h-16 rounded-full bg-arca-surface-2 flex items-center justify-center border border-arca-border">
-              <Plus size={32} className="text-arca-text-dim opacity-30" />
+              <Plus size={32} className="text-arca-accent" />
             </div>
             <div>
-              <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary uppercase tracking-widest">Sin {activeTab}</p>
-              <p className="text-xs text-arca-text-dim mt-1">Todavía no hay registros reales en esta sección.</p>
+              <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary uppercase tracking-widest">
+                Crear {activeTab === "cuentas" ? "cuenta" : activeTab === "tarjetas" ? "tarjeta de crédito" : "meta de ahorro"}
+              </p>
+              <p className="text-xs text-arca-text-dim mt-1">
+                Toca aquí para registrar tu primera {activeTab === "cuentas" ? "cuenta" : activeTab === "tarjetas" ? "tarjeta de crédito" : "meta de ahorro"} ahora mismo.
+              </p>
             </div>
-          </div>
+          </button>
         ) : (
           <>
             {activeTab === "cuentas" && (
               <div className="space-y-3">
+                <div className="flex justify-between items-center px-1 mb-2">
+                  <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Mis cuentas</span>
+                  <button
+                    onClick={() => {
+                      haptics.medium();
+                      window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Cuenta" } }));
+                    }}
+                    className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all animate-pulse"
+                    title="Nueva cuenta"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
                 {data.accounts.map((acc) => (
                   <AccountRow key={acc.id} name={acc.name} entity={acc.entity} type={acc.type} balance={acc.balanceLabel} color={acc.color} onClick={() => openEntity({ ...acc, entityType: "cuenta" })} />
                 ))}
@@ -339,6 +368,19 @@ export default function AccountsScreen({
 
             {activeTab === "tarjetas" && (
               <div className="space-y-4">
+                <div className="flex justify-between items-center px-1 mb-2">
+                  <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Mis tarjetas</span>
+                  <button
+                    onClick={() => {
+                      haptics.medium();
+                      window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Tarjeta" } }));
+                    }}
+                    className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all"
+                    title="Nueva tarjeta"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
                 {data.cards.map((card) => (
                   <WalletCard
                     key={card.id}
@@ -360,17 +402,29 @@ export default function AccountsScreen({
                 <section className="card-arca p-5 space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Metas de ahorro</h3>
-                    <button
-                      onClick={() => {
-                        haptics.medium();
-                        setActionError(null);
-                        setSelectedFundingAccount(data.accounts[0]?.id ?? null);
-                        setIsDepositModalOpen(true);
-                      }}
-                      className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all"
-                    >
-                      <Plus size={16} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          haptics.medium();
+                          setActionError(null);
+                          setSelectedFundingAccount(data.accounts[0]?.id ?? null);
+                          setIsDepositModalOpen(true);
+                        }}
+                        className="h-8 px-3 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent text-xs font-bold hover:bg-arca-accent hover:text-white transition-all"
+                      >
+                        Aportar
+                      </button>
+                      <button
+                        onClick={() => {
+                          haptics.medium();
+                          window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro" } }));
+                        }}
+                        className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all"
+                        title="Nueva meta/bolsillo"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-4">
                     {goals.length > 0 ? (
@@ -599,7 +653,7 @@ export default function AccountsScreen({
                     className="h-14 bg-arca-alert/10 text-arca-alert rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center space-x-2 border border-arca-alert/20 disabled:opacity-60"
                   >
                     <Trash2 size={14} />
-                    <span>Archivar</span>
+                    <span>{selectedEntity.entityType === "cuenta" ? "Eliminar" : "Archivar"}</span>
                   </button>
                   <button
                     onClick={handleSaveEntity}

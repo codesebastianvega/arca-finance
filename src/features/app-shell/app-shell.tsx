@@ -22,9 +22,15 @@ interface AppShellProps {
 export default function AppShell({ currentScreen, setCurrentScreen, children, registerData }: AppShellProps) {
   const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [defaultSegment, setDefaultSegment] = useState('Movimiento');
 
   useEffect(() => {
-    const handleOpen = () => setIsRegisterOpen(true);
+    const handleOpen = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const segment = customEvent.detail?.segment || 'Movimiento';
+      setDefaultSegment(segment);
+      setIsRegisterOpen(true);
+    };
     window.addEventListener('open-register', handleOpen);
     return () => window.removeEventListener('open-register', handleOpen);
   }, []);
@@ -51,13 +57,17 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       <BottomTabNavigation 
         currentScreen={currentScreen} 
         onScreenChange={setCurrentScreen}
-        onAddClick={() => setIsRegisterOpen(true)}
+        onAddClick={() => {
+          setDefaultSegment('Movimiento');
+          setIsRegisterOpen(true);
+        }}
       />
 
       {/* Register Bottom Sheet */}
       <BottomSheet isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} title="Nuevo Registro">
         <RegisterScreen
           data={registerData}
+          defaultSegment={defaultSegment}
           onSuccess={() => {
             router.refresh();
             setIsRegisterOpen(false);

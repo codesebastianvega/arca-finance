@@ -272,13 +272,30 @@ export async function updateAccount(input: { id: string; name: string; entity?: 
 
   if (!admin) throw new Error("Supabase admin client no disponible.");
 
+  // 1. Fetch current balance to compute difference
+  const { data: currentAccount, error: fetchError } = await admin
+    .from("accounts")
+    .select("balance, name")
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id)
+    .maybeSingle();
+
+  if (fetchError || !currentAccount) {
+    throw new Error(`No se pudo leer el estado actual de la cuenta: ${fetchError?.message ?? "no encontrada"}`);
+  }
+
+  const oldBalance = Number(currentAccount.balance ?? 0);
+  const newBalance = Number(input.balance);
+  const diff = newBalance - oldBalance;
+
+  // 2. Update the account
   const { error } = await admin
     .from("accounts")
     .update({
       name: input.name.trim(),
       entity: input.entity?.trim() || null,
       type: input.type.trim(),
-      balance: input.balance,
+      balance: newBalance,
       color: input.color.trim() || "#C68A45",
       updated_at: new Date().toISOString(),
     })
@@ -286,6 +303,52 @@ export async function updateAccount(input: { id: string; name: string; entity?: 
     .eq("workspace_id", context.workspace.id);
 
   if (error) throw new Error(`No se pudo actualizar la cuenta: ${error.message}`);
+
+  // 3. Log a transaction if there is a difference (reconciliation/adjustment)
+  if (diff !== 0) {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const { error: txError } = await admin.from("transactions").insert({
+      workspace_id: context.workspace.id,
+      kind: diff > 0 ? "income" : "expense",
+      status: "confirmed",
+      amount: Math.abs(diff),
+      concept: `Ajuste de saldo: ${input.name.trim()}`,
+      account_id: input.id,
+      category: diff > 0 ? "Ingreso" : "Otros",
+      unit: "personal",
+      date: `${today}T00:00:00-05:00`,
+      posted_at: new Date().toISOString(),
+      metadata: { is_adjustment: true, old_balance: oldBalance, new_balance: newBalance },
+    });
+
+    if (txError) {
+      console.error("No se pudo registrar la transaccion de ajuste de saldo:", txError.message);
+    }
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function deleteAccount(accountId: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { error } = await admin
+    .from("accounts")
+    .delete()
+    .eq("id", accountId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) throw new Error(`No se pudo eliminar la cuenta: ${error.message}`);
 
   revalidatePath("/app");
   return { ok: true };
@@ -313,18 +376,49 @@ export async function createAccount(input: {
   if (!type) throw new Error("La cuenta necesita un tipo.");
   if (!Number.isFinite(balance) || balance < 0) throw new Error("El saldo inicial debe ser valido.");
 
-  const { error } = await admin.from("accounts").insert({
-    workspace_id: context.workspace.id,
-    name,
-    entity,
-    type,
-    balance,
-    color,
-    active: true,
-    archived: false,
-  });
+  const { data: newAccount, error } = await admin
+    .from("accounts")
+    .insert({
+      workspace_id: context.workspace.id,
+      name,
+      entity,
+      type,
+      balance,
+      color,
+      active: true,
+      archived: false,
+    })
+    .select("id")
+    .single();
 
-  if (error) throw new Error(`No se pudo crear la cuenta: ${error.message}`);
+  if (error || !newAccount) throw new Error(`No se pudo crear la cuenta: ${error?.message ?? "desconocido"}`);
+
+  if (balance > 0) {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const { error: txError } = await admin.from("transactions").insert({
+      workspace_id: context.workspace.id,
+      kind: "income",
+      status: "confirmed",
+      amount: balance,
+      concept: `Saldo inicial: ${name}`,
+      account_id: newAccount.id,
+      category: "Ingreso",
+      unit: "personal",
+      date: `${today}T00:00:00-05:00`,
+      posted_at: new Date().toISOString(),
+      metadata: { is_initial_balance: true },
+    });
+
+    if (txError) {
+      console.error("No se pudo registrar la transaccion de saldo inicial:", txError.message);
+    }
+  }
 
   revalidatePath("/app");
   return { ok: true };

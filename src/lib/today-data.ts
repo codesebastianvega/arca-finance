@@ -229,7 +229,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     throw new Error(`No se pudieron leer las cuentas por cobrar: ${receivablesResult.error.message}`);
   }
 
-  const totalBalance = (accountsResult.data ?? []).reduce((sum, row) => sum + numberValue(row.balance), 0);
+  const totalAvailableBalance = (accountsResult.data ?? []).reduce((sum, row) => sum + numberValue(row.balance), 0);
   const protectedSavings = (savingsResult.data ?? []).reduce((sum, row) => sum + numberValue(row.current), 0);
 
   const scheduledEvents = ((scheduledResult.data ?? []) as ScheduledEventRow[]).filter((row) => !isConfirmedStatus(row.status));
@@ -255,7 +255,11 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     }));
 
   const pendingCritical = criticalPayments.reduce((sum, row) => sum + row.amount, 0);
-  const rawSafeToSpend = totalBalance - pendingCritical - protectedSavings;
+  
+  // Available balance has already had the savings deducted in database.
+  // So the total physical balance is Available + Savings.
+  const totalBalance = totalAvailableBalance + protectedSavings;
+  const rawSafeToSpend = totalAvailableBalance - pendingCritical;
   const safeToSpend = Math.max(0, rawSafeToSpend);
   const shortfallAgainstProtected = rawSafeToSpend < 0 ? Math.abs(rawSafeToSpend) : 0;
 

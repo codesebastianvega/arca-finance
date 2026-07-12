@@ -145,11 +145,14 @@ const REGISTER_GROUPS = [
   },
 ];
 
-export default function RegisterScreen({ data, onSuccess }: { data: RegisterViewModel; onSuccess?: () => void }) {
+export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string }) {
   const router = useRouter();
   const [isQuickCreatePending, startQuickCreate] = useTransition();
-  const [activeSegment, setActiveSegment] = useState('Movimiento');
-  const [activeGroup, setActiveGroup] = useState<'movimiento' | 'planificado' | 'estructura'>('movimiento');
+  const [activeSegment, setActiveSegment] = useState(defaultSegment);
+  const [activeGroup, setActiveGroup] = useState<'movimiento' | 'planificado' | 'estructura'>(() => {
+    const owner = REGISTER_GROUPS.find((g) => g.segments.some((s) => s.id === defaultSegment));
+    return (owner?.id as 'movimiento' | 'planificado' | 'estructura') || 'movimiento';
+  });
   const [type, setType] = useState<'gasto' | 'ingreso'>('gasto');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -236,6 +239,10 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
     }));
   }, [data.categories]);
 
+  const filteredIncomeSources = useMemo(() => {
+    return data.incomeSources.filter((source) => source.unitKey === movementUnit);
+  }, [data.incomeSources, movementUnit]);
+
   const currentGroup =
     REGISTER_GROUPS.find((group) => group.id === activeGroup) ?? REGISTER_GROUPS[0];
   const currentSegment =
@@ -289,6 +296,16 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
     if (source.unitKey) setMovementUnit(source.unitKey);
     if (source.defaultAccountId) setMovementAccountId(source.defaultAccountId);
   }, [type, movementIncomeSourceId, data.incomeSources]);
+
+  useEffect(() => {
+    if (type !== 'ingreso') return;
+    const isValid = filteredIncomeSources.some((source) => source.id === movementIncomeSourceId);
+    if (!isValid && filteredIncomeSources.length > 0) {
+      setMovementIncomeSourceId(filteredIncomeSources[0].id);
+    } else if (filteredIncomeSources.length === 0) {
+      setMovementIncomeSourceId('');
+    }
+  }, [type, filteredIncomeSources, movementIncomeSourceId]);
 
   useEffect(() => {
     const ownerGroup = REGISTER_GROUPS.find((group) =>
@@ -539,6 +556,7 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
       </div>
 
       <div className="space-y-4">
+        {/* 1. Monto */}
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1 text-center block">Monto</label>
           <div className="relative flex justify-center">
@@ -554,6 +572,7 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
           </div>
         </div>
 
+        {/* 2. Concepto */}
         <div className="space-y-2">
           <div className="flex justify-between items-center ml-1">
             <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Concepto</label>
@@ -563,14 +582,31 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
             type="text" 
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={type === 'ingreso' ? 'Ej: Pago quincena, venta, contrato...' : '¿En qué se fue el dinero?'} 
+            placeholder={type === 'ingreso' ? 'Ej: Venta de producto, abono, honorarios...' : '¿En qué se fue el dinero?'} 
             className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:outline-none focus:border-arca-accent transition-all"
           />
         </div>
 
+        {/* 3. Unidad de Negocio (Frente) */}
+        {data.units.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Unidad de Negocio</label>
+            <select
+              value={movementUnit}
+              onChange={(e) => setMovementUnit(e.target.value)}
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
+            >
+              {data.units.map((unit) => (
+                <option key={unit.id} value={unit.value}>{unit.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* 4. Fuente de Ingreso / Categoría */}
         {type === 'gasto' ? (
           <div className="space-y-3">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Categoria</label>
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Categoría</label>
             <div className="grid grid-cols-4 gap-2">
               {expenseCategoryOptions.map((cat) => (
                 <button
@@ -586,39 +622,40 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
           </div>
         ) : (
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fuente de ingreso</label>
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Concepto de ingreso</label>
             <select
               value={movementIncomeSourceId}
               onChange={(e) => setMovementIncomeSourceId(e.target.value)}
-              disabled={data.incomeSources.length === 0}
+              disabled={filteredIncomeSources.length === 0}
               className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
             >
-              {data.incomeSources.length > 0 ? (
-                data.incomeSources.map((source) => (
+              {filteredIncomeSources.length > 0 ? (
+                filteredIncomeSources.map((source) => (
                   <option key={source.id} value={source.id}>{source.label}</option>
                 ))
               ) : (
-                <option value="">Primero crea una fuente en Negocios</option>
+                <option value="">Primero crea un concepto para esta Unidad en Negocios</option>
               )}
             </select>
-            {data.incomeSources.length === 0 ? (
-              <p className="text-[10px] text-arca-alert">Primero crea un frente y una fuente de ingreso en Negocios.</p>
+            {filteredIncomeSources.length === 0 && data.units.length > 0 ? (
+              <p className="text-[10px] text-arca-alert">No hay conceptos de ingreso configurados para esta Unidad de Negocio.</p>
             ) : null}
           </div>
         )}
 
+        {/* Quick create prompts */}
         {type === 'ingreso' && data.units.length === 0 ? (
           <div className="space-y-3 rounded-2xl border border-arca-border bg-arca-surface-2 p-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear frente rapido</p>
-              <p className="text-[11px] text-arca-text-dim">Necesitas al menos un frente para ordenar de donde llega ese ingreso.</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear unidad de negocio rápida</p>
+              <p className="text-[11px] text-arca-text-dim">Necesitas al menos una unidad de negocio para ordenar de dónde llega este ingreso.</p>
             </div>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={quickUnitName}
                 onChange={(e) => setQuickUnitName(e.target.value)}
-                placeholder="Ej: Trabajo fijo, Freelance..."
+                placeholder="Ej: Freelance, Trabajo..."
                 className="min-w-0 flex-1 bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
               />
               <button
@@ -633,17 +670,17 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
           </div>
         ) : null}
 
-        {type === 'ingreso' && data.units.length > 0 && data.incomeSources.length === 0 ? (
+        {type === 'ingreso' && data.units.length > 0 && filteredIncomeSources.length === 0 ? (
           <div className="space-y-3 rounded-2xl border border-arca-border bg-arca-surface-2 p-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear fuente rapida</p>
-              <p className="text-[11px] text-arca-text-dim">Liga este ingreso a un frente y a una cuenta destino por defecto.</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear concepto de ingreso rápido</p>
+              <p className="text-[11px] text-arca-text-dim">Liga este ingreso a esta unidad de negocio y a una cuenta de destino.</p>
             </div>
             <input
               type="text"
               value={quickSourceName}
               onChange={(e) => setQuickSourceName(e.target.value)}
-              placeholder="Ej: Nomina, contrato OPS, clientes..."
+              placeholder="Ej: Honorarios, Ventas..."
               className="w-full bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
             />
             <button
@@ -652,13 +689,14 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
               disabled={isQuickCreatePending || !movementAccountId || !movementUnit}
               className="w-full rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
             >
-              Crear fuente
+              Crear concepto
             </button>
           </div>
         ) : null}
 
+        {/* 5. Cuenta */}
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuenta</label>
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuenta destino</label>
           <select
             value={movementAccountId}
             onChange={(e) => setMovementAccountId(e.target.value)}
@@ -670,34 +708,16 @@ export default function RegisterScreen({ data, onSuccess }: { data: RegisterView
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Frente</label>
-            <select
-              value={movementUnit}
-              onChange={(e) => setMovementUnit(e.target.value)}
-              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
-            >
-              {data.units.map((unit) => (
-                <option key={unit.id} value={unit.value}>{unit.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fecha</label>
-            <input
-              type="date"
-              value={movementDate}
-              onChange={(e) => setMovementDate(e.target.value)}
-              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
-            />
-          </div>
+        {/* 6. Fecha */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fecha de cobro</label>
+          <input
+            type="date"
+            value={movementDate}
+            onChange={(e) => setMovementDate(e.target.value)}
+            className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+          />
         </div>
-
-        {activeSegment === 'Movimiento' && submitError ? (
-          <div className="text-xs text-arca-alert">{submitError}</div>
-        ) : null}
       </div>
     </div>
   );
