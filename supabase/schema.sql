@@ -1253,7 +1253,7 @@ begin
   end if;
 
   select coalesce(sum(balance), 0) into v_current_cash from public.accounts where workspace_id = p_workspace_id and active = true;
-  select coalesce(sum(current), 0) into v_protected_savings from public.savings_goals where workspace_id = p_workspace_id;
+  select coalesce(sum(current), 0) into v_protected_savings from public.savings_goals where workspace_id = p_workspace_id and archived = false;
   v_free_cash := coalesce(v_current_cash, 0) - coalesce(v_protected_savings, 0);
 
   select coalesce(sum(amount), 0) into v_monthly_income

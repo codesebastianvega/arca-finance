@@ -145,7 +145,7 @@ const REGISTER_GROUPS = [
   },
 ];
 
-export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string }) {
+export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento', defaultGoalType = 'goal' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string; defaultGoalType?: 'goal' | 'pocket' }) {
   const router = useRouter();
   const [isQuickCreatePending, startQuickCreate] = useTransition();
   const [activeSegment, setActiveSegment] = useState(defaultSegment);
@@ -190,7 +190,8 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [savingsName, setSavingsName] = useState('');
   const [savingsCurrent, setSavingsCurrent] = useState('');
   const [savingsDueDate, setSavingsDueDate] = useState('');
-  const [savingsGoalType, setSavingsGoalType] = useState<'goal' | 'pocket'>('goal');
+  const [savingsGoalType, setSavingsGoalType] = useState<'goal' | 'pocket'>(defaultGoalType);
+  const [savingsSourceAccountId, setSavingsSourceAccountId] = useState('');
   const [debtorName, setDebtorName] = useState('');
   const [loanConcept, setLoanConcept] = useState('');
   const [loanAmount, setLoanAmount] = useState('');
@@ -340,10 +341,10 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
   const resetSavingsForm = () => {
     setSavingsName('');
-    setTargetAmount('');
     setSavingsCurrent('');
     setSavingsDueDate('');
     setSavingsGoalType('goal');
+    setSavingsSourceAccountId('');
   };
 
   const resetMovementForm = () => {
@@ -493,6 +494,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           dueDate: savingsDueDate || null,
           goalType: savingsGoalType,
           color: savingsGoalType === 'pocket' ? '#8FA66A' : '#16735b',
+          sourceAccountId: savingsGoalType === 'pocket' ? (savingsSourceAccountId || null) : null,
         });
         resetSavingsForm();
       } else if (activeSegment === 'Obligacion') {
@@ -1152,86 +1154,105 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const renderSavingsForm = () => (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className="p-6 bg-arca-accent/5 rounded-3xl border border-arca-accent/10 flex flex-col items-center text-center space-y-2">
-          <PiggyBank size={40} className="text-arca-accent" />
-          <h4 className="text-xs font-bold uppercase text-arca-accent tracking-widest">
-            {savingsGoalType === 'pocket' ? 'Nuevo bolsillo' : 'Nueva meta de ahorro'}
-          </h4>
-          <p className="text-[9px] text-arca-text-dim uppercase tracking-wider">
-            {savingsGoalType === 'pocket' ? 'Separa plata protegida' : 'Define tu próximo gran objetivo'}
-          </p>
+
+        {/* Toggle Meta / Bolsillo */}
+        <div className="flex bg-arca-surface-2 p-1 rounded-2xl border border-arca-border">
+          <button type="button" onClick={() => { haptics.light(); setSavingsGoalType('goal'); }}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${savingsGoalType === 'goal' ? 'bg-arca-accent text-white shadow-lg' : 'text-arca-text-dim'}`}
+          >Meta de ahorro</button>
+          <button type="button" onClick={() => { haptics.light(); setSavingsGoalType('pocket'); }}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${savingsGoalType === 'pocket' ? 'bg-arca-positive text-white shadow-lg' : 'text-arca-text-dim'}`}
+          >Bolsillo</button>
         </div>
 
-        <div className="flex bg-arca-surface-2 light:bg-arca-light-surface-2 p-1 rounded-2xl border border-arca-border light:border-arca-light-border">
-          <button
-            type="button"
-            onClick={() => {
-              haptics.light();
-              setSavingsGoalType('goal');
-            }}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${savingsGoalType === 'goal' ? 'bg-arca-accent text-white shadow-lg shadow-arca-accent/20' : 'text-arca-text-dim'}`}
-          >
-            Meta
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              haptics.light();
-              setSavingsGoalType('pocket');
-            }}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${savingsGoalType === 'pocket' ? 'bg-arca-positive text-white shadow-lg shadow-arca-positive/20' : 'text-arca-text-dim'}`}
-          >
-            Bolsillo
-          </button>
-        </div>
+        {savingsGoalType === 'pocket' ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-arca-positive/20 px-4 py-3" style={{backgroundColor: 'rgba(143,166,106,0.08)'}}>
+              <p className="text-[10px] font-bold text-arca-positive uppercase tracking-widest mb-1">¿Qué es un bolsillo?</p>
+              <p className="text-[11px] text-arca-text-dim leading-relaxed">
+                Es dinero que ya tienes en una cuenta pero <strong className="text-arca-text-primary">no puedes gastar</strong> porque tiene un destino específico. Apartarlo aquí hace que el dashboard muestre solo lo que realmente puedes gastar.
+              </p>
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
-            {savingsGoalType === 'pocket' ? 'Nombre del bolsillo' : 'Qué estás ahorrando'}
-          </label>
-          <input
-            type="text"
-            value={savingsName}
-            onChange={(e) => setSavingsName(e.target.value)}
-            placeholder={savingsGoalType === 'pocket' ? 'Ej: Colchón, Arriendo, Imprevistos...' : 'Ej: Viaje, Fondo de emergencia...'}
-            className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Nombre del bolsillo</label>
+              <input type="text" value={savingsName} onChange={(e) => setSavingsName(e.target.value)}
+                placeholder="Ej: Fondo viaje, Arriendo próximo mes..."
+                className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-positive outline-none"
+              />
+            </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
-              {savingsGoalType === 'pocket' ? 'Monto protegido' : 'Meta final'}
-            </label>
-            <input
-              type="number"
-              value={targetAmount}
-              onChange={(e) => setTargetAmount(e.target.value)}
-              placeholder="0"
-              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-bold focus:border-arca-accent outline-none"
-            />
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿Cuánto apartas ahora?</label>
+              <input type="number" value={savingsCurrent} onChange={(e) => setSavingsCurrent(e.target.value)}
+                placeholder="0"
+                className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-2xl font-bold focus:border-arca-positive outline-none"
+              />
+              <p className="text-[10px] text-arca-text-dim ml-1">Se descontará automáticamente del saldo disponible de la cuenta que elijas.</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿De qué cuenta sale?</label>
+              <select value={savingsSourceAccountId} onChange={(e) => setSavingsSourceAccountId(e.target.value)}
+                className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-positive outline-none appearance-none"
+              >
+                <option value="">Sin vincular a cuenta</option>
+                {data.accounts.map((account) => (
+                  <option key={account.id} value={account.value}>{account.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿Cuándo planeas usarlo? (opcional)</label>
+              <input type="date" value={savingsDueDate} onChange={(e) => setSavingsDueDate(e.target.value)}
+                className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-positive outline-none"
+              />
+              <p className="text-[10px] text-arca-text-dim ml-1">Solo es un recordatorio de cuándo se libera ese dinero.</p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Saldo inicial</label>
-            <input
-              type="number"
-              value={savingsCurrent}
-              onChange={(e) => setSavingsCurrent(e.target.value)}
-              placeholder="0"
-              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-bold focus:border-arca-accent outline-none"
-            />
-          </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-arca-accent/20 px-4 py-3" style={{backgroundColor: 'rgba(22,115,91,0.08)'}}>
+              <p className="text-[10px] font-bold text-arca-accent uppercase tracking-widest mb-1">¿Qué es una meta?</p>
+              <p className="text-[11px] text-arca-text-dim leading-relaxed">
+                Un objetivo financiero que construyes en el tiempo. Defines cuánto quieres llegar y vas aportando poco a poco.
+              </p>
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fecha objetivo (opcional)</label>
-          <input
-            type="date"
-            value={savingsDueDate}
-            onChange={(e) => setSavingsDueDate(e.target.value)}
-            className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿Qué estás ahorrando?</label>
+              <input type="text" value={savingsName} onChange={(e) => setSavingsName(e.target.value)}
+                placeholder="Ej: Viaje, Fondo de emergencia, Laptop..."
+                className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Meta final</label>
+                <input type="number" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)}
+                  placeholder="0"
+                  className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-bold focus:border-arca-accent outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Lo que llevas</label>
+                <input type="number" value={savingsCurrent} onChange={(e) => setSavingsCurrent(e.target.value)}
+                  placeholder="0"
+                  className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-bold focus:border-arca-accent outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fecha objetivo (opcional)</label>
+              <input type="date" value={savingsDueDate} onChange={(e) => setSavingsDueDate(e.target.value)}
+                className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+              />
+            </div>
+          </div>
+        )}
 
         {activeSegment === 'Ahorro' && submitError ? (
           <div className="text-xs text-arca-alert">{submitError}</div>

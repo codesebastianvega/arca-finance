@@ -195,7 +195,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
 
   const [accountsResult, savingsResult, scheduledResult, transactionsResult, budgetsResult, receivablesResult] = await Promise.all([
     supabase.from("accounts").select("id, name, type, balance, active").eq("workspace_id", workspaceId).eq("active", true),
-    supabase.from("savings_goals").select("id, current").eq("workspace_id", workspaceId),
+    supabase.from("savings_goals").select("id, current").eq("workspace_id", workspaceId).eq("archived", false),
     supabase
       .from("scheduled_events")
       .select("id, due_date, title, amount, kind, status, business_unit_key, account_id, suggested_account_id, linked_entity_type, linked_entity_id, notes, template_id, timing_status, confirmed_transaction_id")

@@ -85,7 +85,8 @@ export async function loadMonthViewModel(context: WorkspaceContext): Promise<Mon
   ]);
 
   if (dashboardResult.error) {
-    throw new Error(`No se pudo leer el resumen del mes: ${dashboardResult.error.message}`);
+    console.error(`No se pudo leer el resumen del mes: ${dashboardResult.error.message}`);
+    // No lanzamos error para no romper la pantalla por fallos de RLS en revalidatePath
   }
   if (transactionsResult.error) {
     throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);

@@ -147,23 +147,57 @@ export default function DecisionDashboard({
       {/* CAJA LIBRE */}
       <div className="card-arca p-5 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">CAJA LIBRE (SAFE TO SPEND)</span>
+          <span className="text-[11px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">CAJA LIBRE · LO QUE PUEDES GASTAR</span>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-arca-text-primary light:text-arca-light-text-primary">{formatCOP(cash.safeToSpend)}</span>
+            <span className={`text-3xl font-bold ${cash.safeToSpend > 0 ? "text-arca-text-primary light:text-arca-light-text-primary" : "text-arca-alert"}`}>{formatCOP(cash.safeToSpend)}</span>
             <span className="text-sm font-bold text-arca-text-secondary light:text-arca-light-text-secondary">COP</span>
           </div>
         </div>
-        <div className="w-full h-[1px] bg-arca-border light:bg-arca-light-border"></div>
-        <div className="flex justify-between items-center text-[11px] font-bold">
-          <div className="flex flex-col gap-1 text-arca-text-secondary light:text-arca-light-text-secondary">
-            <span>BALANCE TOTAL</span>
-            <span className="text-arca-text-primary light:text-arca-light-text-primary text-sm">{formatCOP(cash.totalBalance)}</span>
+
+        {/* Visual breakdown */}
+        <div className="space-y-2">
+          {/* Balance total */}
+          <div className="flex justify-between items-center text-[11px] font-bold">
+            <span className="text-arca-text-secondary">Balance total en cuentas</span>
+            <span className="text-arca-text-primary">{formatCOP(cash.totalBalance)}</span>
           </div>
-          <div className="flex flex-col gap-1 text-right text-arca-alert light:text-arca-light-alert">
-            <span>PENDIENTE</span>
-            <span className="text-sm">-{formatCOP(cash.pendingCritical)}</span>
+
+          {/* Protected savings — only show if there are any */}
+          {cash.protectedSavings > 0 && (
+            <div className="flex justify-between items-center text-[11px] font-bold">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-arca-positive opacity-70" />
+                <span className="text-arca-positive/80">En bolsillos (protegido)</span>
+              </div>
+              <span className="text-arca-positive/80">−{formatCOP(cash.protectedSavings)}</span>
+            </div>
+          )}
+
+          {/* Pending critical payments — only show if any */}
+          {cash.pendingCritical > 0 && (
+            <div className="flex justify-between items-center text-[11px] font-bold">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-arca-alert opacity-70" />
+                <span className="text-arca-alert/80">Pagos pendientes</span>
+              </div>
+              <span className="text-arca-alert/80">−{formatCOP(cash.pendingCritical)}</span>
+            </div>
+          )}
+
+          {/* Divider + result */}
+          <div className="w-full h-[1px] bg-arca-border light:bg-arca-light-border mt-1" />
+          <div className="flex justify-between items-center text-[11px] font-bold">
+            <span className="text-arca-text-secondary">Libre para gastar</span>
+            <span className={cash.safeToSpend > 0 ? "text-arca-accent" : "text-arca-alert"}>{formatCOP(cash.safeToSpend)}</span>
           </div>
         </div>
+
+        {/* Shortfall warning */}
+        {cash.shortfallAgainstProtected > 0 && (
+          <div className="rounded-xl bg-arca-alert/10 border border-arca-alert/20 px-3 py-2 text-[10px] font-bold text-arca-alert">
+            ⚠ Atención: te faltan {formatCOP(cash.shortfallAgainstProtected)} para cubrir todos tus compromisos.
+          </div>
+        )}
       </div>
 
       {/* PAGOS CRITICOS */}

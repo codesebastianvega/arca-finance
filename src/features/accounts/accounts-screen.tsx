@@ -17,6 +17,7 @@ import {
   archiveAccount,
   archiveCreditCard,
   archiveSavingsGoal,
+  releasePocket,
   createSavingsContribution,
   updateAccount,
   updateCreditCardFull,
@@ -100,6 +101,11 @@ export default function AccountsScreen({
   const [cardNotes, setCardNotes] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [pocketReleaseDate, setPocketReleaseDate] = useState('');
+  const [pocketAddAmount, setPocketAddAmount] = useState('');
+  const [pocketAddAccountId, setPocketAddAccountId] = useState('');
+  const [isReleasePocketModalOpen, setIsReleasePocketModalOpen] = useState(false);
+  const [releasePocketAccountId, setReleasePocketAccountId] = useState('');
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -130,6 +136,9 @@ export default function AccountsScreen({
       setCardNotes(selectedEntity.notes);
     } else {
       setEntityAmount(String(selectedEntity.current));
+      setPocketReleaseDate('');
+      setPocketAddAmount('');
+      setPocketAddAccountId(data.accounts[0]?.id ?? '');
     }
   }, [selectedEntity]);
 
@@ -196,7 +205,16 @@ export default function AccountsScreen({
             notes: cardNotes,
           });
         } else {
+          // savings goal: just update name and current
           await updateSavingsGoal({ id: selectedEntity.id, name: entityName, current: amount });
+          // If adding extra money to a pocket
+          if (selectedEntity.goalType === 'pocket' && pocketAddAmount && Number(pocketAddAmount) > 0 && pocketAddAccountId) {
+            await createSavingsContribution({
+              goalId: selectedEntity.id,
+              amount: Number(pocketAddAmount),
+              accountId: pocketAddAccountId,
+            });
+          }
         }
         haptics.success();
         router.refresh();
@@ -225,6 +243,26 @@ export default function AccountsScreen({
         closeEntity();
       } catch (error) {
         setActionError(error instanceof Error ? error.message : "No se pudo eliminar.");
+        haptics.error();
+      }
+    });
+  };
+
+  const handleReleasePocket = () => {
+    if (!selectedEntity || !releasePocketAccountId) return;
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await releasePocket({
+          goalId: selectedEntity.id,
+          accountId: releasePocketAccountId,
+        });
+        haptics.success();
+        router.refresh();
+        setIsReleasePocketModalOpen(false);
+        closeEntity();
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : "No se pudo liberar el bolsillo.");
         haptics.error();
       }
     });
@@ -398,10 +436,88 @@ export default function AccountsScreen({
             )}
 
             {activeTab === "ahorro" && (
-              <div className="space-y-4">
-                <section className="card-arca p-5 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Metas de ahorro</h3>
+              <div className="space-y-6">
+
+                {/* BOLSILLOS — Protected money */}
+                <section className="space-y-3">
+                  <div className="flex justify-between items-center px-1">
+                    <div>
+                      <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Bolsillos · Dinero protegido</h3>
+                      <p className="text-[9px] text-arca-text-dim mt-0.5">Este dinero existe pero no está disponible para gastar</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        haptics.medium();
+                        window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro", goalType: "pocket" } }));
+                      }}
+                      className="w-8 h-8 rounded-lg bg-arca-positive/10 flex items-center justify-center text-arca-positive hover:bg-arca-positive hover:text-white transition-all"
+                      title="Nuevo bolsillo"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+
+                  {pockets.length > 0 ? (
+                    <div className="space-y-2">
+                      {pockets.map((pocket) => (
+                        <div
+                          key={pocket.id}
+                          onClick={() => openEntity({ ...pocket, entityType: "ahorro" })}
+                          className="card-arca p-4 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                              style={{ backgroundColor: pocket.color + "22" }}
+                            >
+                              {/* Lock icon */}
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={pocket.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-baseline mb-1.5">
+                                <p className="text-sm font-bold text-arca-text-primary truncate">{pocket.name}</p>
+                                <p className="text-sm font-bold shrink-0 ml-2" style={{ color: pocket.color }}>{pocket.currentLabel}</p>
+                              </div>
+                              <div className="h-1.5 w-full bg-arca-surface-2 rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${pocket.progress}%` }}
+                                  className="h-full rounded-full"
+                                  style={{ backgroundColor: pocket.color }}
+                                />
+                              </div>
+                              <p className="text-[9px] text-arca-text-dim mt-1">Meta: {pocket.targetLabel}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro" } }))}
+                      className="card-arca p-5 flex flex-col items-center justify-center gap-2 cursor-pointer border border-dashed border-arca-border hover:border-arca-positive/40 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-arca-positive/10 flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-arca-positive">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      </div>
+                      <p className="text-xs font-bold text-arca-text-dim text-center">Crea un bolsillo para apartar dinero con un propósito específico</p>
+                      <p className="text-[10px] text-arca-positive font-bold">+ Crear bolsillo</p>
+                    </div>
+                  )}
+                </section>
+
+                {/* METAS DE AHORRO */}
+                <section className="space-y-3">
+                  <div className="flex justify-between items-center px-1">
+                    <div>
+                      <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Metas de ahorro</h3>
+                      <p className="text-[9px] text-arca-text-dim mt-0.5">Objetivos que estás construyendo en el tiempo</p>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
@@ -420,16 +536,21 @@ export default function AccountsScreen({
                           window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro" } }));
                         }}
                         className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all"
-                        title="Nueva meta/bolsillo"
+                        title="Nueva meta"
                       >
                         <Plus size={16} />
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    {goals.length > 0 ? (
-                      goals.map((goal) => (
-                        <div key={goal.id} className="space-y-2">
+
+                  {goals.length > 0 ? (
+                    <div className="card-arca p-5 space-y-4">
+                      {goals.map((goal) => (
+                        <div
+                          key={goal.id}
+                          onClick={() => openEntity({ ...goal, entityType: "ahorro" })}
+                          className="space-y-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
                           <div className="flex justify-between items-baseline">
                             <p className="text-xs font-bold text-arca-text-primary">{goal.name}</p>
                             <p className="text-[10px] font-medium text-arca-text-dim">
@@ -440,26 +561,27 @@ export default function AccountsScreen({
                             <motion.div initial={{ width: 0 }} animate={{ width: `${goal.progress}%` }} className="h-full bg-arca-accent rounded-full" />
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-arca-text-dim">No hay metas definidas todavía.</div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro" } }))}
+                      className="card-arca p-5 flex flex-col items-center justify-center gap-2 cursor-pointer border border-dashed border-arca-border hover:border-arca-accent/40 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-arca-accent/10 flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-arca-accent">
+                          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                      </div>
+                      <p className="text-xs font-bold text-arca-text-dim text-center">Define metas para objetivos a mediano o largo plazo</p>
+                      <p className="text-[10px] text-arca-accent font-bold">+ Nueva meta</p>
+                    </div>
+                  )}
                 </section>
 
-                {(pockets.length > 0 ? pockets : data.savings).map((item) => (
-                  <SavingPocket
-                    key={item.id}
-                    name={item.name}
-                    current={item.currentLabel}
-                    target={item.targetLabel}
-                    progress={item.progress}
-                    color={item.color}
-                    onClick={() => openEntity({ ...item, entityType: "ahorro" })}
-                  />
-                ))}
               </div>
             )}
+
           </>
         )}
       </div>
@@ -481,12 +603,24 @@ export default function AccountsScreen({
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-xl font-bold text-arca-text-primary uppercase tracking-tight truncate">Gestionar {selectedEntity.name}</h3>
                     <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
-                      {selectedEntity.entityType === "cuenta" ? selectedEntity.type : selectedEntity.entityType === "tarjeta" ? selectedEntity.issuer : selectedEntity.goalType}
+                      {selectedEntity.entityType === "cuenta"
+                        ? selectedEntity.type
+                        : selectedEntity.entityType === "tarjeta"
+                        ? selectedEntity.issuer
+                        : selectedEntity.goalType === "pocket" ? "Bolsillo · Dinero protegido" : "Meta de ahorro"}
                     </p>
                   </div>
-                  <div className="w-12 h-12 rounded-2xl bg-arca-accent/10 flex items-center justify-center text-arca-accent shrink-0">
-                    <Edit2 size={20} />
-                  </div>
+                  {selectedEntity.entityType === "ahorro" && selectedEntity.goalType === "pocket" ? (
+                    <div className="w-12 h-12 rounded-2xl bg-arca-positive/10 flex items-center justify-center shrink-0">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-arca-positive">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-2xl bg-arca-accent/10 flex items-center justify-center text-arca-accent shrink-0">
+                      <Edit2 size={20} />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -501,20 +635,91 @@ export default function AccountsScreen({
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
-                    {selectedEntity.entityType === "tarjeta" ? "Deuda actual" : "Saldo actual"}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
-                    <input
-                      type="number"
-                      value={entityAmount}
-                      onChange={(e) => setEntityAmount(e.target.value)}
-                      className="w-full h-14 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-lg font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
-                    />
+                {/* Pocket-specific fields */}
+                {selectedEntity.entityType === "ahorro" && selectedEntity.goalType === "pocket" ? (
+                  <>
+                    {/* Balance display — read-only, shown as info */}
+                    <div className="rounded-2xl bg-arca-positive/8 border border-arca-positive/20 px-4 py-4 flex justify-between items-center">
+                      <div>
+                        <p className="text-[10px] font-bold text-arca-positive uppercase tracking-widest">Monto apartado</p>
+                        <p className="text-xl font-bold text-arca-text-primary mt-1">{money(selectedEntity.current)}</p>
+                      </div>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-arca-positive opacity-60">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                    </div>
+                    <p className="text-[10px] text-arca-text-dim ml-1 -mt-2">Para mover este dinero usa el flujo de "Liberar bolsillo" abajo.</p>
+
+                    {/* Release date */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿Cuándo planeas usarlo?</label>
+                      <input
+                        type="date"
+                        value={pocketReleaseDate}
+                        onChange={(e) => setPocketReleaseDate(e.target.value)}
+                        className="w-full h-14 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-positive"
+                      />
+                      <p className="text-[10px] text-arca-text-dim ml-1">Opcional — recordatorio de cuándo se libera este dinero.</p>
+                    </div>
+
+                    {/* Agregar más dinero */}
+                    <div className="w-full h-[1px] bg-arca-border" />
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Agregar más dinero al bolsillo</p>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
+                        <input
+                          type="number"
+                          value={pocketAddAmount}
+                          onChange={(e) => setPocketAddAmount(e.target.value)}
+                          placeholder="0"
+                          className="w-full h-14 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-lg font-bold text-arca-text-primary focus:outline-none focus:border-arca-positive"
+                        />
+                      </div>
+                      <select
+                        value={pocketAddAccountId}
+                        onChange={(e) => setPocketAddAccountId(e.target.value)}
+                        className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-positive appearance-none"
+                      >
+                        <option value="">¿De qué cuenta sale?</option>
+                        {data.accounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>{acc.name} — {acc.balanceLabel}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-arca-text-dim ml-1">Al guardar se descuenta de la cuenta seleccionada y se suma al bolsillo.</p>
+                    </div>
+                  </>
+                ) : selectedEntity.entityType !== "cuenta" && selectedEntity.entityType !== "tarjeta" ? (
+                  // Goal: show editable amount
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Lo que llevas ahorrado</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
+                      <input
+                        type="number"
+                        value={entityAmount}
+                        onChange={(e) => setEntityAmount(e.target.value)}
+                        className="w-full h-14 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-lg font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  // Cuenta / Tarjeta: original amount field
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+                      {selectedEntity.entityType === "tarjeta" ? "Deuda actual" : "Saldo actual"}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
+                      <input
+                        type="number"
+                        value={entityAmount}
+                        onChange={(e) => setEntityAmount(e.target.value)}
+                        className="w-full h-14 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-lg font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {selectedEntity.entityType === "cuenta" ? (
                   <>
@@ -648,12 +853,34 @@ export default function AccountsScreen({
 
                 <div className="grid grid-cols-2 gap-3 pt-4">
                   <button
-                    onClick={handleArchiveEntity}
+                    onClick={() => {
+                      if (selectedEntity.entityType === "ahorro" && selectedEntity.goalType === "pocket") {
+                        setReleasePocketAccountId(data.accounts[0]?.id ?? '');
+                        setIsReleasePocketModalOpen(true);
+                      } else {
+                        handleArchiveEntity();
+                      }
+                    }}
                     disabled={isPending}
-                    className="h-14 bg-arca-alert/10 text-arca-alert rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center space-x-2 border border-arca-alert/20 disabled:opacity-60"
+                    className={`h-14 rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center space-x-2 border disabled:opacity-60 ${
+                      selectedEntity.entityType === "ahorro" && selectedEntity.goalType === "pocket"
+                        ? "bg-arca-positive/10 text-arca-positive border-arca-positive/20"
+                        : "bg-arca-alert/10 text-arca-alert border-arca-alert/20"
+                    }`}
                   >
-                    <Trash2 size={14} />
-                    <span>{selectedEntity.entityType === "cuenta" ? "Eliminar" : "Archivar"}</span>
+                    {selectedEntity.entityType === "ahorro" && selectedEntity.goalType === "pocket" ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span>Liberar bolsillo</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={14} />
+                        <span>{selectedEntity.entityType === "cuenta" ? "Eliminar" : "Archivar"}</span>
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={handleSaveEntity}
@@ -771,6 +998,69 @@ export default function AccountsScreen({
                 >
                   {isPending ? "Confirmando..." : "Confirmar depósito"}
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isReleasePocketModalOpen && selectedEntity && (
+          <div className="fixed inset-0 z-[600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsReleasePocketModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-arca-surface-1 rounded-t-[32px] p-8 space-y-6 pb-12 shadow-2xl"
+            >
+              <div className="w-12 h-1.5 bg-arca-border rounded-full mx-auto" />
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-arca-positive uppercase tracking-tight">Liberar Bolsillo</h3>
+                <p className="text-xs text-arca-text-dim">
+                  El dinero protegido ({money(selectedEntity.entityType === "ahorro" ? selectedEntity.current : 0)}) regresará a la cuenta que elijas y este bolsillo se archivará.
+                </p>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿A qué cuenta regresa el dinero?</label>
+                  <select
+                    value={releasePocketAccountId}
+                    onChange={(e) => setReleasePocketAccountId(e.target.value)}
+                    className="w-full h-14 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-positive appearance-none"
+                  >
+                    <option value="">Selecciona una cuenta</option>
+                    {data.accounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>{acc.name} — {acc.balanceLabel}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {actionError ? <div className="text-xs text-arca-alert font-medium bg-arca-alert/10 p-3 rounded-lg border border-arca-alert/20">{actionError}</div> : null}
+
+                <div className="grid grid-cols-2 gap-3 pt-4">
+                  <button
+                    onClick={() => setIsReleasePocketModalOpen(false)}
+                    disabled={isPending}
+                    className="h-14 bg-arca-surface-2 text-arca-text-primary rounded-xl font-bold uppercase tracking-widest text-[10px]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleReleasePocket}
+                    disabled={isPending || !releasePocketAccountId}
+                    className="h-14 bg-arca-positive text-white rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-arca-positive/20 disabled:opacity-60"
+                  >
+                    {isPending ? "Procesando..." : "Liberar dinero"}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

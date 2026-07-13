@@ -1097,6 +1097,7 @@ export async function archiveSavingsGoal(goalId: string) {
   const { error } = await admin
     .from("savings_goals")
     .update({
+      current: 0,
       archived: true,
       updated_at: new Date().toISOString(),
     })
@@ -1104,6 +1105,102 @@ export async function archiveSavingsGoal(goalId: string) {
     .eq("workspace_id", context.workspace.id);
 
   if (error) throw new Error(`No se pudo archivar la meta: ${error.message}`);
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function releasePocket(input: { goalId: string; accountId: string }) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  if (!input.accountId) {
+    throw new Error("Debes elegir la cuenta a la cual devolver el dinero.");
+  }
+
+  // 1. Obtener el bolsillo
+  const { data: goal, error: goalError } = await admin
+    .from("savings_goals")
+    .select("id, name, current, workspace_id")
+    .eq("id", input.goalId)
+    .eq("workspace_id", context.workspace.id)
+    .maybeSingle();
+
+  if (goalError || !goal) {
+    throw new Error(`No se pudo leer el bolsillo: ${goalError?.message ?? "sin respuesta"}`);
+  }
+
+  const amountToRelease = typeof goal.current === "number" ? goal.current : Number(goal.current ?? 0);
+
+  // 2. Si hay dinero, lo devolvemos a la cuenta elegida
+  if (amountToRelease > 0) {
+    const { data: account, error: accountError } = await admin
+      .from("accounts")
+      .select("id, name, balance, workspace_id")
+      .eq("id", input.accountId)
+      .eq("workspace_id", context.workspace.id)
+      .maybeSingle();
+
+    if (accountError || !account) {
+      throw new Error(`No se pudo leer la cuenta de destino: ${accountError?.message ?? "sin respuesta"}`);
+    }
+
+    const accountBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
+    const today = todayDateInBogota();
+
+    // Crear la transacción de ingreso a la cuenta
+    const { error: movementError } = await admin
+      .from("transactions")
+      .insert({
+        workspace_id: context.workspace.id,
+        kind: "income",
+        status: "confirmed",
+        amount: amountToRelease,
+        concept: `Liberación: ${goal.name}`,
+        account_id: input.accountId,
+        category: "ahorro",
+        unit: "general",
+        date: `${today}T00:00:00-05:00`,
+        posted_at: new Date().toISOString(),
+        source_type: "manual",
+        metadata: {
+          released_pocket_id: input.goalId,
+        },
+      });
+
+    if (movementError) {
+      throw new Error(`No se pudo registrar la devolución del dinero: ${movementError.message}`);
+    }
+    
+    // Incrementar el balance en la cuenta real
+    // En una DB real deberíamos usar RPC para atomicidad, pero por ahora lo calculamos
+    const { error: balanceError } = await admin
+      .from("accounts")
+      .update({ balance: accountBalance + amountToRelease })
+      .eq("id", account.id)
+      .eq("workspace_id", context.workspace.id);
+      
+    if (balanceError) {
+      throw new Error(`Error al actualizar el saldo de la cuenta: ${balanceError.message}`);
+    }
+  }
+
+  // 3. Archivar el bolsillo y dejarlo en 0
+  const { error: archiveError } = await admin
+    .from("savings_goals")
+    .update({
+      current: 0,
+      archived: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.goalId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (archiveError) {
+    throw new Error(`No se pudo archivar el bolsillo: ${archiveError.message}`);
+  }
 
   revalidatePath("/app");
   return { ok: true };
@@ -1235,6 +1332,7 @@ export async function createSavingsGoal(input: {
   dueDate?: string | null;
   goalType?: "goal" | "pocket";
   color?: string;
+  sourceAccountId?: string | null;
 }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
@@ -1242,16 +1340,16 @@ export async function createSavingsGoal(input: {
   if (!admin) throw new Error("Supabase admin client no disponible.");
 
   const name = input.name.trim();
-  const target = Number(input.target ?? 0);
   const current = Number(input.current ?? 0);
+  // For pockets: target = current (the amount they're protecting right now)
+  // For goals: target is the final goal amount
+  const target = input.goalType === "pocket" ? current : Number(input.target ?? 0);
   const goalType = input.goalType === "pocket" ? "pocket" : "goal";
   const color = input.color?.trim() || (goalType === "pocket" ? "#8FA66A" : "#16735b");
   const dueDate = input.dueDate?.trim() ? `${input.dueDate}T00:00:00-05:00` : null;
 
   if (!name) throw new Error("El ahorro necesita un nombre.");
-  if (!Number.isFinite(target) || target < 0) throw new Error("La meta final debe ser valida.");
-  if (!Number.isFinite(current) || current < 0) throw new Error("El saldo inicial debe ser valido.");
-  if (target > 0 && current > target) throw new Error("El saldo inicial no puede ser mayor a la meta.");
+  if (!Number.isFinite(current) || current < 0) throw new Error("El monto debe ser válido.");
 
   const { data: goal, error } = await admin
     .from("savings_goals")
@@ -1273,17 +1371,48 @@ export async function createSavingsGoal(input: {
   }
 
   if (current > 0) {
-    const { error: transactionError } = await admin.from("savings_transactions").insert({
+    // Log internal savings ledger entry
+    const { error: savTransErr } = await admin.from("savings_transactions").insert({
       workspace_id: context.workspace.id,
       savings_goal_id: goal.id,
       amount: current,
       type: "deposit",
       date: todayDateInBogota(),
-      notes: "Saldo inicial",
+      notes: goalType === "pocket" ? "Monto inicial del bolsillo" : "Saldo inicial",
     });
+    if (savTransErr) throw new Error(`Se creó el ahorro, pero no el saldo inicial: ${savTransErr.message}`);
 
-    if (transactionError) {
-      throw new Error(`Se creo el ahorro, pero no el saldo inicial: ${transactionError.message}`);
+    // For pockets with a source account: deduct from account balance + log transaction
+    if (goalType === "pocket" && input.sourceAccountId) {
+      const { data: acc, error: accReadErr } = await admin
+        .from("accounts")
+        .select("balance")
+        .eq("id", input.sourceAccountId)
+        .eq("workspace_id", context.workspace.id)
+        .single();
+
+      if (accReadErr || !acc) throw new Error("No se encontró la cuenta de origen.");
+
+      const newBalance = Number(acc.balance) - current;
+
+      const { error: accUpdateErr } = await admin
+        .from("accounts")
+        .update({ balance: newBalance })
+        .eq("id", input.sourceAccountId)
+        .eq("workspace_id", context.workspace.id);
+
+      if (accUpdateErr) throw new Error(`No se pudo descontar de la cuenta: ${accUpdateErr.message}`);
+
+      // Log the deduction as a saving_contribution transaction
+      await admin.from("transactions").insert({
+        workspace_id: context.workspace.id,
+        kind: "saving_contribution",
+        amount: current,
+        account_id: input.sourceAccountId,
+        category: "ahorro",
+        date: todayDateInBogota(),
+        notes: `Bolsillo: ${name}`,
+      });
     }
   }
 
