@@ -20,7 +20,7 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 z-50 transition-opacity"
+            className="fixed inset-0 bg-black/60 z-[1000] transition-opacity"
           />
           
           {/* Sheet */}
@@ -29,7 +29,7 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col h-[86dvh] max-h-[86dvh] min-h-0 overflow-hidden
+            className="fixed bottom-0 left-0 right-0 z-[1000] flex flex-col max-h-[90dvh] min-h-0 overflow-hidden
                        bg-arca-surface-1 light:bg-arca-light-surface-1
                        rounded-t-[32px] border-t border-arca-border-strong light:border-white/50
                        shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
@@ -60,16 +60,6 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {children}
-            </div>
-
-            <div className="sticky bottom-0 z-10 shrink-0 border-t border-arca-border px-6 py-3 bg-arca-surface-1 light:bg-arca-light-surface-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full rounded-2xl border border-arca-border bg-arca-surface-2 px-4 py-3 text-sm font-semibold text-arca-text-primary"
-              >
-                Cerrar
-              </button>
             </div>
           </motion.div>
         </>

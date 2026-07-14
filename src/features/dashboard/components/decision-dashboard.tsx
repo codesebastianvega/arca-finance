@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ArrowUpRight, Clock, Receipt, AlertTriangle, Bell, Search, Send, Zap, HandCoins } from "lucide-react";
+import { CheckCircle2, ArrowUpRight, ArrowDownLeft, Clock, AlertTriangle, Bell, Search, Send, RefreshCw, Target, Receipt } from "lucide-react";
 import type { TodayViewModel } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
 
@@ -83,10 +83,10 @@ export default function DecisionDashboard({
       <section className="mb-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex space-x-4 min-w-max">
           {[
-            { label: 'Transferir', icon: Send, color: 'bg-blue-500 light:bg-blue-600', action: onOpenTransfer },
-            { label: 'Pago Rápido', icon: Zap, color: 'bg-arca-alert light:bg-arca-light-alert', action: onOpenObligations },
-            { label: 'Subir Recibo', icon: Receipt, color: 'bg-arca-surface-2 light:bg-arca-light-surface-2', action: onOpenRegister },
-            { label: 'Prestar', icon: HandCoins, color: 'bg-arca-positive light:bg-arca-light-positive', action: onOpenBusiness },
+            { label: 'Gasto', icon: ArrowUpRight, color: 'bg-arca-alert light:bg-arca-light-alert', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento" } })) },
+            { label: 'Ingreso', icon: ArrowDownLeft, color: 'bg-arca-positive light:bg-arca-light-positive', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento" } })) },
+            { label: 'Transferir', icon: RefreshCw, color: 'bg-arca-accent light:bg-arca-light-accent', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Transferencia" } })) },
+            { label: 'Meta', icon: Target, color: 'bg-[#7CB342]', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro", goalType: "goal" } })) },
           ].map((action, i) => (
             <button 
               key={i}

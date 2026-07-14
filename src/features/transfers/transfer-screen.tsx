@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from 'react';
 import { motion } from 'motion/react';
 import { ArrowDownLeft, ArrowRight, CheckCircle2, Wallet } from 'lucide-react';
 import { createTransfer } from '@/app/actions';
-import type { MoneyViewModel } from '@/src/lib/money-data';
 import { haptics } from '../../lib/haptics';
 
 function money(value: number) {
@@ -29,12 +28,11 @@ function todayBogota() {
 
 export default function TransferScreen({
   onBack,
-  data,
+  accounts,
 }: {
   onBack: () => void;
-  data: MoneyViewModel;
+  accounts: { id: string; name: string; balance: number; }[];
 }) {
-  const accounts = data.accounts;
   const [fromAccountId, setFromAccountId] = useState(accounts[0]?.id ?? '');
   const [toAccountId, setToAccountId] = useState(accounts[1]?.id ?? accounts[0]?.id ?? '');
   const [amount, setAmount] = useState('');
@@ -169,7 +167,7 @@ export default function TransferScreen({
             >
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} - {account.balanceLabel}
+                  {account.name} - {money(account.balance)}
                 </option>
               ))}
             </select>
@@ -183,7 +181,7 @@ export default function TransferScreen({
             >
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} - {account.balanceLabel}
+                  {account.name} - {money(account.balance)}
                 </option>
               ))}
             </select>

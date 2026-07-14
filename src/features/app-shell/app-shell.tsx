@@ -28,7 +28,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   useEffect(() => {
     const handleOpen = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const segment = customEvent.detail?.segment || 'Movimiento';
+      const segment = customEvent.detail?.segment || 'Grid';
       const goalType = customEvent.detail?.goalType || 'goal';
       setDefaultSegment(segment);
       setDefaultGoalType(goalType);
@@ -61,7 +61,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         currentScreen={currentScreen} 
         onScreenChange={setCurrentScreen}
         onAddClick={() => {
-          setDefaultSegment('Movimiento');
+          setDefaultSegment('Grid');
           setIsRegisterOpen(true);
         }}
       />

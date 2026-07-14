@@ -1,15 +1,7 @@
 import type { WorkspaceContext } from "@/src/lib/auth-types";
 import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 
-export type MoneyAccount = {
-  id: string;
-  name: string;
-  entity: string | null;
-  type: string;
-  balance: number;
-  balanceLabel: string;
-  color: string;
-};
+
 
 export type MoneyCard = {
   id: string;
@@ -44,12 +36,25 @@ export type MoneySaving = {
   progress: number;
   goalType: MoneyGoalType;
   color: string;
+  accountId: string | null;
+  dueDate: string | null;
 };
 
 export type MoneySpendingSlice = {
   name: string;
   value: number;
   color: string;
+};
+
+export type MoneyAccount = {
+  id: string;
+  name: string;
+  entity: string | null;
+  type: string;
+  balance: number;
+  balanceLabel: string;
+  color: string;
+  pockets: MoneySaving[];
 };
 
 export type MoneyViewModel = {
@@ -165,7 +170,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .order("created_at", { ascending: true }),
     supabase
       .from("savings_goals")
-      .select("id, name, current, target, color, goal_type, archived")
+      .select("id, name, current, target, color, goal_type, archived, account_id, due_date")
       .eq("workspace_id", workspaceId)
       .eq("archived", false)
       .order("created_at", { ascending: true }),
@@ -193,8 +198,28 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   if (savingsResult.error) throw new Error(`No se pudo leer el ahorro: ${savingsResult.error.message}`);
   if (transactionsResult.error) throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);
 
+  const allSavings: MoneySaving[] = (savingsResult.data ?? []).map((row) => {
+    const current = toNumber(row.current);
+    const target = toNumber(row.target);
+    const progress = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      current,
+      currentLabel: money(current),
+      target,
+      targetLabel: money(target),
+      progress,
+      goalType: (row.goal_type === "pocket" ? "pocket" : "goal") as MoneyGoalType,
+      color: String(row.color ?? "#16735b"),
+      accountId: row.account_id ? String(row.account_id) : null,
+      dueDate: row.due_date ? String(row.due_date).split("T")[0] : null,
+    };
+  });
+
   const accounts: MoneyAccount[] = (accountsResult.data ?? []).map((row) => {
     const balance = toNumber(row.balance);
+    const pockets = allSavings.filter((s) => s.goalType === "pocket" && s.accountId === String(row.id));
     return {
       id: String(row.id),
       name: String(row.name),
@@ -203,6 +228,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       balance,
       balanceLabel: money(balance),
       color: String(row.color ?? "#C68A45"),
+      pockets,
     };
   });
 
@@ -232,24 +258,9 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
     };
   });
 
-  const savings: MoneySaving[] = (savingsResult.data ?? []).map((row) => {
-    const current = toNumber(row.current);
-    const target = toNumber(row.target);
-    const progress = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-    return {
-      id: String(row.id),
-      name: String(row.name),
-      current,
-      currentLabel: money(current),
-      target,
-      targetLabel: money(target),
-      progress,
-      goalType: (row.goal_type === "pocket" ? "pocket" : "goal") as MoneyGoalType,
-      color: String(row.color ?? "#16735b"),
-    };
-  });
+  const savings = allSavings.filter((s) => s.goalType === "goal");
 
-  const outgoingKinds = new Set(["expense", "debt_payment", "card_payment", "saving", "saving_contribution", "transfer_out"]);
+  const outgoingKinds = new Set(["expense", "debt_payment", "card_payment"]);
   const grouped = new Map<string, number>();
 
   for (const row of transactionsResult.data ?? []) {

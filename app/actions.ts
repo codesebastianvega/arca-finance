@@ -1066,7 +1066,7 @@ export async function createCreditCard(input: {
   return { ok: true };
 }
 
-export async function updateSavingsGoal(input: { id: string; name: string; current: number }) {
+export async function updateSavingsGoal(input: { id: string; name: string; current: number; dueDate?: string | null }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
 
@@ -1077,6 +1077,7 @@ export async function updateSavingsGoal(input: { id: string; name: string; curre
     .update({
       name: input.name.trim(),
       current: input.current,
+      due_date: input.dueDate ? `${input.dueDate}T00:00:00-05:00` : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.id)
@@ -1110,20 +1111,16 @@ export async function archiveSavingsGoal(goalId: string) {
   return { ok: true };
 }
 
-export async function releasePocket(input: { goalId: string; accountId: string }) {
+export async function releasePocket(input: { goalId: string }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
 
   if (!admin) throw new Error("Supabase admin client no disponible.");
 
-  if (!input.accountId) {
-    throw new Error("Debes elegir la cuenta a la cual devolver el dinero.");
-  }
-
-  // 1. Obtener el bolsillo
+  // 1. Obtener el bolsillo y su cuenta asociada
   const { data: goal, error: goalError } = await admin
     .from("savings_goals")
-    .select("id, name, current, workspace_id")
+    .select("id, name, current, workspace_id, account_id")
     .eq("id", input.goalId)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -1132,14 +1129,18 @@ export async function releasePocket(input: { goalId: string; accountId: string }
     throw new Error(`No se pudo leer el bolsillo: ${goalError?.message ?? "sin respuesta"}`);
   }
 
+  if (!goal.account_id) {
+    throw new Error("Este bolsillo no tiene una cuenta asociada para devolver el dinero.");
+  }
+
   const amountToRelease = typeof goal.current === "number" ? goal.current : Number(goal.current ?? 0);
 
-  // 2. Si hay dinero, lo devolvemos a la cuenta elegida
+  // 2. Si hay dinero, lo devolvemos a la cuenta origen del bolsillo
   if (amountToRelease > 0) {
     const { data: account, error: accountError } = await admin
       .from("accounts")
       .select("id, name, balance, workspace_id")
-      .eq("id", input.accountId)
+      .eq("id", goal.account_id)
       .eq("workspace_id", context.workspace.id)
       .maybeSingle();
 
@@ -1159,7 +1160,7 @@ export async function releasePocket(input: { goalId: string; accountId: string }
         status: "confirmed",
         amount: amountToRelease,
         concept: `Liberación: ${goal.name}`,
-        account_id: input.accountId,
+        account_id: goal.account_id,
         category: "ahorro",
         unit: "general",
         date: `${today}T00:00:00-05:00`,
@@ -1351,6 +1352,10 @@ export async function createSavingsGoal(input: {
   if (!name) throw new Error("El ahorro necesita un nombre.");
   if (!Number.isFinite(current) || current < 0) throw new Error("El monto debe ser válido.");
 
+  if (goalType === "pocket" && !input.sourceAccountId) {
+    throw new Error("Debes seleccionar una cuenta para este bolsillo.");
+  }
+
   const { data: goal, error } = await admin
     .from("savings_goals")
     .insert({
@@ -1362,6 +1367,7 @@ export async function createSavingsGoal(input: {
       color,
       goal_type: goalType,
       archived: false,
+      account_id: goalType === "pocket" ? input.sourceAccountId : null,
     })
     .select("id")
     .single();

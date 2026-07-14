@@ -22,8 +22,13 @@ import {
   ArrowUpRight,
   HandCoins,
   Search,
-  X
+  X,
+  RefreshCw,
+  CalendarClock,
+  Target,
+  Lock
 } from 'lucide-react';
+import TransferScreen from '../transfers/transfer-screen';
 import { haptics } from '../../lib/haptics';
 
 const CATEGORIES = [
@@ -1196,7 +1201,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
               <select value={savingsSourceAccountId} onChange={(e) => setSavingsSourceAccountId(e.target.value)}
                 className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-positive outline-none appearance-none"
               >
-                <option value="">Sin vincular a cuenta</option>
+                <option value="" disabled>Selecciona una cuenta</option>
                 {data.accounts.map((account) => (
                   <option key={account.id} value={account.value}>{account.label}</option>
                 ))}
@@ -1387,75 +1392,84 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   );
 
   return (
-    <div className="space-y-8 pb-10">
-      <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          {REGISTER_GROUPS.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              disabled={isSubmitting || isSuccess}
-              onClick={() => {
-                haptics.light();
-                setActiveGroup(group.id);
-                setActiveSegment(group.segments[0].id);
-              }}
-              className={`rounded-2xl px-3 py-3 text-center border transition-all ${
-                activeGroup === group.id
-                  ? 'bg-arca-accent/12 border-arca-accent text-arca-accent'
-                  : 'bg-arca-surface-2 light:bg-arca-light-surface-2 border-arca-border light:border-arca-light-border text-arca-text-dim'
-              } ${isSubmitting || isSuccess ? 'opacity-50' : ''}`}
-            >
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em]">{group.label}</p>
+    <div className="space-y-6 pb-4 pt-2">
+      {activeSegment === 'Grid' ? (
+        <div className="grid grid-cols-3 gap-3 pt-2">
+          <button onClick={() => { haptics.light(); setActiveSegment('Movimiento'); setType('gasto'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-arca-alert/10 text-arca-alert flex items-center justify-center group-hover:bg-arca-alert/20 transition-colors"><ArrowUpRight size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Gasto</span>
+          </button>
+          
+          <button onClick={() => { haptics.light(); setActiveSegment('Movimiento'); setType('ingreso'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-arca-positive/10 text-arca-positive flex items-center justify-center group-hover:bg-arca-positive/20 transition-colors"><ArrowDownLeft size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Ingreso</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Transferencia'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-arca-accent/10 text-arca-accent flex items-center justify-center group-hover:bg-arca-accent/20 transition-colors"><RefreshCw size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Transferir</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Prestamo'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#F58220]/10 text-[#F58220] flex items-center justify-center group-hover:bg-[#F58220]/20 transition-colors"><HandCoins size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Préstamo</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Obligacion'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#E51C1A]/10 text-[#E51C1A] flex items-center justify-center group-hover:bg-[#E51C1A]/20 transition-colors"><CalendarClock size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Deuda</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Cuenta'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#00AEEF]/10 text-[#00AEEF] flex items-center justify-center group-hover:bg-[#00AEEF]/20 transition-colors"><Wallet size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Cuenta</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Tarjeta'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#820AD1]/10 text-[#820AD1] flex items-center justify-center group-hover:bg-[#820AD1]/20 transition-colors"><CreditCard size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Tarjeta</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Ahorro'); setSavingsGoalType('goal'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#7CB342]/10 text-[#7CB342] flex items-center justify-center group-hover:bg-[#7CB342]/20 transition-colors"><Target size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Meta</span>
+          </button>
+
+          <button onClick={() => { haptics.light(); setActiveSegment('Ahorro'); setSavingsGoalType('pocket'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#FF6A13]/10 text-[#FF6A13] flex items-center justify-center group-hover:bg-[#FF6A13]/20 transition-colors"><Lock size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Bolsillo</span>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4 mb-4">
+          {activeSegment !== 'Transferencia' && (
+            <button onClick={() => { haptics.light(); setActiveSegment('Grid'); }} className="flex items-center space-x-2 text-arca-text-dim hover:text-arca-accent transition-colors pb-2">
+              <ArrowDownLeft className="rotate-45" size={20} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Volver al menú</span>
             </button>
-          ))}
+          )}
         </div>
+      )}
 
-        <div className="flex overflow-x-auto no-scrollbar gap-2 -mx-1 px-1">
-          {currentGroup.segments.map((seg) => (
-            <button
-              key={seg.id}
-              type="button"
-              disabled={isSubmitting || isSuccess}
-              onClick={() => {
-                haptics.light();
-                setActiveSegment(seg.id);
-              }}
-              className={`whitespace-nowrap px-5 py-2 rounded-full text-[11px] font-bold transition-all border ${
-                activeSegment === seg.id
-                  ? 'bg-arca-accent light:bg-arca-light-accent text-white border-transparent'
-                  : 'bg-arca-surface-2 light:bg-arca-light-surface-2 text-arca-text-dim border-arca-border light:border-arca-light-border'
-              } ${isSubmitting || isSuccess ? 'opacity-50' : ''}`}
-            >
-              {seg.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="px-1">
-          <p className="text-[11px] text-arca-text-dim">
-            <span className="font-semibold text-arca-text-primary">{currentGroup.label}:</span>{' '}
-            {currentSegment.helper}
-          </p>
-        </div>
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeSegment}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeSegment === 'Movimiento' && renderMovementForm()}
-          {activeSegment === 'Cuenta' && renderAccountForm()}
-          {activeSegment === 'Obligacion' && renderDebtForm()}
-          {activeSegment === 'Tarjeta' && renderCardForm()}
-          {activeSegment === 'Ahorro' && renderSavingsForm()}
-          {activeSegment === 'Prestamo' && renderLoanForm()}
-        </motion.div>
-      </AnimatePresence>
+      {activeSegment !== 'Grid' && (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeSegment}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeSegment === 'Movimiento' && renderMovementForm()}
+            {activeSegment === 'Cuenta' && renderAccountForm()}
+            {activeSegment === 'Obligacion' && renderDebtForm()}
+            {activeSegment === 'Tarjeta' && renderCardForm()}
+            {activeSegment === 'Ahorro' && renderSavingsForm()}
+            {activeSegment === 'Prestamo' && renderLoanForm()}
+            {activeSegment === 'Transferencia' && <TransferScreen accounts={data.accounts.map(a => ({ id: a.value, name: a.label, balance: a.amount }))} onBack={() => setActiveSegment('Grid')} />}
+          </motion.div>
+        </AnimatePresence>
+      )}
 
       <AnimatePresence>
         {isBankPickerOpen ? (
@@ -1599,41 +1613,43 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
         ) : null}
       </AnimatePresence>
 
-      <div className="relative h-14 mt-8">
-        <AnimatePresence mode="wait">
-          {!isSuccess ? (
-            <motion.button
-              key="submit-btn"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                void handleSubmit();
-              }}
-              disabled={isSubmitting}
-              className="w-full h-full rounded-2xl bg-arca-accent text-white font-black uppercase tracking-widest text-xs shadow-xl shadow-arca-accent/20 flex items-center justify-center"
-            >
-              {isSubmitting ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                `Guardar ${activeSegmentLabel}`
-              )}
-            </motion.button>
-          ) : (
-            <motion.div
-              key="success-indicator"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="w-full h-full rounded-2xl bg-arca-positive text-white flex items-center justify-center space-x-2 shadow-lg shadow-arca-positive/20"
-            >
-              <Check size={20} strokeWidth={3} />
-              <span className="font-bold text-xs uppercase tracking-widest">{"\u00a1Guardado con \u00e9xito!"}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {activeSegment !== 'Grid' && (
+        <div className="relative h-14 mt-8">
+          <AnimatePresence mode="wait">
+            {!isSuccess ? (
+              <motion.button
+                key="submit-btn"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  void handleSubmit();
+                }}
+                disabled={isSubmitting}
+                className="w-full h-full rounded-2xl bg-arca-accent text-white font-black uppercase tracking-widest text-xs shadow-xl shadow-arca-accent/20 flex items-center justify-center"
+              >
+                {isSubmitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  `Guardar ${activeSegmentLabel}`
+                )}
+              </motion.button>
+            ) : (
+              <motion.div
+                key="success-indicator"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="w-full h-full rounded-2xl bg-arca-positive text-white flex items-center justify-center space-x-2 shadow-lg shadow-arca-positive/20"
+              >
+                <Check size={20} strokeWidth={3} />
+                <span className="font-bold text-xs uppercase tracking-widest">{"\u00a1Guardado con \u00e9xito!"}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 }

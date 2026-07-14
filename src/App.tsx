@@ -88,7 +88,7 @@ export default function App({
       case 'movimientos': return <HistoryScreen onBack={backToMas} data={initialHistoryData} />;
       case 'configuracion': return <ConfiguracionScreen onBack={backToMas} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />;
       case 'calendario': return <CalendarScreen onBack={backToMas} data={initialCalendarData} />;
-      case 'transferir': return <TransferScreen onBack={backToMas} data={initialMoneyData} />;
+      case 'transferir': return <TransferScreen onBack={backToMas} accounts={initialMoneyData.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance }))} />;
       case 'superadmin': return <SuperAdminScreen onBack={backToMas} />;
       case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} /></div>;
       default: return <DecisionDashboard data={initialTodayData} onOpenMovements={() => setCurrentScreen('movimientos')} />;

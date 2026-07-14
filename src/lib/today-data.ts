@@ -277,7 +277,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     }
   }
 
-  const outgoingKinds = new Set(["expense", "debt_payment", "card_payment", "saving", "transfer_out"]);
+  const outgoingKinds = new Set(["expense", "debt_payment", "card_payment"]);
   const consumed = (transactionsResult.data ?? []).reduce((sum, row) => {
     return outgoingKinds.has(String(row.kind)) ? sum + numberValue(row.amount) : sum;
   }, 0);
