@@ -702,9 +702,7 @@ export default function AccountsScreen({
 
                     {selectedEntity.pockets && selectedEntity.pockets.length > 0 ? (
                       <div className="space-y-2">
-                        {selectedEntity.pockets.map((pocket) => {
-                          console.log("Pocket render:", pocket);
-                          return (
+                        {selectedEntity.pockets.map((pocket) => (
                           <div key={pocket.id} className="card-arca p-3 flex flex-col gap-2 transition-transform active:scale-[0.98]">
                             <div 
                               className="flex items-center justify-between cursor-pointer"
@@ -722,7 +720,6 @@ export default function AccountsScreen({
                                 </div>
                                 <div className="flex flex-col justify-center">
                                   <span className="text-sm font-bold leading-tight">{pocket.name}</span>
-                                  <span className="text-[10px] text-red-500">{JSON.stringify(pocket)}</span>
                                   {pocket.dueDate && (
                                     <span className="text-[10px] text-arca-text-dim mt-0.5">Planeado para: {pocket.dueDate}</span>
                                   )}
@@ -753,8 +750,7 @@ export default function AccountsScreen({
                               </button>
                             </div>
                           </div>
-                          );
-                        })}
+                        ))}
                       </div>
                     ) : (
                       <p className="text-xs text-arca-text-dim text-center py-4 bg-arca-surface-2 rounded-xl border border-dashed border-arca-border">

@@ -1,31 +1,113 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  
-  --color-arca-base: #15110B;
-  --color-arca-surface-1: #1E1811;
-  --color-arca-surface-2: #271F16;
-  --color-arca-border: #33291B;
-  --color-arca-border-strong: #4A3B26;
-  --color-arca-text-primary: #F3ECDC;
-  --color-arca-text-secondary: #B9AC90;
-  --color-arca-text-dim: #7C7159;
-  --color-arca-accent: #C68A45;
-  --color-arca-accent-hover: #D89C56;
-  --color-arca-positive: #8FA66A;
-  --color-arca-alert: #C1543A;
 
-  --color-arca-light-base: #F8F2E4;
-  --color-arca-light-surface-1: #FFFDF8;
-  --color-arca-light-surface-2: #F1E8D4;
-  --color-arca-light-border: #E3D8C1;
-  --color-arca-light-text-primary: #2A2117;
-  --color-arca-light-text-secondary: #6B5F4B;
-  --color-arca-light-accent: #A9713C;
-  --color-arca-light-positive: #5F7A44;
-  --color-arca-light-alert: #B84632;
+  /* Dynamic theme tokens — resolved via CSS custom properties */
+  --color-arca-base: var(--theme-base);
+  --color-arca-surface-1: var(--theme-surface-1);
+  --color-arca-surface-2: var(--theme-surface-2);
+  --color-arca-border: var(--theme-border);
+  --color-arca-border-strong: var(--theme-border-strong);
+  --color-arca-text-primary: var(--theme-text-primary);
+  --color-arca-text-secondary: var(--theme-text-secondary);
+  --color-arca-text-dim: var(--theme-text-dim);
+  --color-arca-accent: var(--theme-accent);
+  --color-arca-accent-hover: var(--theme-accent-hover);
+  --color-arca-positive: var(--theme-positive);
+  --color-arca-alert: var(--theme-alert);
+
+  /* Keep light aliases mapped to the same variable system */
+  --color-arca-light-base: var(--theme-base);
+  --color-arca-light-surface-1: var(--theme-surface-1);
+  --color-arca-light-surface-2: var(--theme-surface-2);
+  --color-arca-light-border: var(--theme-border);
+  --color-arca-light-text-primary: var(--theme-text-primary);
+  --color-arca-light-text-secondary: var(--theme-text-secondary);
+  --color-arca-light-accent: var(--theme-accent);
+  --color-arca-light-positive: var(--theme-positive);
+  --color-arca-light-alert: var(--theme-alert);
+}
+
+/* ─────────────────────────────────────────────
+   THEME 1 · ARCA DARK (Bronce profundo)
+   ───────────────────────────────────────────── */
+[data-theme="arca-dark"], :root {
+  --theme-base: #0A0805;
+  --theme-surface-1: #151008;
+  --theme-surface-2: #1E1610;
+  --theme-border: #2C2217;
+  --theme-border-strong: #3D2F1E;
+  --theme-text-primary: #F3ECDC;
+  --theme-text-secondary: #B9AC90;
+  --theme-text-dim: #7C7159;
+  --theme-accent: #C68A45;
+  --theme-accent-hover: #D89C56;
+  --theme-positive: #8FA66A;
+  --theme-alert: #C1543A;
+  --theme-glow-opacity: 0.35;
+  --theme-glow-spread: 60px;
+}
+
+/* ─────────────────────────────────────────────
+   THEME 2 · NEON NIGHT (Cyberpunk elegante)
+   ───────────────────────────────────────────── */
+[data-theme="neon-night"] {
+  --theme-base: #07080E;
+  --theme-surface-1: #0D0F18;
+  --theme-surface-2: #141624;
+  --theme-border: #1E2140;
+  --theme-border-strong: #2B2F56;
+  --theme-text-primary: #E4E8F7;
+  --theme-text-secondary: #9CA3C8;
+  --theme-text-dim: #5C6190;
+  --theme-accent: #6C5CE7;
+  --theme-accent-hover: #8577ED;
+  --theme-positive: #55EFC4;
+  --theme-alert: #FF6B6B;
+  --theme-glow-opacity: 0.45;
+  --theme-glow-spread: 80px;
+}
+
+/* ─────────────────────────────────────────────
+   THEME 3 · GLASS OCEAN (Azul profundo)
+   ───────────────────────────────────────────── */
+[data-theme="glass-ocean"] {
+  --theme-base: #050A0F;
+  --theme-surface-1: #0A1520;
+  --theme-surface-2: #0F1E2E;
+  --theme-border: #172D42;
+  --theme-border-strong: #1F3A55;
+  --theme-text-primary: #E0F0FF;
+  --theme-text-secondary: #8AB4D4;
+  --theme-text-dim: #4D7A9A;
+  --theme-accent: #0EA5E9;
+  --theme-accent-hover: #38BDF8;
+  --theme-positive: #34D399;
+  --theme-alert: #F87171;
+  --theme-glow-opacity: 0.3;
+  --theme-glow-spread: 70px;
+}
+
+/* ─────────────────────────────────────────────
+   THEME 4 · ARCA LIGHT (Clásico claro)
+   ───────────────────────────────────────────── */
+[data-theme="arca-light"] {
+  --theme-base: #F8F2E4;
+  --theme-surface-1: #FFFDF8;
+  --theme-surface-2: #F1E8D4;
+  --theme-border: #E3D8C1;
+  --theme-border-strong: #D4C9B0;
+  --theme-text-primary: #2A2117;
+  --theme-text-secondary: #6B5F4B;
+  --theme-text-dim: #9A8E78;
+  --theme-accent: #A9713C;
+  --theme-accent-hover: #C68A45;
+  --theme-positive: #5F7A44;
+  --theme-alert: #B84632;
+  --theme-glow-opacity: 0.15;
+  --theme-glow-spread: 40px;
 }
 
 @layer base {
@@ -35,19 +117,18 @@
 
   body {
     @apply bg-arca-base text-arca-text-primary antialiased;
-  }
-
-  .light {
-    @apply bg-arca-light-base text-arca-light-text-primary;
+    transition: background-color 0.4s ease, color 0.4s ease;
   }
 }
 
 .card-arca {
   @apply bg-arca-surface-1 border-t border-arca-border-strong border-x border-arca-border border-b border-arca-border rounded-2xl shadow-sm;
+  transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
+/* Backward compat: .light now also just maps to arca-light theme vars */
 .light .card-arca {
-  @apply bg-arca-light-surface-1 border-t border-white border-x border-arca-light-border border-b border-arca-light-border shadow-sm;
+  @apply bg-arca-surface-1 border-t border-arca-border-strong border-x border-arca-border border-b border-arca-border shadow-sm;
 }
 
 * {

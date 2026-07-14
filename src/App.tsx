@@ -27,6 +27,8 @@ import ConfiguracionScreen from './components/ConfiguracionScreen';
 import SuperAdminScreen from './components/SuperAdminScreen';
 import MasScreen from './components/MasScreen';
 
+export type ThemeId = 'arca-dark' | 'neon-night' | 'glass-ocean' | 'arca-light';
+
 export default function App({
   initialTodayData,
   initialMoneyData,
@@ -49,19 +51,28 @@ export default function App({
   initialRegisterData: RegisterViewModel;
 }) {
   const [currentScreen, setCurrentScreen] = useState<Screen>('hoy');
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [theme, setTheme] = useState<ThemeId>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('arca-theme') as ThemeId) || 'arca-dark';
+    }
+    return 'arca-dark';
+  });
 
-  // Apply dark mode class to root
+  // Apply theme attribute to <html>
   useEffect(() => {
     const root = window.document.documentElement;
-    if (isDarkMode) {
+    root.setAttribute('data-theme', theme);
+    localStorage.setItem('arca-theme', theme);
+    
+    // Backward compat: keep dark/light classes for any components still using them
+    if (theme === 'arca-light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    } else {
       root.classList.add('dark');
       root.classList.remove('light');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
     }
-  }, [isDarkMode]);
+  }, [theme]);
 
   const renderScreen = () => {
     const backToMas = () => setCurrentScreen('mas');
@@ -86,7 +97,7 @@ export default function App({
       case 'planeacion_proyeccion': return <ProjectionScreen onBack={backToMas} data={initialProjectionData} />;
       case 'negocios': return <BusinessScreen onBack={backToMas} data={initialBusinessData} />;
       case 'movimientos': return <HistoryScreen onBack={backToMas} data={initialHistoryData} />;
-      case 'configuracion': return <ConfiguracionScreen onBack={backToMas} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />;
+      case 'configuracion': return <ConfiguracionScreen onBack={backToMas} theme={theme} setTheme={setTheme} />;
       case 'calendario': return <CalendarScreen onBack={backToMas} data={initialCalendarData} />;
       case 'transferir': return <TransferScreen onBack={backToMas} accounts={initialMoneyData.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance }))} />;
       case 'superadmin': return <SuperAdminScreen onBack={backToMas} />;
