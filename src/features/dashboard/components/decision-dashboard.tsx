@@ -35,7 +35,7 @@ export default function DecisionDashboard({
   onOpenBusiness?: () => void;
   onOpenMonthPlan?: () => void;
 }) {
-  const { greeting, budget, metrics, cash, criticalPayments, receivables, nextIncome } = data;
+  const { greeting, budget, metrics, cash, criticalPayments, receivables, upcomingIncomes, monthlyBudget } = data;
 
   return (
     <div className="flex flex-col gap-4 font-sans w-full">
@@ -83,8 +83,8 @@ export default function DecisionDashboard({
       <section className="mb-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex space-x-4 min-w-max">
           {[
-            { label: 'Gasto', icon: ArrowUpRight, color: 'bg-arca-alert light:bg-arca-light-alert', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento" } })) },
-            { label: 'Ingreso', icon: ArrowDownLeft, color: 'bg-arca-positive light:bg-arca-light-positive', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento" } })) },
+            { label: 'Gasto', icon: ArrowUpRight, color: 'bg-arca-alert light:bg-arca-light-alert', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento", type: 'gasto' } })) },
+            { label: 'Ingreso', icon: ArrowDownLeft, color: 'bg-arca-positive light:bg-arca-light-positive', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento", type: 'ingreso' } })) },
             { label: 'Transferir', icon: RefreshCw, color: 'bg-arca-accent light:bg-arca-light-accent', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Transferencia" } })) },
             { label: 'Meta', icon: Target, color: 'bg-[#7CB342]', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro", goalType: "goal" } })) },
           ].map((action, i) => (
@@ -103,25 +103,60 @@ export default function DecisionDashboard({
       </section>
 
       {/* PRESUPUESTO MENSUAL */}
-      <div 
-        onClick={onOpenMonthPlan}
-        className="card-arca p-4 flex flex-col gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-      >
-        <div className="flex justify-between items-center text-[11px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">
-          <span>PRESUPUESTO MENSUAL</span>
-          <span className="text-arca-positive light:text-arca-light-positive uppercase">
-            {budget.hasBudget ? "DEFINIDO" : "SIN DEFINIR"}
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-between items-center px-1">
+          <span className="text-[12px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">PRESUPUESTO DEL MES</span>
+          <span className="text-[10px] font-bold text-arca-positive light:text-arca-light-positive uppercase cursor-pointer hover:opacity-80" onClick={onOpenMonthPlan}>
+            {budget.hasBudget ? "LÍMITE DEFINIDO" : "CONFIGURAR"}
           </span>
         </div>
-        <div className="h-1.5 w-full rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 overflow-hidden">
-          <div 
-            className="h-full bg-arca-positive light:bg-arca-light-positive" 
-            style={{ width: `${budget.utilization ?? 0}%` }}
-          ></div>
-        </div>
-        <div className="flex justify-between items-center text-[10px] font-bold text-arca-text-dim light:text-arca-light-text-secondary">
-          <span>CONSUMIDO: {budget.consumed != null ? formatCOP(budget.consumed) : "SIN DATO"}</span>
-          <span>LÍMITE: {budget.limit != null ? formatCOP(budget.limit) : "SIN DEFINIR"}</span>
+        <div className="card-arca p-5 relative overflow-hidden flex flex-col gap-5">
+          {/* Ingresos */}
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">INGRESOS</span>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-arca-text-secondary">Recibidos</span>
+              <span className="font-semibold text-arca-positive">{formatCOP(monthlyBudget.receivedIncomes)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-arca-text-secondary">Esperados</span>
+              <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.expectedIncomes)}</span>
+            </div>
+            <div className="w-full h-[1px] bg-arca-border/50 my-1"></div>
+            <div className="flex justify-between items-center text-sm font-bold">
+              <span className="text-white">Proyección Total</span>
+              <span className="text-white">{formatCOP(monthlyBudget.receivedIncomes + monthlyBudget.expectedIncomes)}</span>
+            </div>
+          </div>
+          
+          {/* Gastos y Obligaciones */}
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">OBLIGACIONES</span>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-arca-text-secondary">Pagadas</span>
+              <span className="font-semibold text-arca-text-primary">{formatCOP(monthlyBudget.paidObligations)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-arca-text-secondary">Pendientes</span>
+              <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.pendingObligations)}</span>
+            </div>
+          </div>
+
+          {/* Barra de Consumo de Límite (si hay presupuesto global) */}
+          {budget.hasBudget && (
+            <div className="flex flex-col gap-2 mt-2 pt-4 border-t border-arca-border/50">
+              <div className="flex justify-between items-center text-[10px] font-bold text-arca-text-dim light:text-arca-light-text-secondary">
+                <span>CONSUMIDO: {formatCOP(budget.consumed)}</span>
+                <span>LÍMITE: {formatCOP(budget.limit)}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 overflow-hidden">
+                <div 
+                  className={cn("h-full", (budget.utilization ?? 0) > 90 ? "bg-arca-alert" : "bg-arca-positive")}
+                  style={{ width: `${budget.utilization ?? 0}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -143,54 +178,43 @@ export default function DecisionDashboard({
           <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">ATRASADOS</span>
         </div>
       </div>
-
-      {/* CAJA LIBRE */}
-      <div className="card-arca p-5 flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">CAJA LIBRE · LO QUE PUEDES GASTAR</span>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-3xl font-bold ${cash.safeToSpend > 0 ? "text-arca-text-primary light:text-arca-light-text-primary" : "text-arca-alert"}`}>{formatCOP(cash.safeToSpend)}</span>
-            <span className="text-sm font-bold text-arca-text-secondary light:text-arca-light-text-secondary">COP</span>
+      {/* CAJA LIBRE (Credit Card Glass) */}
+      <div className="relative overflow-hidden rounded-2xl p-5 border border-arca-border/50 shadow-lg"
+           style={{
+             background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%)",
+             backdropFilter: "blur(10px)"
+           }}>
+        {/* Decorative elements */}
+        <div className="absolute -right-10 -top-10 w-32 h-32 bg-arca-accent rounded-full opacity-20 blur-3xl"></div>
+        <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-arca-positive rounded-full opacity-20 blur-3xl"></div>
+        
+        <div className="flex justify-between items-start mb-6">
+          <span className="text-[10px] font-bold tracking-widest text-arca-text-secondary/70 uppercase">Caja Libre</span>
+          <div className="w-8 h-5 rounded bg-arca-surface-3 flex items-center justify-center opacity-70 border border-arca-border/30">
+            <div className="w-4 h-3 border border-arca-border/40 rounded-sm"></div>
+          </div>
+        </div>
+        
+        <div className="mb-6 relative z-10">
+          <div className="text-[10px] font-medium text-arca-text-secondary mb-1">Disponible para gastar</div>
+          <div className={`text-4xl font-bold tracking-tight ${cash.safeToSpend > 0 ? "text-white" : "text-arca-alert"} drop-shadow-md`}>
+            {formatCOP(cash.safeToSpend)}
           </div>
         </div>
 
-        {/* Visual breakdown */}
-        <div className="space-y-2">
-          {/* Balance total */}
-          <div className="flex justify-between items-center text-[11px] font-bold">
-            <span className="text-arca-text-secondary">Balance total en cuentas</span>
-            <span className="text-arca-text-primary">{formatCOP(cash.totalBalance)}</span>
+        <div className="flex justify-between items-end border-t border-white/5 pt-3 relative z-10">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-widest text-arca-text-secondary">Balance Total</span>
+            <span className="text-sm font-bold text-white/90">{formatCOP(cash.totalBalance)}</span>
           </div>
-
-          {/* Protected savings — only show if there are any */}
           {cash.protectedSavings > 0 && (
-            <div className="flex justify-between items-center text-[11px] font-bold">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-arca-positive opacity-70" />
-                <span className="text-arca-positive/80">En bolsillos (protegido)</span>
-              </div>
-              <span className="text-arca-positive/80">−{formatCOP(cash.protectedSavings)}</span>
+            <div className="flex flex-col gap-1 items-end">
+              <span className="text-[11px] uppercase tracking-widest text-arca-positive/80">Bolsillos</span>
+              <span className="text-sm font-bold text-arca-positive">−{formatCOP(cash.protectedSavings)}</span>
             </div>
           )}
-
-          {/* Pending critical payments — only show if any */}
-          {cash.pendingCritical > 0 && (
-            <div className="flex justify-between items-center text-[11px] font-bold">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-arca-alert opacity-70" />
-                <span className="text-arca-alert/80">Pagos pendientes</span>
-              </div>
-              <span className="text-arca-alert/80">−{formatCOP(cash.pendingCritical)}</span>
-            </div>
-          )}
-
-          {/* Divider + result */}
-          <div className="w-full h-[1px] bg-arca-border light:bg-arca-light-border mt-1" />
-          <div className="flex justify-between items-center text-[11px] font-bold">
-            <span className="text-arca-text-secondary">Libre para gastar</span>
-            <span className={cash.safeToSpend > 0 ? "text-arca-accent" : "text-arca-alert"}>{formatCOP(cash.safeToSpend)}</span>
-          </div>
         </div>
+      </div>
 
         {/* Shortfall warning */}
         {cash.shortfallAgainstProtected > 0 && (
@@ -198,8 +222,6 @@ export default function DecisionDashboard({
             ⚠ Atención: te faltan {formatCOP(cash.shortfallAgainstProtected)} para cubrir todos tus compromisos.
           </div>
         )}
-      </div>
-
       {/* PAGOS CRITICOS */}
       <div className="flex flex-col gap-3 mt-2">
         <div className="flex justify-between items-center px-1">
@@ -259,33 +281,44 @@ export default function DecisionDashboard({
         </div>
       </div>
 
-      {/* SIGUIENTE INGRESO */}
-      <div className="card-arca p-4 mt-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 flex items-center justify-center">
-            <div className={cn("w-2.5 h-2.5 rounded-full", nextIncome ? "bg-arca-positive light:bg-arca-light-positive" : "bg-arca-text-secondary light:bg-arca-light-text-secondary")}></div>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm text-arca-text-secondary light:text-arca-light-text-secondary">
-              Siguiente ingreso: <br/>
-              <span className="text-arca-accent light:text-arca-light-accent font-semibold">{nextIncome ? nextIncome.title : "Sin ingresos programados"}</span>
-            </span>
-          </div>
+      {/* PRÓXIMOS INGRESOS */}
+      <div className="flex flex-col gap-3 mt-2">
+        <div className="flex justify-between items-center px-1">
+          <span className="text-[12px] font-bold tracking-wider text-arca-positive light:text-arca-light-positive">PRÓXIMOS INGRESOS</span>
+          <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">{upcomingIncomes.length} VISIBLES</span>
         </div>
-        <div className="flex flex-col text-right">
-          {nextIncome ? (
-            <>
-              <span className="text-sm text-arca-positive light:text-arca-light-positive font-semibold">{formatCOP(nextIncome.amount)}</span>
-              <span className="text-[10px] text-arca-text-secondary light:text-arca-light-text-secondary font-bold">{nextIncome.dueLabel}</span>
-            </>
+        <div className="card-arca overflow-hidden flex flex-col">
+          {upcomingIncomes.length > 0 ? (
+            <div className="divide-y divide-arca-border light:divide-arca-light-border">
+              {upcomingIncomes.map((income) => (
+                <button
+                  key={income.id}
+                  className="w-full p-4 flex items-center justify-between hover:bg-arca-border/30 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-arca-positive/10 flex items-center justify-center">
+                      <Target size={14} className="text-arca-positive" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm text-arca-text-primary light:text-arca-light-text-primary font-semibold">{income.title}</span>
+                      <span className="text-xs text-arca-text-dim light:text-arca-light-text-secondary">{income.dueLabel}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-sm font-bold text-arca-positive">+{formatCOP(income.amount)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           ) : (
-            <>
-              <span className="text-sm text-arca-text-secondary light:text-arca-light-text-secondary font-semibold">Sin</span>
-              <span className="text-sm text-arca-text-secondary light:text-arca-light-text-secondary font-semibold">fecha</span>
-            </>
+            <div className="p-5 flex items-center">
+              <span className="text-sm text-arca-text-dim light:text-arca-light-text-secondary font-medium">No hay ingresos programados.</span>
+            </div>
           )}
         </div>
       </div>
+
+
 
     </div>
   );

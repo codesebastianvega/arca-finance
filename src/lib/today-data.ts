@@ -35,7 +35,7 @@ export type TodayReceivable = {
   notes: string | null;
 };
 
-export type TodayNextIncome = {
+export type TodayUpcomingIncome = {
   id: string;
   title: string;
   amount: number;
@@ -60,7 +60,13 @@ export type TodayViewModel = {
   };
   criticalPayments: TodayCriticalPayment[];
   receivables: TodayReceivable[];
-  nextIncome: TodayNextIncome | null;
+  upcomingIncomes: TodayUpcomingIncome[];
+  monthlyBudget: {
+    expectedIncomes: number;
+    receivedIncomes: number;
+    pendingObligations: number;
+    paidObligations: number;
+  };
   accountOptions: Array<{
     id: string;
     label: string;
@@ -293,20 +299,41 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     hasBudget: Boolean(budgetLimit && budgetLimit > 0),
   };
 
-  const nextIncomeRow = ((scheduledResult.data ?? []) as ScheduledEventRow[])
+  const upcomingIncomes: TodayUpcomingIncome[] = ((scheduledResult.data ?? []) as ScheduledEventRow[])
     .filter((row) => row.kind === "income")
     .filter((row) => !isConfirmedStatus(row.status))
-    .find((row) => new Date(`${row.due_date}T00:00:00-05:00`).getTime() >= today.getTime());
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      amount: numberValue(row.amount),
+      dueDate: row.due_date,
+      dueLabel: nextIncomeLabel(row.due_date),
+    }));
 
-  const nextIncome: TodayNextIncome | null = nextIncomeRow
-    ? {
-        id: nextIncomeRow.id,
-        title: nextIncomeRow.title,
-        amount: numberValue(nextIncomeRow.amount),
-        dueDate: nextIncomeRow.due_date,
-        dueLabel: nextIncomeLabel(nextIncomeRow.due_date),
-      }
-    : null;
+  const expectedIncomes = upcomingIncomes
+    .filter((row) => row.dueDate >= monthBounds.start && row.dueDate < monthBounds.nextMonth)
+    .reduce((sum, row) => sum + row.amount, 0);
+
+  const pendingObligations = ((scheduledResult.data ?? []) as ScheduledEventRow[])
+    .filter((row) => row.kind !== "income")
+    .filter((row) => !isConfirmedStatus(row.status))
+    .filter((row) => row.due_date >= monthBounds.start && row.due_date < monthBounds.nextMonth)
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const receivedIncomes = ((transactionsResult.data ?? []) as Array<{ kind: string; amount: number }>)
+    .filter((row) => row.kind === "income")
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const paidObligations = ((transactionsResult.data ?? []) as Array<{ kind: string; amount: number }>)
+    .filter((row) => row.kind !== "income" && row.kind !== "transfer_in")
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const monthlyBudget = {
+    expectedIncomes,
+    receivedIncomes,
+    pendingObligations,
+    paidObligations,
+  };
 
   console.log('Receivables result:', receivablesResult); const receivables = ((receivablesResult.data ?? []) as Array<{
     id: string;
@@ -344,7 +371,8 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     },
     criticalPayments,
     receivables,
-    nextIncome,
+    upcomingIncomes,
+    monthlyBudget,
     accountOptions: (accountsResult.data ?? []).map((row) => ({
       id: String(row.id),
       label: `${String(row.name)} · cuenta`,

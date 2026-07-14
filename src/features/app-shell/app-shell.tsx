@@ -24,14 +24,17 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [defaultSegment, setDefaultSegment] = useState('Movimiento');
   const [defaultGoalType, setDefaultGoalType] = useState<'goal' | 'pocket'>('goal');
+  const [defaultType, setDefaultType] = useState<'gasto' | 'ingreso'>('gasto');
 
   useEffect(() => {
     const handleOpen = (e: Event) => {
       const customEvent = e as CustomEvent;
       const segment = customEvent.detail?.segment || 'Grid';
       const goalType = customEvent.detail?.goalType || 'goal';
+      const type = customEvent.detail?.type || 'gasto';
       setDefaultSegment(segment);
       setDefaultGoalType(goalType);
+      setDefaultType(type);
       setIsRegisterOpen(true);
     };
     window.addEventListener('open-register', handleOpen);
@@ -72,6 +75,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
           data={registerData}
           defaultSegment={defaultSegment}
           defaultGoalType={defaultGoalType}
+          defaultType={defaultType}
           onSuccess={() => {
             router.refresh();
             setIsRegisterOpen(false);

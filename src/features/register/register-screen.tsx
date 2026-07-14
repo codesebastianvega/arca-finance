@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useTransition } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation } from '@/app/actions';
+import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 import type { RegisterViewModel } from '@/src/lib/register-data';
 import { 
@@ -150,7 +150,7 @@ const REGISTER_GROUPS = [
   },
 ];
 
-export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento', defaultGoalType = 'goal' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string; defaultGoalType?: 'goal' | 'pocket' }) {
+export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento', defaultGoalType = 'goal', defaultType = 'gasto' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string; defaultGoalType?: 'goal' | 'pocket'; defaultType?: 'gasto' | 'ingreso' }) {
   const router = useRouter();
   const [isQuickCreatePending, startQuickCreate] = useTransition();
   const [activeSegment, setActiveSegment] = useState(defaultSegment);
@@ -158,13 +158,19 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     const owner = REGISTER_GROUPS.find((g) => g.segments.some((s) => s.id === defaultSegment));
     return (owner?.id as 'movimiento' | 'planificado' | 'estructura') || 'movimiento';
   });
-  const [type, setType] = useState<'gasto' | 'ingreso'>('gasto');
+  const [type, setType] = useState<'gasto' | 'ingreso'>(defaultType);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [movementAccountId, setMovementAccountId] = useState('');
   const [movementUnit, setMovementUnit] = useState('');
   const [movementDate, setMovementDate] = useState('');
   const [movementIncomeSourceId, setMovementIncomeSourceId] = useState('');
+  const [incomeStatus, setIncomeStatus] = useState<'received' | 'expected'>('received');
+  const [recurrenceMode, setRecurrenceMode] = useState<'once' | 'monthly'>('once');
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
+  const [recurrenceEndMode, setRecurrenceEndMode] = useState<'indefinite' | 'until_date' | 'count'>('indefinite');
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('');
+  const [recurrenceCount, setRecurrenceCount] = useState('');
   const [selectedBank, setSelectedBank] = useState(COLOMBIAN_BANKS[0]);
   const [accountName, setAccountName] = useState('');
   const [accountInitialBalance, setAccountInitialBalance] = useState('');
@@ -179,6 +185,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [debtNotes, setDebtNotes] = useState('');
   const [quickUnitName, setQuickUnitName] = useState('');
   const [quickSourceName, setQuickSourceName] = useState('');
+  const [showQuickSourceForm, setShowQuickSourceForm] = useState(false);
   const [limit, setLimit] = useState('');
   const [closingDate, setClosingDate] = useState('');
   const [cardName, setCardName] = useState('');
@@ -367,6 +374,12 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       day: '2-digit',
     }).format(new Date());
     setMovementDate(today);
+    setIncomeStatus('received');
+    setRecurrenceMode('once');
+    setRecurrenceDays([]);
+    setRecurrenceEndMode('indefinite');
+    setRecurrenceEndDate('');
+    setRecurrenceCount('');
   };
 
   const resetDebtForm = () => {
@@ -437,6 +450,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           defaultAccountId: movementAccountId,
         });
         setQuickSourceName('');
+        setShowQuickSourceForm(false);
         haptics.success();
         router.refresh();
       } catch (error) {
@@ -453,17 +467,33 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
     try {
       if (activeSegment === 'Movimiento') {
-        await createMovement({
-          kind: type === 'ingreso' ? 'income' : 'expense',
-          amount: Number(amount || '0'),
-          concept: description,
-          accountId: movementAccountId,
-          category: type === 'ingreso' ? 'ingreso' : selectedCategoryValue,
-          unit: movementUnit,
-          date: movementDate,
-          sourceId: type === 'ingreso' ? movementIncomeSourceId : null,
-          sourceLabel: type === 'ingreso' ? data.incomeSources.find((item) => item.id === movementIncomeSourceId)?.label ?? null : null,
-        });
+        if (type === 'ingreso' && incomeStatus === 'expected') {
+          await createExpectedIncome({
+            title: description,
+            amount: Number(amount || '0'),
+            dueDate: movementDate,
+            accountId: movementAccountId,
+            unit: movementUnit,
+            sourceId: movementIncomeSourceId || null,
+            recurrenceMode,
+            recurrenceDays,
+            recurrenceEndMode,
+            recurrenceEndDate: recurrenceEndDate || null,
+            recurrenceCount: recurrenceCount ? Number(recurrenceCount) : null,
+          });
+        } else {
+          await createMovement({
+            kind: type === 'ingreso' ? 'income' : 'expense',
+            amount: Number(amount || '0'),
+            concept: description,
+            accountId: movementAccountId,
+            category: type === 'ingreso' ? 'ingreso' : selectedCategoryValue,
+            unit: movementUnit,
+            date: movementDate,
+            sourceId: type === 'ingreso' ? movementIncomeSourceId : null,
+            sourceLabel: type === 'ingreso' ? data.incomeSources.find((item) => item.id === movementIncomeSourceId)?.label ?? null : null,
+          });
+        }
         resetMovementForm();
       } else if (activeSegment === 'Cuenta') {
         await createAccount({
@@ -629,24 +659,59 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </div>
         ) : (
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Concepto de ingreso</label>
-            <select
-              value={movementIncomeSourceId}
-              onChange={(e) => setMovementIncomeSourceId(e.target.value)}
-              disabled={filteredIncomeSources.length === 0}
-              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
-            >
-              {filteredIncomeSources.length > 0 ? (
-                filteredIncomeSources.map((source) => (
-                  <option key={source.id} value={source.id}>{source.label}</option>
-                ))
-              ) : (
-                <option value="">Primero crea un concepto para esta Unidad en Negocios</option>
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Concepto de ingreso</label>
+              {data.units.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { haptics.light(); setShowQuickSourceForm(!showQuickSourceForm); }}
+                  className="text-[10px] font-bold text-arca-accent uppercase tracking-widest flex items-center gap-0.5 hover:text-arca-accent-hover transition-colors"
+                >
+                  {showQuickSourceForm ? '✕ Cancelar' : '+ Nuevo'}
+                </button>
               )}
-            </select>
-            {filteredIncomeSources.length === 0 && data.units.length > 0 ? (
-              <p className="text-[10px] text-arca-alert">No hay conceptos de ingreso configurados para esta Unidad de Negocio.</p>
-            ) : null}
+            </div>
+
+            {showQuickSourceForm ? (
+              <div className="space-y-3 rounded-2xl border border-arca-accent/30 bg-arca-surface-2 p-4">
+                <p className="text-[11px] text-arca-text-dim">Crea un nuevo concepto de ingreso para <span className="font-bold text-arca-text-primary">{movementUnit || 'esta unidad'}</span>.</p>
+                <input
+                  type="text"
+                  value={quickSourceName}
+                  onChange={(e) => setQuickSourceName(e.target.value)}
+                  placeholder="Ej: Caminata, Consultoria..."
+                  className="w-full bg-arca-surface-1 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
+                />
+                <button
+                  type="button"
+                  onClick={handleQuickCreateSource}
+                  disabled={isQuickCreatePending || !movementAccountId || !movementUnit || !quickSourceName.trim()}
+                  className="w-full rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
+                >
+                  {isQuickCreatePending ? 'Creando...' : 'Crear concepto'}
+                </button>
+              </div>
+            ) : (
+              <>
+                <select
+                  value={movementIncomeSourceId}
+                  onChange={(e) => setMovementIncomeSourceId(e.target.value)}
+                  disabled={filteredIncomeSources.length === 0}
+                  className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
+                >
+                  {filteredIncomeSources.length > 0 ? (
+                    filteredIncomeSources.map((source) => (
+                      <option key={source.id} value={source.id}>{source.label}</option>
+                    ))
+                  ) : (
+                    <option value="">Primero crea un concepto para esta Unidad en Negocios</option>
+                  )}
+                </select>
+                {filteredIncomeSources.length === 0 && data.units.length > 0 ? (
+                  <p className="text-[10px] text-arca-alert">No hay conceptos de ingreso configurados para esta Unidad. Usa el botón <span className="font-bold">+ Nuevo</span> de arriba.</p>
+                ) : null}
+              </>
+            )}
           </div>
         )}
 
@@ -677,30 +742,6 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </div>
         ) : null}
 
-        {type === 'ingreso' && data.units.length > 0 && filteredIncomeSources.length === 0 ? (
-          <div className="space-y-3 rounded-2xl border border-arca-border bg-arca-surface-2 p-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear concepto de ingreso rápido</p>
-              <p className="text-[11px] text-arca-text-dim">Liga este ingreso a esta unidad de negocio y a una cuenta de destino.</p>
-            </div>
-            <input
-              type="text"
-              value={quickSourceName}
-              onChange={(e) => setQuickSourceName(e.target.value)}
-              placeholder="Ej: Honorarios, Ventas..."
-              className="w-full bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
-            />
-            <button
-              type="button"
-              onClick={handleQuickCreateSource}
-              disabled={isQuickCreatePending || !movementAccountId || !movementUnit}
-              className="w-full rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
-            >
-              Crear concepto
-            </button>
-          </div>
-        ) : null}
-
         {/* 5. Cuenta */}
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuenta destino</label>
@@ -717,7 +758,25 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
         {/* 6. Fecha */}
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fecha de cobro</label>
+          {type === 'ingreso' && (
+            <div className="flex bg-arca-surface-3 p-1 rounded-xl border border-arca-border mb-3">
+              <button 
+                onClick={() => { haptics.light(); setIncomeStatus('received'); }}
+                className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${incomeStatus === 'received' ? 'bg-arca-positive text-white shadow-md' : 'text-arca-text-dim'}`}
+              >
+                Recibido
+              </button>
+              <button 
+                onClick={() => { haptics.light(); setIncomeStatus('expected'); }}
+                className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${incomeStatus === 'expected' ? 'bg-arca-accent text-white shadow-md' : 'text-arca-text-dim'}`}
+              >
+                Esperado
+              </button>
+            </div>
+          )}
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+            {type === 'ingreso' && incomeStatus === 'expected' ? 'Fecha esperada / Inicio' : 'Fecha de cobro'}
+          </label>
           <input
             type="date"
             value={movementDate}
@@ -725,6 +784,109 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
           />
         </div>
+
+        {/* 7. Recurrencia (Solo Esperado) */}
+        {type === 'ingreso' && incomeStatus === 'expected' && (
+          <div className="space-y-4 pt-2 border-t border-arca-border/50">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Frecuencia</label>
+              <div className="flex bg-arca-surface-3 p-1 rounded-xl border border-arca-border">
+                <button 
+                  onClick={() => { haptics.light(); setRecurrenceMode('once'); }}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${recurrenceMode === 'once' ? 'bg-arca-surface-2 text-arca-text-primary shadow-sm' : 'text-arca-text-dim'}`}
+                >
+                  Una vez
+                </button>
+                <button 
+                  onClick={() => { haptics.light(); setRecurrenceMode('monthly'); }}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${recurrenceMode === 'monthly' ? 'bg-arca-surface-2 text-arca-text-primary shadow-sm' : 'text-arca-text-dim'}`}
+                >
+                  Mensual
+                </button>
+              </div>
+            </div>
+
+            {recurrenceMode === 'monthly' && (
+              <div className="space-y-4 p-4 rounded-xl border border-arca-border bg-arca-surface-2/30">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Días de pago</label>
+                  <p className="text-[10px] text-arca-text-dim ml-1 mb-2">Selecciona los días del mes en que recibes este pago.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[1, 15, 28, 30].map(day => (
+                      <button
+                        key={day}
+                        onClick={() => {
+                          haptics.light();
+                          if (recurrenceDays.includes(day)) {
+                            setRecurrenceDays(recurrenceDays.filter(d => d !== day));
+                          } else {
+                            setRecurrenceDays([...recurrenceDays, day].sort((a,b) => a-b));
+                          }
+                        }}
+                        className={`w-10 h-10 rounded-full font-bold text-xs transition-colors flex items-center justify-center border ${recurrenceDays.includes(day) ? 'bg-arca-accent text-white border-arca-accent shadow-lg shadow-arca-accent/20' : 'bg-arca-surface-2 text-arca-text-secondary border-arca-border hover:bg-arca-border/50'}`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                    <input 
+                      type="number" 
+                      placeholder="+ Día" 
+                      className="w-16 h-10 rounded-full text-xs font-bold text-center bg-arca-surface-3 border border-arca-border focus:outline-none focus:border-arca-accent"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = Number((e.target as HTMLInputElement).value);
+                          if (val >= 1 && val <= 31 && !recurrenceDays.includes(val)) {
+                            setRecurrenceDays([...recurrenceDays, val].sort((a,b) => a-b));
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-arca-border/50">
+                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fin de recurrencia</label>
+                  <select
+                    value={recurrenceEndMode}
+                    onChange={(e) => setRecurrenceEndMode(e.target.value as any)}
+                    className="w-full bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
+                  >
+                    <option value="indefinite">Indefinido (siempre)</option>
+                    <option value="until_date">Hasta una fecha</option>
+                    <option value="count">Número de veces</option>
+                  </select>
+                </div>
+
+                {recurrenceEndMode === 'until_date' && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fecha fin</label>
+                    <input
+                      type="date"
+                      value={recurrenceEndDate}
+                      onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                      className="w-full bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:border-arca-accent outline-none"
+                    />
+                  </div>
+                )}
+
+                {recurrenceEndMode === 'count' && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cantidad de veces</label>
+                    <input
+                      type="number"
+                      value={recurrenceCount}
+                      onChange={(e) => setRecurrenceCount(e.target.value)}
+                      placeholder="Ej: 12"
+                      className="w-full bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:border-arca-accent outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
