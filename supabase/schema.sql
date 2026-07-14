@@ -533,6 +533,7 @@ set search_path = public
 as $$
   select
     public.user_is_superadmin()
+    or public.user_owns_workspace(target_workspace_id)
     or exists (
       select 1
       from public.workspace_members

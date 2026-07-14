@@ -37,6 +37,7 @@ export type TodayReceivable = {
 
 export type TodayUpcomingIncome = {
   id: string;
+  templateId?: string | null;
   title: string;
   amount: number;
   dueDate: string;
@@ -304,6 +305,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     .filter((row) => !isConfirmedStatus(row.status))
     .map((row) => ({
       id: row.id,
+      templateId: row.template_id,
       title: row.title,
       amount: numberValue(row.amount),
       dueDate: row.due_date,

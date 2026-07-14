@@ -28,7 +28,7 @@ function transactionDelta(kind: string, amount: number) {
   return -amount;
 }
 
-export async function confirmScheduledEventNow(eventId: string) {
+export async function confirmScheduledEventNow(eventId: string, overrideAmount?: number) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
 
@@ -57,7 +57,8 @@ export async function confirmScheduledEventNow(eventId: string) {
   }
 
   const today = todayDateInBogota();
-  const amount = typeof event.amount === "number" ? event.amount : Number(event.amount ?? 0);
+  const originalAmount = typeof event.amount === "number" ? event.amount : Number(event.amount ?? 0);
+  const amount = overrideAmount !== undefined ? overrideAmount : originalAmount;
   const kind = String(event.kind ?? "expense");
   const isIncome = kind === "income";
   const delta = isIncome ? amount : -amount;
@@ -2121,3 +2122,71 @@ export async function createTransfer(input: {
   return { ok: true };
 }
 
+
+export async function cancelIncomeTemplate(templateId: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) {
+    throw new Error("Supabase admin client no disponible.");
+  }
+
+  // 1. Cancel the template
+  const { error: templateError } = await admin
+    .from("income_templates")
+    .update({ status: "cancelled", end_date: new Date().toISOString() })
+    .eq("id", templateId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (templateError) {
+    throw new Error(`No se pudo cancelar la plantilla: ${templateError.message}`);
+  }
+
+  // 2. Cancel all upcoming events linked to this template
+  const { error: eventsError } = await admin
+    .from("scheduled_events")
+    .update({ status: "cancelled" })
+    .eq("template_id", templateId)
+    .eq("workspace_id", context.workspace.id)
+    .eq("status", "scheduled");
+
+  if (eventsError) {
+    throw new Error(`No se pudieron cancelar los eventos futuros: ${eventsError.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function cancelExpenseTemplate(templateId: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) {
+    throw new Error("Supabase admin client no disponible.");
+  }
+
+  const { error: templateError } = await admin
+    .from("expense_templates")
+    .update({ status: "cancelled", end_date: new Date().toISOString() })
+    .eq("id", templateId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (templateError) {
+    throw new Error(`No se pudo cancelar la plantilla de gasto: ${templateError.message}`);
+  }
+
+  const { error: eventsError } = await admin
+    .from("scheduled_events")
+    .update({ status: "cancelled" })
+    .eq("template_id", templateId)
+    .eq("workspace_id", context.workspace.id)
+    .eq("status", "scheduled");
+
+  if (eventsError) {
+    throw new Error(`No se pudieron cancelar los eventos futuros: ${eventsError.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}

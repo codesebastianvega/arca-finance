@@ -9,6 +9,7 @@ import { loadObligationsViewModel } from "@/src/lib/obligations-data";
 import { loadProjectionViewModel } from "@/src/lib/projection-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadTodayViewModel } from "@/src/lib/today-data";
+import { loadSubscriptionsViewModel } from "@/src/lib/subscriptions-data";
 
 export default async function AuthenticatedAppPage() {
   const context = await requireWorkspaceContext();
@@ -22,6 +23,7 @@ export default async function AuthenticatedAppPage() {
     initialBusinessData,
     initialHistoryData,
     initialRegisterData,
+    initialSubscriptionsData,
   ] = await Promise.all([
     loadTodayViewModel(context),
     loadMoneyViewModel(context),
@@ -32,6 +34,7 @@ export default async function AuthenticatedAppPage() {
     loadBusinessViewModel(context),
     loadHistoryViewModel(context),
     loadRegisterViewModel(context),
+    loadSubscriptionsViewModel(context),
   ]);
 
   return (
@@ -45,6 +48,7 @@ export default async function AuthenticatedAppPage() {
       initialBusinessData={initialBusinessData}
       initialHistoryData={initialHistoryData}
       initialRegisterData={initialRegisterData}
+      initialSubscriptionsData={initialSubscriptionsData}
     />
   );
 }

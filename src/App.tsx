@@ -11,6 +11,7 @@ import type { ObligationsViewModel } from './lib/obligations-types';
 import type { ProjectionViewModel } from './lib/projection-types';
 import type { RegisterViewModel } from './lib/register-data';
 import type { TodayViewModel } from './lib/today-data';
+import type { SubscriptionsViewModel } from './lib/subscriptions-data';
 import AppShell from './features/app-shell/app-shell';
 import DecisionDashboard from './features/dashboard/components/decision-dashboard';
 import ExecutiveDashboard from './features/dashboard/components/executive-dashboard';
@@ -26,6 +27,7 @@ import RegisterScreen from './features/register/register-screen';
 import ConfiguracionScreen from './components/ConfiguracionScreen';
 import SuperAdminScreen from './components/SuperAdminScreen';
 import MasScreen from './components/MasScreen';
+import SubscriptionsScreen from './features/more/subscriptions-screen';
 
 export type ThemeId = 'arca-dark' | 'neon-night' | 'glass-ocean' | 'arca-light';
 
@@ -39,6 +41,7 @@ export default function App({
   initialBusinessData,
   initialHistoryData,
   initialRegisterData,
+  initialSubscriptionsData,
 }: {
   initialTodayData: TodayViewModel;
   initialMoneyData: MoneyViewModel;
@@ -49,6 +52,7 @@ export default function App({
   initialBusinessData: BusinessViewModel;
   initialHistoryData: HistoryViewModel;
   initialRegisterData: RegisterViewModel;
+  initialSubscriptionsData: SubscriptionsViewModel;
 }) {
   const [currentScreen, setCurrentScreen] = useState<Screen>('hoy');
   const [theme, setTheme] = useState<ThemeId>(() => {
@@ -101,6 +105,7 @@ export default function App({
       case 'calendario': return <CalendarScreen onBack={backToMas} data={initialCalendarData} />;
       case 'transferir': return <TransferScreen onBack={backToMas} accounts={initialMoneyData.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance }))} />;
       case 'superadmin': return <SuperAdminScreen onBack={backToMas} />;
+      case 'suscripciones': return <SubscriptionsScreen onBack={backToMas} data={initialSubscriptionsData} />;
       case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} /></div>;
       default: return <DecisionDashboard data={initialTodayData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
     }

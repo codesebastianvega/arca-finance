@@ -57,6 +57,9 @@ export async function loadProjectionViewModel(context: WorkspaceContext): Promis
     throw new Error("Supabase no esta configurado.");
   }
 
+  // Force token refresh in-memory so that RPC calls use a valid token
+  await supabase.auth.getUser();
+
   const rpcClient = supabase as typeof supabase & {
     rpc: (
       fn: string,

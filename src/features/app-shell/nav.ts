@@ -13,7 +13,8 @@ import {
   Settings,
   ShieldAlert,
   CreditCard,
-  PiggyBank
+  PiggyBank,
+  Repeat
 } from 'lucide-react';
 import { Screen } from '../../types';
 
@@ -39,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'negocios', label: 'Negocios', icon: Briefcase, category: 'secondary' },
   { id: 'movimientos', label: 'Movimientos', icon: History, category: 'secondary' },
   { id: 'transferir', label: 'Transferir', icon: Send, category: 'secondary' },
+  { id: 'suscripciones', label: 'Suscripciones', icon: Repeat, category: 'secondary' },
   
   // Money Sub-screens
   { id: 'dinero_tarjetas', label: 'Tarjetas', icon: CreditCard, category: 'hidden' },
