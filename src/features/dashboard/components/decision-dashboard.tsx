@@ -184,36 +184,53 @@ export default function DecisionDashboard({
             {budget.hasBudget ? "LÍMITE DEFINIDO" : "CONFIGURAR"}
           </span>
         </div>
-        <div className="card-arca p-5 relative overflow-hidden flex flex-col gap-5">
-          {/* Ingresos */}
-          <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">INGRESOS</span>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-arca-text-secondary">Recibidos</span>
-              <span className="font-semibold text-arca-positive">{formatCOP(monthlyBudget.receivedIncomes)}</span>
+        <div className="relative overflow-hidden rounded-2xl p-4 border border-white/10 border-t-white/20 border-l-white/10 shadow-lg shadow-black/20 flex flex-col gap-3"
+           style={{
+             background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%)",
+             backdropFilter: "blur(10px)"
+           }}>
+          
+          {/* Decorative elements */}
+          <div className="absolute -right-20 -top-20 w-40 h-40 bg-arca-positive rounded-full opacity-10 blur-3xl pointer-events-none"></div>
+          <div className="absolute -left-20 -bottom-20 w-40 h-40 bg-arca-accent rounded-full opacity-10 blur-3xl pointer-events-none"></div>
+          
+          <div className="flex gap-4 relative z-10">
+            {/* Ingresos (Left) */}
+            <div className="flex-1 flex flex-col gap-1.5">
+              <span className="text-[9px] font-bold text-arca-text-dim uppercase tracking-widest">INGRESOS</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Recibidos</span>
+                <span className="font-semibold text-arca-positive drop-shadow-sm">{formatCOP(monthlyBudget.receivedIncomes)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Esperados</span>
+                <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.expectedIncomes)}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-arca-text-secondary">Esperados</span>
-              <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.expectedIncomes)}</span>
-            </div>
-            <div className="w-full h-[1px] bg-arca-border/50 my-1"></div>
-            <div className="flex justify-between items-center text-sm font-bold">
-              <span className="text-white">Proyección Total</span>
-              <span className="text-white">{formatCOP(monthlyBudget.receivedIncomes + monthlyBudget.expectedIncomes)}</span>
+
+            {/* Divider */}
+            <div className="w-[1px] bg-arca-border/50 my-1"></div>
+
+            {/* Gastos y Obligaciones (Right) */}
+            <div className="flex-1 flex flex-col gap-1.5">
+              <span className="text-[9px] font-bold text-arca-text-dim uppercase tracking-widest">OBLIGACIONES</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Pagadas</span>
+                <span className="font-semibold text-arca-text-primary">{formatCOP(monthlyBudget.paidObligations)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Pendientes</span>
+                <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.pendingObligations)}</span>
+              </div>
             </div>
           </div>
+
+          <div className="w-full h-[1px] bg-arca-border/50 my-0.5 relative z-10"></div>
           
-          {/* Gastos y Obligaciones */}
-          <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">OBLIGACIONES</span>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-arca-text-secondary">Pagadas</span>
-              <span className="font-semibold text-arca-text-primary">{formatCOP(monthlyBudget.paidObligations)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-arca-text-secondary">Pendientes</span>
-              <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.pendingObligations)}</span>
-            </div>
+          {/* Proyección Total */}
+          <div className="flex justify-between items-center font-bold relative z-10">
+            <span className="text-xs text-arca-text-secondary">Proyección Total</span>
+            <span className="text-base text-[#9CA88D] drop-shadow-sm tracking-tight">{formatCOP(monthlyBudget.receivedIncomes + monthlyBudget.expectedIncomes)}</span>
           </div>
 
           {/* Barra de Consumo de Límite (si hay presupuesto global) */}
@@ -236,20 +253,28 @@ export default function DecisionDashboard({
 
       {/* TRES TARJETAS */}
       <div className="grid grid-cols-3 gap-3">
-        <div onClick={onOpenObligations} className="card-arca flex flex-col items-center justify-center p-3 gap-1 cursor-pointer hover:opacity-80 transition-opacity">
-          <CheckCircle2 size={18} className="text-arca-positive light:text-arca-light-positive" />
-          <span className="text-xl font-bold text-arca-accent light:text-arca-light-accent">{metrics.onTime}</span>
-          <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">A TIEMPO</span>
+        {/* A TIEMPO */}
+        <div onClick={onOpenObligations} 
+             className="bg-arca-surface-1 light:bg-arca-light-surface-1 border border-arca-border/40 light:border-arca-light-border/60 rounded-2xl flex flex-col items-center justify-center py-3.5 px-2 cursor-pointer hover:bg-arca-surface-2 light:hover:bg-arca-light-surface-2 transition-colors shadow-sm">
+          <CheckCircle2 size={16} className="text-arca-positive light:text-arca-light-positive mb-1" />
+          <span className="text-lg font-black text-arca-text-primary light:text-arca-light-text-primary leading-none mb-1">{metrics.onTime}</span>
+          <span className="text-[9px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary uppercase">A Tiempo</span>
         </div>
-        <div onClick={onOpenObligations} className="card-arca flex flex-col items-center justify-center p-3 gap-1 cursor-pointer hover:opacity-80 transition-opacity">
-          <ArrowUpRight size={18} className="text-arca-accent light:text-arca-light-accent" />
-          <span className="text-xl font-bold text-arca-accent light:text-arca-light-accent">{metrics.advanced}</span>
-          <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">ADELANTADOS</span>
+
+        {/* ADELANTADOS */}
+        <div onClick={onOpenObligations} 
+             className="bg-arca-surface-1 light:bg-arca-light-surface-1 border border-arca-border/40 light:border-arca-light-border/60 rounded-2xl flex flex-col items-center justify-center py-3.5 px-2 cursor-pointer hover:bg-arca-surface-2 light:hover:bg-arca-light-surface-2 transition-colors shadow-sm">
+          <ArrowUpRight size={16} className="text-arca-accent light:text-arca-light-accent mb-1" />
+          <span className="text-lg font-black text-arca-text-primary light:text-arca-light-text-primary leading-none mb-1">{metrics.advanced}</span>
+          <span className="text-[9px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary uppercase">Adelantados</span>
         </div>
-        <div onClick={onOpenObligations} className="card-arca flex flex-col items-center justify-center p-3 gap-1 cursor-pointer hover:opacity-80 transition-opacity">
-          <Clock size={18} className="text-arca-alert light:text-arca-light-alert" />
-          <span className="text-xl font-bold text-arca-alert light:text-arca-light-alert">{metrics.late}</span>
-          <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">ATRASADOS</span>
+
+        {/* ATRASADOS */}
+        <div onClick={onOpenObligations} 
+             className="bg-arca-surface-1 light:bg-arca-light-surface-1 border border-arca-border/40 light:border-arca-light-border/60 rounded-2xl flex flex-col items-center justify-center py-3.5 px-2 cursor-pointer hover:bg-arca-surface-2 light:hover:bg-arca-light-surface-2 transition-colors shadow-sm">
+          <Clock size={16} className="text-arca-alert light:text-arca-light-alert mb-1" />
+          <span className="text-lg font-black text-arca-text-primary light:text-arca-light-text-primary leading-none mb-1">{metrics.late}</span>
+          <span className="text-[9px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary uppercase">Atrasados</span>
         </div>
       </div>
       {/* CAJA LIBRE (Credit Card Glass) */}
