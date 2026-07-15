@@ -237,10 +237,10 @@ export default function ObligationsScreen({ data }: { data: ObligationsViewModel
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className={`text-sm font-bold ${item.status === "overdue" ? "text-arca-alert" : "text-arca-text-primary light:text-arca-light-text-primary"}`}>
+                  <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary">
                     {item.amountLabel}
                   </p>
-                  {item.status === "overdue" ? <p className="text-[9px] font-bold uppercase text-arca-alert">Atrasado</p> : null}
+                  {item.status === "overdue" ? <p className="text-[9px] font-bold uppercase tracking-widest text-arca-alert/80 mt-0.5">Atrasado</p> : null}
                 </div>
               </div>
             </motion.div>
