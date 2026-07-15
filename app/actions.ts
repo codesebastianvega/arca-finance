@@ -1324,7 +1324,7 @@ export async function createCreditCard(input: {
 
   const palette = creditCardBrandPalette(issuer);
 
-  const { error } = await admin.from("credit_cards").insert({
+  const { data: credit, error } = await admin.from("credit_cards").insert({
     workspace_id: context.workspace.id,
     name,
     issuer,
@@ -1342,10 +1342,44 @@ export async function createCreditCard(input: {
     status: input.limitValue > 0 && input.used >= input.limitValue ? "blocked" : "active",
     brand_color: palette.brand,
     text_color: palette.text,
-  });
+  }).select("id").single();
 
-  if (error) {
-    throw new Error(`No se pudo crear la tarjeta: ${error.message}`);
+  if (error || !credit) {
+    throw new Error(`No se pudo crear la tarjeta: ${error?.message}`);
+  }
+
+  // Generar eventos programados (Agenda) para los próximos 12 meses
+  if (input.minimumPayment > 0) {
+    const eventsToInsert = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 12; i++) {
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() + i, payDueDate);
+      
+      // Si la fecha ya pasó este mes, empezamos desde el próximo
+      if (i === 0 && nextMonth < today) {
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+      }
+      
+      const tzOffset = nextMonth.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(nextMonth.getTime() - tzOffset)).toISOString().split('T')[0];
+  
+      eventsToInsert.push({
+        workspace_id: context.workspace.id,
+        kind: "card_payment",
+        title: `Pago TDC ${name}`,
+        amount: input.minimumPayment,
+        due_date: localISOTime,
+        status: "pending",
+        source_type: "credit_card",
+        linked_entity_type: "credit_card",
+        linked_entity_id: credit.id,
+      });
+    }
+
+    if (eventsToInsert.length > 0) {
+      await admin.from("scheduled_events").insert(eventsToInsert);
+    }
   }
 
   revalidatePath("/app");

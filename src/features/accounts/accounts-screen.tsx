@@ -426,6 +426,7 @@ export default function AccountsScreen({
                     dueDate={card.dueDateLabel}
                     color={card.color}
                     darkText={card.darkText}
+                    minPayment={card.minimumPayment}
                     onClick={() => openEntity({ ...card, entityType: "tarjeta" })}
                   />
                 ))}
@@ -1102,6 +1103,7 @@ function WalletCard({
   dueDate: string;
   color: string;
   darkText: boolean;
+  minPayment?: number;
   onClick: () => void;
 }) {
   const percentage = limit > 0 ? (used / limit) * 100 : 0;
@@ -1143,9 +1145,16 @@ function WalletCard({
           <p className="text-xs font-medium opacity-80">{name}</p>
           <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mt-1">{issuer}</p>
           <p className="text-xl font-bold mt-1">{money(used)}</p>
-          <p className="text-[10px] font-bold uppercase tracking-widest opacity-70 mt-2">
-            Disponible: {money(available)}
-          </p>
+          <div className="flex justify-between items-center mt-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">
+              Disponible: {money(available)}
+            </p>
+            {minPayment != null && minPayment > 0 && (
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 text-arca-positive bg-white/10 px-2 py-0.5 rounded">
+                Cuota: {money(minPayment)}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-1.5">

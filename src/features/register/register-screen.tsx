@@ -152,7 +152,6 @@ const OBLIGATION_TYPES = [
   { id: 'mercado', label: 'Mercado' },
   { id: 'educacion', label: 'Educación' },
   { id: 'salud', label: 'Salud' },
-  { id: 'prestamo_recibido', label: 'Préstamo personal (Recibido)' },
   { id: 'otro', label: 'Otro' },
 ];
 

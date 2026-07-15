@@ -1647,7 +1647,7 @@ alter table public.bank_credits force row level security;
 create policy "bank credits workspace access" on public.bank_credits
   for all using (
     workspace_id in (
-      select id from public.workspaces where user_id = auth.uid()
+      select workspace_id from public.workspace_members where user_id = auth.uid()
     )
   );
 
