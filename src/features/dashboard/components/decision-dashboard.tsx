@@ -337,15 +337,15 @@ export default function DecisionDashboard({
                   <div key={p.id} className="p-4 flex justify-between items-center group cursor-pointer hover:bg-arca-bg-secondary light:hover:bg-arca-light-bg-secondary transition-colors" onClick={() => onOpenObligations?.()}>
                     <div className="flex flex-col gap-1">
                       <span className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary group-hover:text-arca-accent light:group-hover:text-arca-light-accent transition-colors">{p.title}</span>
-                      {p.status === "overdue" ? (
-                        <span className="text-[9px] font-bold tracking-widest text-white bg-arca-alert px-2 py-0.5 rounded-full uppercase self-start animate-pulse shadow-sm shadow-arca-alert/50">
-                          URGENTE: {p.dueLabel}
-                        </span>
-                      ) : (
-                        <span className={`text-[10px] font-bold ${p.status === "today" ? "text-arca-accent light:text-arca-light-accent" : "text-arca-text-secondary light:text-arca-light-text-secondary"}`}>{p.dueLabel}</span>
-                      )}
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                        p.status === "overdue" ? "text-arca-alert" :
+                        p.status === "today" ? "text-arca-accent light:text-arca-light-accent" :
+                        "text-arca-text-secondary light:text-arca-light-text-secondary"
+                      }`}>
+                        {p.dueLabel}
+                      </span>
                     </div>
-                    <span className="text-sm font-bold text-arca-alert">-{formatCOP(p.amount)}</span>
+                    <span className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary">{formatCOP(p.amount)}</span>
                   </div>
                 ))}
               </div>
