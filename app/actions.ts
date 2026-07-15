@@ -1356,11 +1356,6 @@ export async function createCreditCard(input: {
     for (let i = 0; i < 12; i++) {
       const nextMonth = new Date(today.getFullYear(), today.getMonth() + i, payDueDate);
       
-      // Si la fecha ya pasó este mes, empezamos desde el próximo
-      if (i === 0 && nextMonth < today) {
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-      }
-      
       const tzOffset = nextMonth.getTimezoneOffset() * 60000;
       const localISOTime = (new Date(nextMonth.getTime() - tzOffset)).toISOString().split('T')[0];
   
@@ -1438,11 +1433,6 @@ export async function createBankCredit(input: {
   
   for (let i = 0; i < Math.min(12, input.totalInstallments - input.paidInstallments); i++) {
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + i, payDueDate);
-    
-    // Si la fecha ya pasó este mes, empezamos desde el próximo
-    if (i === 0 && nextMonth < today) {
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-    }
     
     const eventDateStr = new Intl.DateTimeFormat("en-CA", {
       year: "numeric", month: "2-digit", day: "2-digit"
