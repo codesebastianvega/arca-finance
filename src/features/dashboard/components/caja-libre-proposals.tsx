@@ -56,7 +56,7 @@ export function CajaLibreProposals({ cash }: Props) {
             {cash.protectedSavings > 0 && (
               <div className="flex flex-col gap-1 items-end">
                 <span className="text-[9px] uppercase tracking-widest text-arca-positive/80">Bolsillos</span>
-                <span className="text-xs font-bold text-arca-positive">−{formatCOP(cash.protectedSavings)}</span>
+                <span className="text-xs font-bold text-arca-positive">{formatCOP(cash.protectedSavings)}</span>
               </div>
             )}
           </div>

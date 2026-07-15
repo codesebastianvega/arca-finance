@@ -53,7 +53,7 @@ const ACCOUNT_ENTITIES = [
   { id: "efectivo", name: "Efectivo", color: "#2E7D32", textColor: "#FFFFFF" },
 ];
 
-type TabId = "cuentas" | "tarjetas" | "ahorro";
+type TabId = "cuentas" | "tarjetas" | "creditos" | "ahorro";
 type EditableEntity =
   | ({ entityType: "cuenta" } & MoneyAccount)
   | ({ entityType: "tarjeta" } & MoneyCard)
@@ -144,6 +144,7 @@ export default function AccountsScreen({
   const tabs = [
     { id: "cuentas", label: "Cuentas" },
     { id: "tarjetas", label: "Tarjetas" },
+    { id: "creditos", label: "Créditos" },
     { id: "ahorro", label: "Ahorro" },
   ] as const;
 
@@ -152,6 +153,7 @@ export default function AccountsScreen({
   const hasData =
     (activeTab === "cuentas" && data.accounts.length > 0) ||
     (activeTab === "tarjetas" && data.cards.length > 0) ||
+    (activeTab === "creditos" && data.bankCredits?.length > 0) ||
     (activeTab === "ahorro" && data.savings.length > 0);
 
   const savingsForDeposit = useMemo(() => goals.length > 0 ? goals : data.savings, [goals, data.savings]);
@@ -357,6 +359,7 @@ export default function AccountsScreen({
               const segmentMap: Record<TabId, string> = {
                 cuentas: "Cuenta",
                 tarjetas: "Tarjeta",
+                creditos: "Credito",
                 ahorro: "Ahorro",
               };
               window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: segmentMap[activeTab] } }));
@@ -424,6 +427,40 @@ export default function AccountsScreen({
                     color={card.color}
                     darkText={card.darkText}
                     onClick={() => openEntity({ ...card, entityType: "tarjeta" })}
+                  />
+                ))}
+              </div>
+            )}
+
+            {activeTab === "creditos" && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center px-1 mb-2">
+                  <span className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Créditos Bancarios</span>
+                  <button
+                    onClick={() => {
+                      haptics.medium();
+                      window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Credito" } }));
+                    }}
+                    className="w-8 h-8 rounded-lg bg-arca-accent/10 flex items-center justify-center text-arca-accent hover:bg-arca-accent hover:text-white transition-all"
+                    title="Nuevo crédito"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+                {data.bankCredits?.map((credit) => (
+                  <BankCreditCard
+                    key={credit.id}
+                    name={credit.name}
+                    paidInstallments={credit.paidInstallments}
+                    totalInstallments={credit.totalInstallments}
+                    currentBalance={credit.currentBalance}
+                    monthlyPayment={credit.monthlyPayment}
+                    payDueDay={credit.payDueDay}
+                    color={credit.color}
+                    darkText={credit.darkText}
+                    onClick={() => {
+                      // TODO: openEntity
+                    }}
                   />
                 ))}
               </div>
@@ -1125,6 +1162,71 @@ function WalletCard({
             <span>Cupo: {money(limit)}</span>
           </div>
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function BankCreditCard({
+  name,
+  paidInstallments,
+  totalInstallments,
+  currentBalance,
+  monthlyPayment,
+  payDueDay,
+  color,
+  darkText,
+  onClick,
+}: {
+  name: string;
+  paidInstallments: number;
+  totalInstallments: number;
+  currentBalance: number;
+  monthlyPayment: number;
+  payDueDay: number;
+  color: string;
+  darkText: boolean;
+  onClick: () => void;
+}) {
+  const percentage = totalInstallments > 0 ? (paidInstallments / totalInstallments) * 100 : 0;
+
+  return (
+    <motion.div
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className="rounded-2xl p-5 border border-arca-border light:border-arca-light-border relative overflow-hidden cursor-pointer active:brightness-95"
+      style={{ backgroundColor: color }}
+    >
+      <div className="absolute -right-10 -bottom-10 w-32 h-32 rounded-full bg-white/10" />
+
+      <div className={`relative z-10 space-y-6 ${darkText ? "text-[#2A2117]" : "text-white"}`}>
+        <div className="flex justify-between items-start">
+          <CardIcon size={24} opacity={0.8} />
+          <div className="text-right space-y-1">
+            <span className="block text-[10px] font-bold uppercase tracking-widest opacity-80">Pago día {payDueDay}</span>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <h3 className="text-xl font-bold tracking-tight truncate">{name}</h3>
+          <p className="text-xs opacity-80">Cuota: {money(monthlyPayment)}</p>
+        </div>
+
+        <div className="flex items-end justify-between pt-2">
+          <div className="space-y-1">
+            <span className="block text-[9px] font-bold uppercase tracking-widest opacity-70">Saldo</span>
+            <span className="block text-lg font-black">{money(currentBalance)}</span>
+          </div>
+          <div className="text-right space-y-1">
+            <span className="block text-[9px] font-bold uppercase tracking-widest opacity-70">Progreso</span>
+            <span className="block text-sm font-bold">{paidInstallments} de {totalInstallments}</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Progress bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/10">
+        <div className="h-full bg-white/50" style={{ width: `${percentage}%` }} />
       </div>
     </motion.div>
   );

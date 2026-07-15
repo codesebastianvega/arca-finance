@@ -729,6 +729,7 @@ export async function createScheduledObligation(input: {
   notes?: string | null;
   interestRate?: number | null;
   installments?: number | null;
+  frequency?: string | null;
 }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
@@ -772,23 +773,74 @@ export async function createScheduledObligation(input: {
     installments != null && installments > 0 ? `Cuotas: ${installments}` : null,
     userNotes,
   ].filter(Boolean);
+  
+  const frequency = input.frequency || 'once';
+  
+  const eventsToInsert = [];
+  let currentDate = new Date(`${dueDate}T00:00:00-05:00`);
+  let maxOccurrences = 1;
+  let monthsInterval = 1;
 
-  const { error } = await admin.from("scheduled_events").insert({
-    workspace_id: context.workspace.id,
-    due_date: dueDate,
-    title,
-    amount,
-    kind,
-    status: "scheduled",
-    priority,
-    account_id: accountId,
-    suggested_account_id: accountId,
-    linked_entity_type: obligationType,
-    notes: notesParts.length > 0 ? notesParts.join(" · ") : null,
-  });
+  if (frequency === 'monthly') { maxOccurrences = 12; monthsInterval = 1; }
+  else if (frequency === 'bimonthly') { maxOccurrences = 6; monthsInterval = 2; }
+  else if (frequency === 'quarterly') { maxOccurrences = 4; monthsInterval = 3; }
+  else if (frequency === 'biannual') { maxOccurrences = 2; monthsInterval = 6; }
+  else if (frequency === 'annual') { maxOccurrences = 1; monthsInterval = 12; } // Just 1 for annual in a 1 year projection
+
+  for (let i = 0; i < maxOccurrences; i++) {
+    const eventDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + (i * monthsInterval), currentDate.getDate());
+    const eventDateStr = new Intl.DateTimeFormat("en-CA", {
+      year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(eventDate);
+
+    eventsToInsert.push({
+      workspace_id: context.workspace.id,
+      due_date: eventDateStr,
+      title,
+      amount,
+      kind,
+      status: "scheduled",
+      priority,
+      account_id: accountId,
+      suggested_account_id: accountId,
+      linked_entity_type: obligationType,
+      notes: notesParts.length > 0 ? notesParts.join(" · ") : null,
+    });
+  }
+
+  const { error } = await admin.from("scheduled_events").insert(eventsToInsert);
 
   if (error) {
     throw new Error(`No se pudo crear la obligacion: ${error.message}`);
+  }
+
+  if (obligationType === "prestamo_recibido" && accountId) {
+    // Add funds immediately to the destination account
+    const { data: currentAcc } = await admin.from("accounts").select("balance").eq("id", accountId).single();
+    if (currentAcc) {
+      const currentBalance = typeof currentAcc.balance === "number" ? currentAcc.balance : Number(currentAcc.balance ?? 0);
+      await admin.from("accounts").update({ balance: currentBalance + amount }).eq("id", accountId);
+      
+      const tzDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Bogota",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).format(new Date()).replace(", ", "T");
+
+      await admin.from("transactions").insert({
+        workspace_id: context.workspace.id,
+        kind: "transfer_in",
+        amount: amount,
+        account_id: accountId,
+        title: `Préstamo recibido: ${title}`,
+        date: tzDate,
+      });
+    }
   }
 
   revalidatePath("/app");
@@ -1298,6 +1350,90 @@ export async function createCreditCard(input: {
 
   revalidatePath("/app");
   return { ok: true };
+}
+
+export async function createBankCredit(input: {
+  name: string;
+  totalAmount: number;
+  currentBalance: number;
+  monthlyPayment: number;
+  interestRate?: number | null;
+  totalInstallments: number;
+  paidInstallments: number;
+  payDueDate: number;
+  notes?: string | null;
+  brandColor?: string | null;
+  textColor?: string | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const name = input.name.trim();
+
+  if (!name) throw new Error("El crédito necesita un nombre.");
+  if (!Number.isFinite(input.totalAmount) || input.totalAmount <= 0) throw new Error("El monto total debe ser válido.");
+  if (!Number.isFinite(input.currentBalance) || input.currentBalance < 0) throw new Error("El saldo actual debe ser válido.");
+  
+  const payDueDate = Math.min(31, Math.max(1, Math.trunc(input.payDueDate || 1)));
+
+  const { data: credit, error } = await admin.from("bank_credits").insert({
+    workspace_id: context.workspace.id,
+    name,
+    total_amount: input.totalAmount,
+    current_balance: input.currentBalance,
+    monthly_payment: input.monthlyPayment,
+    interest_rate: input.interestRate ?? null,
+    total_installments: input.totalInstallments,
+    paid_installments: input.paidInstallments,
+    pay_due_date: payDueDate,
+    notes: input.notes?.trim() || null,
+    brand_color: input.brandColor || "#16735b",
+    text_color: input.textColor || "#ffffff",
+    status: input.currentBalance <= 0 ? "paid" : "active",
+  }).select("id").single();
+
+  if (error || !credit) {
+    throw new Error(`No se pudo crear el crédito: ${error?.message}`);
+  }
+
+  // Generar eventos programados (Agenda) para los próximos 12 meses
+  const eventsToInsert = [];
+  const today = new Date();
+  
+  for (let i = 0; i < Math.min(12, input.totalInstallments - input.paidInstallments); i++) {
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + i, payDueDate);
+    
+    // Si la fecha ya pasó este mes, empezamos desde el próximo
+    if (i === 0 && nextMonth < today) {
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+    }
+    
+    const eventDateStr = new Intl.DateTimeFormat("en-CA", {
+      year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(nextMonth);
+
+    eventsToInsert.push({
+      workspace_id: context.workspace.id,
+      due_date: eventDateStr,
+      title: `Pago Cuota ${name}`,
+      amount: input.monthlyPayment,
+      kind: "debt_payment",
+      status: "scheduled",
+      priority: "high",
+      linked_entity_type: "bank_credit",
+      linked_entity_id: credit.id,
+      notes: `Cuota ${input.paidInstallments + i + 1} de ${input.totalInstallments}`,
+    });
+  }
+
+  if (eventsToInsert.length > 0) {
+    await admin.from("scheduled_events").insert(eventsToInsert);
+  }
+
+  revalidatePath("/app");
+  return { ok: true, id: credit.id };
 }
 
 export async function updateSavingsGoal(input: { id: string; name: string; current: number; dueDate?: string | null }) {
@@ -2001,8 +2137,11 @@ export async function deleteManualTransaction(transactionId: string) {
     throw new Error(`No se pudo leer el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
   }
 
-  if (transaction.source_type && transaction.source_type !== "manual" && transaction.source_type !== "income_source") {
-    throw new Error("Este movimiento viene de otro flujo y no se puede borrar aqui.");
+  // Permitir borrar cualquier movimiento, independientemente de su source_type.
+  // Si viene de una obligación, revertiremos el scheduled_event a pending.
+  if (transaction.source_type === "income_source") {
+    // Si queremos mantener alguna regla especial para income_source, podemos hacerlo,
+    // pero por ahora dejaremos que fluya.
   }
 
   if (transaction.account_id) {
@@ -2041,6 +2180,19 @@ export async function deleteManualTransaction(transactionId: string) {
 
   if (deleteError) {
     throw new Error(`No se pudo borrar el movimiento: ${deleteError.message}`);
+  }
+
+  // Si este movimiento venía de una obligación o agenda, desvincularlo y volver la obligación a pendiente.
+  if (transaction.source_type === "scheduled_event") {
+    const { error: resetEventError } = await admin
+      .from("scheduled_events")
+      .update({ status: "pending", confirmed_transaction_id: null })
+      .eq("confirmed_transaction_id", transactionId)
+      .eq("workspace_id", context.workspace.id);
+      
+    if (resetEventError) {
+      console.error("Error restableciendo la obligación:", resetEventError);
+    }
   }
 
   revalidatePath("/app");
@@ -2353,14 +2505,10 @@ export async function resolveReceivable(
         category: "Prestamo",
         unit: "general",
         date: new Date().toISOString(),
-        month: new Date().toISOString().substring(0, 7), // YYYY-MM
-        year: new Date().getFullYear().toString(),
-        kind: "income",
-        status: "active",
-        recurrence_mode: "none",
+        kind: "transfer_in",
+        status: "confirmed",
         posted_at: new Date().toISOString(),
         source_type: "receivable",
-        source_id: id,
         metadata: {
           receivable_id: id,
           debtor_name: receivable.debtor_name,

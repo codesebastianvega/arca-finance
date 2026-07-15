@@ -303,7 +303,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data }: {
             data.incomeSources.map(source => (
               <div key={source.id} className="flex justify-between items-center p-4 bg-arca-surface-1 rounded-2xl border border-arca-border">
                 <div>
-                  <span className="block text-sm font-semibold text-arca-text-primary">{source.name}</span>
+                  <span className="block text-sm font-semibold text-arca-text-primary">{source.label}</span>
                   <span className="block text-[10px] text-arca-text-dim uppercase tracking-widest font-bold">{source.unitKey}</span>
                 </div>
                 <button 

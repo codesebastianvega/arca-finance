@@ -71,7 +71,6 @@ export async function loadObligationsViewModel(context: WorkspaceContext): Promi
       .from("scheduled_events")
       .select("id, title, amount, due_date, priority, kind, notes, account_id, suggested_account_id, status, template_id")
       .eq("workspace_id", workspaceId)
-      .not("kind", "eq", "income")
       .not("status", "in", '("confirmed","confirmado","paid","cancelled","cancelado")')
       .order("due_date", { ascending: true }),
     supabase
@@ -110,33 +109,12 @@ export async function loadObligationsViewModel(context: WorkspaceContext): Promi
     };
   });
 
-  const visibleWindow = rawItems.filter((item) => daysFromToday(item.dueDate) <= 15);
-  const grouped = new Map<string, ObligationItem[]>();
-
-  for (const item of visibleWindow) {
-    const key = item.templateId ? `template:${item.templateId}` : `single:${item.id}`;
-    const bucket = grouped.get(key) ?? [];
-    bucket.push(item);
-    grouped.set(key, bucket);
-  }
-
-  const items: ObligationItem[] = Array.from(grouped.values())
-    .map((bucket) => {
-      const sorted = [...bucket].sort((a, b) => {
-        const diffA = daysFromToday(a.dueDate);
-        const diffB = daysFromToday(b.dueDate);
-
-        if (diffA < 0 && diffB < 0) return Math.abs(diffA) - Math.abs(diffB);
-        if (diffA < 0) return -1;
-        if (diffB < 0) return 1;
-        return diffA - diffB;
-      });
-
-      return {
-        ...sorted[0],
-        groupedOccurrences: bucket.length,
-      };
-    })
+  const visibleWindow = rawItems;
+  const items: ObligationItem[] = rawItems
+    .map((item) => ({
+      ...item,
+      groupedOccurrences: 1,
+    }))
     .sort((a, b) => {
       const diffA = daysFromToday(a.dueDate);
       const diffB = daysFromToday(b.dueDate);

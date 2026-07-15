@@ -25,8 +25,12 @@ export default function ObligationsScreen({ data }: { data: ObligationsViewModel
   const [editDueDate, setEditDueDate] = useState("");
   const [editAccountId, setEditAccountId] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [mode, setMode] = useState<"gastos" | "ingresos">("gastos");
 
-  const items = useMemo(() => filterObligations(data.items, filter), [data.items, filter]);
+  const items = useMemo(() => {
+    const baseFiltered = filterObligations(data.items, filter);
+    return baseFiltered.filter((item) => (mode === "gastos" ? item.kind !== "income" : item.kind === "income"));
+  }, [data.items, filter, mode]);
   const hasData = items.length > 0;
 
   const chips = [
@@ -145,6 +149,29 @@ export default function ObligationsScreen({ data }: { data: ObligationsViewModel
 
   return (
     <div className="space-y-6">
+      <div className="flex bg-arca-surface-2 light:bg-arca-light-surface-2 p-1 rounded-2xl">
+        <button
+          onClick={() => setMode("gastos")}
+          className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${
+            mode === "gastos"
+              ? "bg-arca-accent light:bg-arca-light-accent text-white shadow-sm"
+              : "text-arca-text-dim hover:text-arca-text-primary light:hover:text-arca-light-text-primary"
+          }`}
+        >
+          Gastos (Por pagar)
+        </button>
+        <button
+          onClick={() => setMode("ingresos")}
+          className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${
+            mode === "ingresos"
+              ? "bg-arca-accent light:bg-arca-light-accent text-white shadow-sm"
+              : "text-arca-text-dim hover:text-arca-text-primary light:hover:text-arca-light-text-primary"
+          }`}
+        >
+          Ingresos (Por cobrar)
+        </button>
+      </div>
+
       <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
         {chips.map((chip) => (
           <button
@@ -168,7 +195,9 @@ export default function ObligationsScreen({ data }: { data: ObligationsViewModel
           </div>
           <div>
             <p className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary uppercase tracking-widest">Al día</p>
-            <p className="text-xs text-arca-text-dim mt-1">No tienes obligaciones pendientes por ahora.</p>
+            <p className="text-xs text-arca-text-dim mt-1">
+              {mode === "gastos" ? "No tienes gastos pendientes por ahora." : "No tienes ingresos por cobrar por ahora."}
+            </p>
           </div>
         </div>
       ) : (
@@ -243,11 +272,11 @@ export default function ObligationsScreen({ data }: { data: ObligationsViewModel
                   <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
                     {selectedEntity.groupedOccurrences > 1
                       ? `${selectedEntity.groupedOccurrences} ocurrencias agrupadas`
-                      : 'Obligación financiera'}
+                      : selectedEntity.kind === 'income' ? 'Ingreso programado' : 'Obligación financiera'}
                   </p>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-arca-alert/10 flex items-center justify-center text-arca-alert">
-                  <AlertCircle size={20} />
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedEntity.kind === 'income' ? 'bg-arca-positive/10 text-arca-positive' : 'bg-arca-alert/10 text-arca-alert'}`}>
+                  {selectedEntity.kind === 'income' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
                 </div>
               </div>
 

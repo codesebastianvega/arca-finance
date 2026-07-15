@@ -1619,3 +1619,36 @@ drop trigger if exists set_updated_at_income_templates on public.income_template
 create trigger set_updated_at_income_templates before update on public.income_templates for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_expense_templates on public.expense_templates;
 create trigger set_updated_at_expense_templates before update on public.expense_templates for each row execute function public.set_updated_at();
+create table if not exists public.bank_credits (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  name text not null,
+  total_amount numeric not null default 0,
+  current_balance numeric not null default 0,
+  monthly_payment numeric not null default 0,
+  interest_rate numeric,
+  total_installments integer not null default 1,
+  paid_installments integer not null default 0,
+  pay_due_date integer not null default 1,
+  status text not null default 'active',
+  notes text,
+  brand_color text not null default '#000000',
+  text_color text not null default '#ffffff',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists bank_credits_workspace_status_idx
+  on public.bank_credits(workspace_id, status);
+
+alter table public.bank_credits enable row level security;
+alter table public.bank_credits force row level security;
+
+create policy "bank credits workspace access" on public.bank_credits
+  for all using (
+    workspace_id in (
+      select id from public.workspaces where user_id = auth.uid()
+    )
+  );
+
+create trigger set_updated_at_bank_credits before update on public.bank_credits for each row execute function public.set_updated_at();

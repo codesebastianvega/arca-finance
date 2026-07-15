@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Home, Wallet, ReceiptText, MoreHorizontal, Plus } from 'lucide-react';
+import { Home, Wallet, ReceiptText, MoreHorizontal, Plus, CalendarDays } from 'lucide-react';
 import { Screen } from '../types';
 import { haptics } from '../lib/haptics';
 
@@ -18,7 +18,7 @@ export default function BottomTabNavigation({
   const navItems: { label: string; icon: any; id: Screen }[] = [
     { label: 'Hoy', icon: Home, id: 'hoy' },
     { label: 'Dinero', icon: Wallet, id: 'dinero_cuentas' },
-    { label: 'Obligaciones', icon: ReceiptText, id: 'obligaciones' },
+    { label: 'Agenda', icon: CalendarDays, id: 'obligaciones' },
     { label: 'Más', icon: MoreHorizontal, id: 'mas' },
   ];
 

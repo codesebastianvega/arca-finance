@@ -272,9 +272,11 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
   // Available balance has already had the savings deducted in database.
   // So the total physical balance is Available + Savings.
   const totalBalance = totalAvailableBalance + protectedSavings;
-  const rawSafeToSpend = totalAvailableBalance - pendingCritical;
+  
+  // User requested not to deduct pending obligations from available money
+  const rawSafeToSpend = totalAvailableBalance;
   const safeToSpend = Math.max(0, rawSafeToSpend);
-  const shortfallAgainstProtected = rawSafeToSpend < 0 ? Math.abs(rawSafeToSpend) : 0;
+  const shortfallAgainstProtected = 0;
 
   const metricsBase: Record<TodayMetricKey, number> = { onTime: 0, advanced: 0, late: 0 };
   for (const row of (scheduledResult.data ?? []) as ScheduledEventRow[]) {

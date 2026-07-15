@@ -57,9 +57,26 @@ export type MoneyAccount = {
   pockets: MoneySaving[];
 };
 
+export type BankCredit = {
+  id: string;
+  name: string;
+  totalAmount: number;
+  currentBalance: number;
+  monthlyPayment: number;
+  interestRate: number | null;
+  totalInstallments: number;
+  paidInstallments: number;
+  payDueDay: number;
+  notes: string;
+  status: string;
+  color: string;
+  darkText: boolean;
+};
+
 export type MoneyViewModel = {
   accounts: MoneyAccount[];
   cards: MoneyCard[];
+  bankCredits: BankCredit[];
   savings: MoneySaving[];
   spending: {
     total: number;
@@ -160,7 +177,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   const workspaceId = context.workspace.id;
   const monthBounds = monthBoundsInBogota();
 
-  const [accountsResult, rawCardsResult, savingsResult, transactionsResult] = await Promise.all([
+  const [accountsResult, rawCardsResult, savingsResult, transactionsResult, bankCreditsResult] = await Promise.all([
     supabase.from("accounts").select("id, name, entity, type, balance, color, active, archived").eq("workspace_id", workspaceId).eq("active", true).eq("archived", false).order("created_at", { ascending: true }),
     supabase
       .from("credit_cards")
@@ -180,6 +197,11 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .eq("workspace_id", workspaceId)
       .gte("date", `${monthBounds.start}T00:00:00-05:00`)
       .lt("date", `${monthBounds.nextMonth}T00:00:00-05:00`),
+    supabase
+      .from("bank_credits")
+      .select("id, name, total_amount, current_balance, monthly_payment, interest_rate, total_installments, paid_installments, pay_due_date, notes, status, brand_color, text_color")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: true }),
   ]);
 
   let cardsResult: typeof rawCardsResult | any = rawCardsResult;
@@ -197,6 +219,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   if (cardsResult.error) throw new Error(`No se pudieron leer las tarjetas: ${cardsResult.error.message}`);
   if (savingsResult.error) throw new Error(`No se pudo leer el ahorro: ${savingsResult.error.message}`);
   if (transactionsResult.error) throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);
+  // If bankCredits fail, don't throw, just map to empty array as user may not have applied SQL migration yet.
 
   const allSavings: MoneySaving[] = (savingsResult.data ?? []).map((row) => {
     const current = toNumber(row.current);
@@ -280,9 +303,26 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
 
   const spendingTotal = breakdown.reduce((sum, item) => sum + item.value, 0);
 
+  const bankCredits: BankCredit[] = (bankCreditsResult?.data ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    totalAmount: toNumber(row.total_amount),
+    currentBalance: toNumber(row.current_balance),
+    monthlyPayment: toNumber(row.monthly_payment),
+    interestRate: row.interest_rate != null ? toNumber(row.interest_rate) : null,
+    totalInstallments: toNumber(row.total_installments),
+    paidInstallments: toNumber(row.paid_installments),
+    payDueDay: toNumber(row.pay_due_date),
+    notes: String(row.notes || ""),
+    status: String(row.status),
+    color: String(row.brand_color || "#16735b"),
+    darkText: String(row.text_color).toLowerCase() !== "#ffffff" && String(row.text_color).toLowerCase() !== "#fff",
+  }));
+
   return {
     accounts,
     cards,
+    bankCredits,
     savings,
     spending: {
       total: spendingTotal,

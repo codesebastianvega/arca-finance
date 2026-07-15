@@ -50,8 +50,9 @@ function buildTags(category: string, unit: string) {
 }
 
 function isEditable(item: { source_type: string | null; kind: string; account_id: string | null }) {
-  if (item.source_type && item.source_type !== "manual" && item.source_type !== "income_source") return false;
-  if (item.kind === "card_purchase") return false;
+  // Ahora permitimos que todas sean "editables" en la UI para que aparezca el botón de Borrar.
+  // Si viene de una tarjeta ('card_purchase') también lo permitiremos por si fue un error, 
+  // pero mantendremos la regla de que se controle bien el borrado.
   return true;
 }
 

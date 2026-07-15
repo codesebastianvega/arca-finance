@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useTransition } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome, createExpenseCategory } from '@/app/actions';
+import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome, createExpenseCategory, createBankCredit } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 import type { RegisterViewModel } from '@/src/lib/register-data';
 import { 
@@ -36,7 +36,8 @@ import {
   Smile,
   Dumbbell,
   GraduationCap,
-  Scissors
+  Scissors,
+  Landmark
 } from 'lucide-react';
 import TransferScreen from '../transfers/transfer-screen';
 import { haptics } from '../../lib/haptics';
@@ -145,16 +146,17 @@ const CARD_PAYMENT_STRATEGIES = [
 const OBLIGATION_TYPES = [
   { id: 'arriendo', label: 'Arriendo' },
   { id: 'servicio', label: 'Servicio' },
-  { id: 'credito', label: 'Crédito' },
+  { id: 'prestamo_recibido', label: 'Préstamo recibido' },
   { id: 'tarjeta', label: 'Pago de tarjeta' },
   { id: 'suscripcion', label: 'Suscripción' },
   { id: 'mercado', label: 'Mercado' },
   { id: 'educacion', label: 'Educación' },
   { id: 'salud', label: 'Salud' },
+  { id: 'prestamo_recibido', label: 'Préstamo personal (Recibido)' },
   { id: 'otro', label: 'Otro' },
 ];
 
-const SEGMENTS = ['Movimiento', 'Cuenta', 'Tarjeta', 'Obligacion', 'Ahorro', 'Prestamo'];
+const SEGMENTS = ['Movimiento', 'Cuenta', 'Tarjeta', 'Credito', 'Obligacion', 'Ahorro', 'Prestamo'];
 
 const REGISTER_GROUPS = [
   {
@@ -179,6 +181,7 @@ const REGISTER_GROUPS = [
     segments: [
       { id: 'Cuenta', label: 'Cuenta', helper: 'Banco, billetera o efectivo.' },
       { id: 'Tarjeta', label: 'Tarjeta', helper: 'Crédito y cupo disponible.' },
+      { id: 'Credito', label: 'Crédito', helper: 'Préstamos bancarios a cuotas.' },
       { id: 'Ahorro', label: 'Ahorro', helper: 'Metas o bolsillos protegidos.' },
     ],
   },
@@ -214,8 +217,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [installments, setInstallments] = useState('');
   const [debtName, setDebtName] = useState('');
   const [debtAmount, setDebtAmount] = useState('');
-  const [debtAccountId, setDebtAccountId] = useState('');
   const [debtType, setDebtType] = useState(OBLIGATION_TYPES[0].id);
+  const [debtFrequency, setDebtFrequency] = useState('once');
+  const [debtAccountId, setDebtAccountId] = useState('');
   const [debtNotes, setDebtNotes] = useState('');
   const [quickUnitName, setQuickUnitName] = useState('');
   const [quickSourceName, setQuickSourceName] = useState('');
@@ -251,6 +255,17 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [loanNotes, setLoanNotes] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [dueDate, setDueDate] = useState('');
+  
+  // Bank Credit States
+  const [bcName, setBcName] = useState('');
+  const [bcTotalAmount, setBcTotalAmount] = useState('');
+  const [bcCurrentBalance, setBcCurrentBalance] = useState('');
+  const [bcMonthlyPayment, setBcMonthlyPayment] = useState('');
+  const [bcInterestRate, setBcInterestRate] = useState('');
+  const [bcTotalInstallments, setBcTotalInstallments] = useState('');
+  const [bcPaidInstallments, setBcPaidInstallments] = useState('');
+  const [bcPayDueDate, setBcPayDueDate] = useState('');
+  const [bcNotes, setBcNotes] = useState('');
   
   const [selectedCategoryValue, setSelectedCategoryValue] = useState('');
   const [tags, setTags] = useState('');
@@ -443,6 +458,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     setInstallments('');
     setDueDate('');
     setDebtType(OBLIGATION_TYPES[0].id);
+    setDebtFrequency('once');
     setDebtNotes('');
     setDebtAccountId('');
   };
@@ -454,6 +470,18 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     setReturnDate('');
     setLoanAccountId(data.accounts[0]?.value ?? '');
     setLoanNotes('');
+  };
+
+  const resetBankCreditForm = () => {
+    setBcName('');
+    setBcTotalAmount('');
+    setBcCurrentBalance('');
+    setBcMonthlyPayment('');
+    setBcInterestRate('');
+    setBcTotalInstallments('');
+    setBcPaidInstallments('');
+    setBcPayDueDate('');
+    setBcNotes('');
   };
 
   const handleQuickCreateUnit = () => {
@@ -584,6 +612,19 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           notes: cardNotes,
         });
         resetCardForm();
+      } else if (activeSegment === 'Credito') {
+        await createBankCredit({
+          name: bcName,
+          totalAmount: Number(bcTotalAmount || '0'),
+          currentBalance: Number(bcCurrentBalance || '0'),
+          monthlyPayment: Number(bcMonthlyPayment || '0'),
+          interestRate: bcInterestRate ? Number(bcInterestRate) : null,
+          totalInstallments: Number(bcTotalInstallments || '1'),
+          paidInstallments: Number(bcPaidInstallments || '0'),
+          payDueDate: Number(bcPayDueDate || '1'),
+          notes: bcNotes || null,
+        });
+        resetBankCreditForm();
       } else if (activeSegment === 'Ahorro') {
         await createSavingsGoal({
           name: savingsName,
@@ -605,6 +646,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           notes: debtNotes || null,
           interestRate: interestRate ? Number(interestRate) : null,
           installments: installments ? Number(installments) : null,
+          frequency: debtFrequency,
         });
         resetDebtForm();
       } else if (activeSegment === 'Prestamo') {
@@ -1182,7 +1224,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuenta sugerida</label>
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+              {debtType === 'prestamo_recibido' ? 'Dónde recibí el dinero' : 'Cuenta sugerida'}
+            </label>
             <select
               value={debtAccountId}
               onChange={(e) => setDebtAccountId(e.target.value)}
@@ -1255,14 +1299,31 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </div>
         ) : null}
 
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Próxima fecha de pago</label>
-          <input 
-            type="date" 
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Frecuencia</label>
+            <select
+              value={debtFrequency}
+              onChange={(e) => setDebtFrequency(e.target.value)}
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
+            >
+              <option value="once">Un solo pago</option>
+              <option value="monthly">Mensual</option>
+              <option value="bimonthly">Bimestral</option>
+              <option value="quarterly">Trimestral</option>
+              <option value="biannual">Semestral</option>
+              <option value="annual">Anual</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Próxima fecha de pago</label>
+            <input 
+              type="date" 
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -1479,6 +1540,120 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           />
         </div>
         {activeSegment === 'Tarjeta' && submitError ? (
+          <div className="text-xs text-arca-alert">{submitError}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  const renderBankCreditForm = () => (
+    <div className="space-y-6">
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Entidad Financiera (Nombre)</label>
+          <input 
+            type="text" 
+            value={bcName}
+            onChange={(e) => setBcName(e.target.value)}
+            placeholder="Ej: Crédito Libre Inversión Nequi" 
+            className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Valor Prestado (Monto Original)</label>
+            <input
+              type="number"
+              value={bcTotalAmount}
+              onChange={(e) => setBcTotalAmount(e.target.value)}
+              placeholder="0"
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Saldo Actual (Deuda Restante)</label>
+            <input
+              type="number"
+              value={bcCurrentBalance}
+              onChange={(e) => setBcCurrentBalance(e.target.value)}
+              placeholder="0"
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuota Mensual</label>
+            <input
+              type="number"
+              value={bcMonthlyPayment}
+              onChange={(e) => setBcMonthlyPayment(e.target.value)}
+              placeholder="0"
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Día de Pago</label>
+            <input
+              type="number"
+              min="1"
+              max="31"
+              value={bcPayDueDate}
+              onChange={(e) => setBcPayDueDate(e.target.value)}
+              placeholder="15"
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuotas Totales</label>
+            <input
+              type="number"
+              value={bcTotalInstallments}
+              onChange={(e) => setBcTotalInstallments(e.target.value)}
+              placeholder="24"
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuotas Pagadas</label>
+            <input
+              type="number"
+              value={bcPaidInstallments}
+              onChange={(e) => setBcPaidInstallments(e.target.value)}
+              placeholder="0"
+              className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Tasa Efectiva Anual (%) - Opcional</label>
+          <input
+            type="number"
+            value={bcInterestRate}
+            onChange={(e) => setBcInterestRate(e.target.value)}
+            placeholder="Ej: 24.5"
+            className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Notas (opcional)</label>
+          <textarea
+            rows={3}
+            value={bcNotes}
+            onChange={(e) => setBcNotes(e.target.value)}
+            placeholder="Ej: Crédito para el carro..."
+            className="w-full resize-none bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
+          />
+        </div>
+        
+        {activeSegment === 'Credito' && submitError ? (
           <div className="text-xs text-arca-alert">{submitError}</div>
         ) : null}
       </div>
@@ -1741,12 +1916,17 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
           <button onClick={() => { haptics.light(); setActiveSegment('Prestamo'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
             <div className="w-10 h-10 rounded-full bg-[#F58220]/10 text-[#F58220] flex items-center justify-center group-hover:bg-[#F58220]/20 transition-colors"><HandCoins size={20} /></div>
-            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Préstamo</span>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Prestar a otro</span>
           </button>
 
           <button onClick={() => { haptics.light(); setActiveSegment('Obligacion'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
             <div className="w-10 h-10 rounded-full bg-[#E51C1A]/10 text-[#E51C1A] flex items-center justify-center group-hover:bg-[#E51C1A]/20 transition-colors"><CalendarClock size={20} /></div>
             <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Deuda</span>
+          </button>
+          
+          <button onClick={() => { haptics.light(); setActiveSegment('Credito'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
+            <div className="w-10 h-10 rounded-full bg-[#1D4F91]/10 text-[#1D4F91] flex items-center justify-center group-hover:bg-[#1D4F91]/20 transition-colors"><Landmark size={20} /></div>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Crédito</span>
           </button>
 
           <button onClick={() => { haptics.light(); setActiveSegment('Cuenta'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
@@ -1793,6 +1973,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             {activeSegment === 'Cuenta' && renderAccountForm()}
             {activeSegment === 'Obligacion' && renderDebtForm()}
             {activeSegment === 'Tarjeta' && renderCardForm()}
+            {activeSegment === 'Credito' && renderBankCreditForm()}
             {activeSegment === 'Ahorro' && renderSavingsForm()}
             {activeSegment === 'Prestamo' && renderLoanForm()}
             {activeSegment === 'Transferencia' && <TransferScreen accounts={data.accounts.map(a => ({ id: a.value, name: a.label, balance: a.amount }))} onBack={() => setActiveSegment('Grid')} />}
