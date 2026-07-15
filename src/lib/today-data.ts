@@ -31,7 +31,7 @@ export type TodayReceivable = {
   amount: number;
   dueDate: string | null;
   dueLabel: string;
-  status: "pending" | "recovered" | "overdue";
+  status: "pending" | "recovered" | "overdue" | "today";
   notes: string | null;
 };
 
@@ -58,6 +58,7 @@ export type TodayViewModel = {
     totalBalance: number;
     pendingCritical: number;
     protectedSavings: number;
+    totalLent: number;
   };
   criticalPayments: TodayCriticalPayment[];
   receivables: TodayReceivable[];
@@ -222,7 +223,12 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
       .lt("month", monthBounds.nextMonth)
       .limit(1)
       .maybeSingle(),
-    supabase.from("receivables").select("id, title, debtor_name, amount, due_date, status, notes").eq("workspace_id", workspaceId).order("due_date", { ascending: true }),
+    supabase
+      .from("receivables")
+      .select("id, title, debtor_name, amount, due_date, status, notes")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["pending", "overdue"])
+      .order("due_date", { ascending: true }),
   ]);
 
   if (accountsResult.error) throw new Error(`No se pudieron leer las cuentas: ${accountsResult.error.message}`);
@@ -337,7 +343,8 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     paidObligations,
   };
 
-  console.log('Receivables result:', receivablesResult); const receivables = ((receivablesResult.data ?? []) as Array<{
+  const todayDate = startOfTodayInBogota();
+  const receivables = ((receivablesResult.data ?? []) as Array<{
     id: string;
     title: string;
     debtor_name: string;
@@ -345,16 +352,40 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     due_date: string | null;
     status: string | null;
     notes: string | null;
-  }>).map<TodayReceivable>((row) => ({
-    id: row.id,
-    title: row.title,
-    debtorName: row.debtor_name,
-    amount: numberValue(row.amount),
-    dueDate: row.due_date,
-    dueLabel: row.due_date ? `Cobra el ${new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", timeZone: "America/Bogota" }).format(new Date(`${row.due_date}T00:00:00-05:00`))}` : "Sin fecha",
-    status: row.status === "recovered" ? "recovered" : row.status === "overdue" ? "overdue" : "pending",
-    notes: row.notes,
-  }));
+  }>).map<TodayReceivable>((row) => {
+    let computedStatus = row.status === "recovered" ? "recovered" : "pending";
+    let customLabel = "Sin fecha";
+    
+    if (row.due_date) {
+      const due = new Date(`${row.due_date}T00:00:00-05:00`);
+      const diffDays = Math.round((due.getTime() - todayDate.getTime()) / 86400000);
+      
+      if (diffDays < 0) {
+        computedStatus = "overdue";
+        customLabel = diffDays === -1 ? "En mora por 1 día" : `En mora por ${Math.abs(diffDays)} días`;
+      } else if (diffDays === 0) {
+        computedStatus = "today";
+        customLabel = "Cobrar HOY";
+      } else if (diffDays === 1) {
+        customLabel = "Cobrar mañana";
+      } else {
+        customLabel = `Cobra el ${new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", timeZone: "America/Bogota" }).format(due)}`;
+      }
+    }
+    
+    return {
+      id: row.id,
+      title: row.title,
+      debtorName: row.debtor_name,
+      amount: numberValue(row.amount),
+      dueDate: row.due_date,
+      dueLabel: customLabel,
+      status: computedStatus as TodayReceivable["status"],
+      notes: row.notes,
+    };
+  });
+
+  const totalLent = receivables.reduce((sum, row) => sum + row.amount, 0);
 
   return {
     greeting: {
@@ -370,6 +401,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
       totalBalance,
       pendingCritical,
       protectedSavings,
+      totalLent,
     },
     criticalPayments,
     receivables,

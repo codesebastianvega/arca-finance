@@ -2287,3 +2287,112 @@ export async function deleteIncomeSource(id: string) {
   revalidatePath("/app");
   return { ok: true };
 }
+
+export async function resolveReceivable(
+  id: string,
+  payload: { action: "pay" | "postpone" | "cancel"; amount?: number; accountId?: string; days?: number }
+) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { data: rawReceivable, error: fetchError } = await admin
+    .from("receivables")
+    .select("*")
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id)
+    .single();
+
+  if (fetchError || !rawReceivable) {
+    throw new Error("No se encontró el préstamo a cobrar.");
+  }
+
+  const receivable = rawReceivable as any;
+
+  if (payload.action === "cancel") {
+    const { error } = await admin
+      .from("receivables")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  } else if (payload.action === "postpone") {
+    const currentDue = receivable.due_date ? new Date(receivable.due_date + "T00:00:00-05:00") : new Date();
+    currentDue.setDate(currentDue.getDate() + (payload.days || 7));
+    const nextDue = currentDue.toISOString().split("T")[0];
+    
+    const { error } = await admin
+      .from("receivables")
+      .update({ due_date: nextDue, status: "pending", updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  } else if (payload.action === "pay") {
+    if (!payload.amount || !payload.accountId) throw new Error("Faltan datos para procesar el pago.");
+
+    const { data: account, error: accErr } = await admin
+      .from("accounts")
+      .select("balance")
+      .eq("id", payload.accountId)
+      .eq("workspace_id", context.workspace.id)
+      .single();
+
+    if (accErr || !account) throw new Error("No se encontró la cuenta.");
+
+    const paidAmount = payload.amount;
+    const currentAmount = Number(receivable.amount);
+    const newAmount = Math.max(0, currentAmount - paidAmount);
+    const isFullyPaid = newAmount <= 0;
+
+    // 1. Create transaction (Income)
+    const { data: transaction, error: txnErr } = await admin
+      .from("transactions")
+      .insert({
+        workspace_id: context.workspace.id,
+        amount: paidAmount,
+        concept: isFullyPaid ? `Pago de ${receivable.title}` : `Abono a ${receivable.title}`,
+        account_id: payload.accountId,
+        category: "Prestamo",
+        unit: "general",
+        date: new Date().toISOString(),
+        month: new Date().toISOString().substring(0, 7), // YYYY-MM
+        year: new Date().getFullYear().toString(),
+        kind: "income",
+        status: "active",
+        recurrence_mode: "none",
+        posted_at: new Date().toISOString(),
+        source_type: "receivable",
+        source_id: id,
+        metadata: {
+          receivable_id: id,
+          debtor_name: receivable.debtor_name,
+        }
+      })
+      .select("id")
+      .single();
+
+    if (txnErr) throw new Error("Error creando movimiento de ingreso: " + txnErr.message);
+
+    // 2. Update account balance
+    const nextBalance = Number(account.balance) + paidAmount;
+    const { error: accUpdateErr } = await admin
+      .from("accounts")
+      .update({ balance: nextBalance, updated_at: new Date().toISOString() })
+      .eq("id", payload.accountId);
+    
+    if (accUpdateErr) throw new Error("Error actualizando saldo de la cuenta: " + accUpdateErr.message);
+
+    // 3. Update receivable
+    const { error: recUpdateErr } = await admin
+      .from("receivables")
+      .update({ 
+        amount: newAmount, 
+        status: isFullyPaid ? "recovered" : "pending",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id);
+    
+    if (recUpdateErr) throw new Error("Error actualizando estado del préstamo: " + recUpdateErr.message);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}

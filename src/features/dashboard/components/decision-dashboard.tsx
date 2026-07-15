@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ArrowUpRight, ArrowDownLeft, Clock, AlertTriangle, Bell, Search, Send, RefreshCw, Target, Receipt } from "lucide-react";
-import type { TodayViewModel } from "@/src/lib/today-data";
+import { CheckCircle2, ArrowUpRight, ArrowDownLeft, Clock, AlertTriangle, Bell, Search, Send, RefreshCw, Target, Receipt, TrendingUp, AlertCircle } from "lucide-react";
+import type { TodayViewModel, TodayReceivable } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
 import { confirmScheduledEventNow, cancelScheduledEvent, cancelIncomeTemplate } from "@/app/actions";
+import { ReceivableActionModal } from "./receivable-action-modal";
 
 function formatCOP(amount: number | null | undefined): string {
   if (amount == null) return "$0";
@@ -44,6 +45,7 @@ export default function DecisionDashboard({
   const [selectedIncome, setSelectedIncome] = useState<{id: string, title: string, amount: number} | null>(null);
   const [confirmAmount, setConfirmAmount] = useState<string>("");
   const [actionSheetIncome, setActionSheetIncome] = useState<{id: string, templateId?: string | null, title: string, amount: number} | null>(null);
+  const [actionSheetReceivable, setActionSheetReceivable] = useState<TodayReceivable | null>(null);
 
   const limitedIncomes = upcomingIncomes.slice(0, 3);
   const hiddenIncomesCount = upcomingIncomes.length > 3 ? upcomingIncomes.length - 3 : 0;
@@ -299,6 +301,11 @@ export default function DecisionDashboard({
           <div className={`text-4xl font-bold tracking-tight ${cash.safeToSpend > 0 ? "text-white" : "text-arca-alert"} drop-shadow-md`}>
             {formatCOP(cash.safeToSpend)}
           </div>
+          {cash.totalLent > 0 && (
+            <div className="text-[11px] text-arca-text-secondary mt-1">
+              + {formatCOP(cash.totalLent)} prestados
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between items-end border-t border-white/5 pt-3 relative z-10">
@@ -306,79 +313,76 @@ export default function DecisionDashboard({
             <span className="text-[11px] uppercase tracking-widest text-arca-text-secondary">Balance Total</span>
             <span className="text-sm font-bold text-white/90">{formatCOP(cash.totalBalance)}</span>
           </div>
-          {cash.protectedSavings > 0 && (
-            <div className="flex flex-col gap-1 items-end">
-              <span className="text-[11px] uppercase tracking-widest text-arca-positive/80">Bolsillos</span>
-              <span className="text-sm font-bold text-arca-positive">−{formatCOP(cash.protectedSavings)}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-        {/* Shortfall warning */}
-        {cash.shortfallAgainstProtected > 0 && (
-          <div className="rounded-xl bg-arca-alert/10 border border-arca-alert/20 px-3 py-2 text-[10px] font-bold text-arca-alert">
-            ⚠ Atención: te faltan {formatCOP(cash.shortfallAgainstProtected)} para cubrir todos tus compromisos.
+          
+          <div className="flex flex-col gap-1 items-end">
+            <span className="text-[11px] uppercase tracking-widest text-arca-text-secondary">Bolsillos</span>
+            <span className="text-sm font-bold text-arca-alert">-{formatCOP(cash.protectedSavings)}</span>
           </div>
-        )}
-      {/* PAGOS CRITICOS */}
-      <div className="flex flex-col gap-3 mt-2">
-        <div className="flex justify-between items-center px-1">
-          <span className="text-[12px] font-bold tracking-wider text-arca-accent light:text-arca-light-accent">PAGOS CRÍTICOS</span>
-          <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">{criticalPayments.length} VISIBLES</span>
-        </div>
-        <div className="card-arca overflow-hidden flex flex-col">
-          {criticalPayments.length > 0 ? (
-            <div className="divide-y divide-arca-border light:divide-arca-light-border">
-              {criticalPayments.map((p) => (
-                <div key={p.id} className="p-4 flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
-                    <span className={cn("text-sm font-bold", p.status === "overdue" ? "text-arca-alert light:text-arca-light-alert" : "text-arca-text-primary light:text-arca-light-text-primary")}>{p.title}</span>
-                    <span className="text-[10px] text-arca-text-secondary light:text-arca-light-text-secondary font-bold">{p.dueLabel}</span>
-                  </div>
-                  <span className={cn("text-sm font-bold", p.kind === "income" ? "text-arca-positive light:text-arca-light-positive" : "text-arca-text-primary light:text-arca-light-text-primary")}>
-                    {p.kind === "income" ? "+" : "-"}{formatCOP(p.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 flex items-center justify-center">
-              <span className="text-sm text-arca-text-dim light:text-arca-light-text-secondary font-medium">No hay pagos críticos para mostrar.</span>
-            </div>
-          )}
         </div>
       </div>
-
-      {/* PRESTAMOS A COBRAR */}
-      <div className="flex flex-col gap-3 mt-2">
-        <div className="flex justify-between items-center px-1">
-          <div className="flex items-center gap-2 text-arca-accent light:text-arca-light-accent">
-            <Receipt size={14} />
-            <span className="text-[12px] font-bold tracking-wider">PRÉSTAMOS A COBRAR</span>
+  
+        {/* PAGOS CRITICOS */}
+        <div className="flex flex-col gap-3 mt-4">
+          <div className="flex justify-between items-center px-1">
+            <div className="flex items-center gap-2 text-arca-accent light:text-arca-light-accent">
+              <AlertCircle size={14} />
+              <span className="text-[12px] font-bold tracking-wider">PAGOS CRÍTICOS</span>
+            </div>
+            <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">{criticalPayments.length} VISIBLES</span>
           </div>
-          <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">{receivables.length} ABIERTOS</span>
-        </div>
-        <div className="card-arca overflow-hidden flex flex-col">
-          {receivables.length > 0 ? (
-            <div className="divide-y divide-arca-border light:divide-arca-light-border">
-              {receivables.map((r) => (
-                <div key={r.id} className="p-4 flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary">{r.debtorName || r.title}</span>
-                    <span className="text-[10px] text-arca-text-secondary light:text-arca-light-text-secondary font-bold">{r.dueLabel}</span>
+          <div className="card-arca overflow-hidden flex flex-col">
+            {criticalPayments.length > 0 ? (
+              <div className="divide-y divide-arca-border light:divide-arca-light-border">
+                {criticalPayments.map((p) => (
+                  <div key={p.id} className="p-4 flex justify-between items-center group cursor-pointer hover:bg-arca-bg-secondary light:hover:bg-arca-light-bg-secondary transition-colors" onClick={() => onSelectScheduled(p)}>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary group-hover:text-arca-accent light:group-hover:text-arca-light-accent transition-colors">{p.title}</span>
+                      <span className={`text-[10px] font-bold ${p.status === "overdue" ? "text-arca-alert" : p.status === "today" ? "text-arca-accent light:text-arca-light-accent" : "text-arca-text-secondary light:text-arca-light-text-secondary"}`}>{p.dueLabel}</span>
+                    </div>
+                    <span className="text-sm font-bold text-arca-alert">-{formatCOP(p.amount)}</span>
                   </div>
-                  <span className="text-sm font-bold text-arca-positive light:text-arca-light-positive">{formatCOP(r.amount)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-5 flex items-center">
-              <span className="text-sm text-arca-text-dim light:text-arca-light-text-secondary font-medium">Aún no hay cobros pendientes.</span>
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="p-5 flex items-center">
+                <span className="text-sm text-arca-text-dim light:text-arca-light-text-secondary font-medium">No hay pagos críticos para mostrar.</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+  
+        {/* PRESTAMOS A COBRAR */}
+        <div className="flex flex-col gap-3 mt-2">
+          <div className="flex justify-between items-center px-1">
+            <div className="flex items-center gap-2 text-arca-accent light:text-arca-light-accent">
+              <Receipt size={14} />
+              <span className="text-[12px] font-bold tracking-wider">PRÉSTAMOS A COBRAR</span>
+            </div>
+            <span className="text-[10px] font-bold tracking-wider text-arca-text-secondary light:text-arca-light-text-secondary">{receivables.length} ABIERTOS</span>
+          </div>
+          <div className="card-arca overflow-hidden flex flex-col">
+            {receivables.length > 0 ? (
+              <div className="divide-y divide-arca-border light:divide-arca-light-border">
+                {receivables.map((r) => (
+                  <div key={r.id} className="p-4 flex justify-between items-center group cursor-pointer hover:bg-arca-bg-secondary light:hover:bg-arca-light-bg-secondary transition-colors" onClick={() => {
+                    haptics.medium();
+                    setActionSheetReceivable(r);
+                  }}>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary group-hover:text-arca-accent light:group-hover:text-arca-light-accent transition-colors">{r.debtorName || r.title}</span>
+                      <span className={`text-[10px] font-bold ${r.status === "overdue" ? "text-arca-alert" : r.status === "today" ? "text-arca-accent light:text-arca-light-accent" : "text-arca-text-secondary light:text-arca-light-text-secondary"}`}>{r.dueLabel}</span>
+                    </div>
+                    <span className="text-sm font-bold text-arca-positive light:text-arca-light-positive">{formatCOP(r.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-5 flex items-center">
+                <span className="text-sm text-arca-text-dim light:text-arca-light-text-secondary font-medium">Aún no hay cobros pendientes.</span>
+              </div>
+            )}
+          </div>
+        </div>
 
       {/* PRÓXIMOS INGRESOS */}
       <div className="flex flex-col gap-3 mt-2">
@@ -523,6 +527,12 @@ export default function DecisionDashboard({
         </div>
       )}
 
+      <ReceivableActionModal 
+        receivable={actionSheetReceivable}
+        accounts={data.accountOptions}
+        onClose={() => setActionSheetReceivable(null)}
+        onRefresh={() => router.refresh()}
+      />
     </div>
   );
 }
