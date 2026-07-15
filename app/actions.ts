@@ -1366,14 +1366,16 @@ export async function createCreditCard(input: {
         amount: input.minimumPayment,
         due_date: localISOTime,
         status: "pending",
-        source_type: "credit_card",
         linked_entity_type: "credit_card",
         linked_entity_id: credit.id,
       });
     }
 
     if (eventsToInsert.length > 0) {
-      await admin.from("scheduled_events").insert(eventsToInsert);
+      const { error: eventsError } = await admin.from("scheduled_events").insert(eventsToInsert);
+      if (eventsError) {
+        console.error("Error insertando eventos de TDC:", eventsError);
+      }
     }
   }
 
