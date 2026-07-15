@@ -152,6 +152,8 @@ create table if not exists public.expense_categories (
   created_at timestamptz not null default now()
 );
 
+alter table public.expense_categories add column if not exists parent_id uuid references public.expense_categories(id);
+
 create unique index if not exists expense_categories_workspace_name_unique
   on public.expense_categories(workspace_id, name);
 
@@ -179,6 +181,28 @@ alter table public.transactions add column if not exists posted_at timestamptz;
 alter table public.transactions add column if not exists source_type text;
 alter table public.transactions add column if not exists source_id uuid;
 alter table public.transactions add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references public.workspaces(id) on delete cascade not null,
+  category_id uuid references public.expense_categories(id),
+  name text not null,
+  default_unit_of_measure text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.transaction_items (
+  id uuid primary key default gen_random_uuid(),
+  transaction_id uuid references public.transactions(id) on delete cascade not null,
+  product_id uuid references public.products(id) on delete set null,
+  item_name text,
+  quantity numeric,
+  unit_of_measure text,
+  unit_price numeric,
+  total_price numeric not null,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
 
 create table if not exists public.incomes (
   id uuid primary key default gen_random_uuid(),

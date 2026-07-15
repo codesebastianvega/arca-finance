@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useTransition } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome } from '@/app/actions';
+import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome, createExpenseCategory } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 import type { RegisterViewModel } from '@/src/lib/register-data';
 import { 
@@ -26,10 +26,22 @@ import {
   RefreshCw,
   CalendarClock,
   Target,
-  Lock
+  Lock,
+  ShoppingBag,
+  Coffee,
+  Bus,
+  Shirt,
+  Dog,
+  Baby,
+  Smile,
+  Dumbbell,
+  GraduationCap,
+  Scissors
 } from 'lucide-react';
 import TransferScreen from '../transfers/transfer-screen';
 import { haptics } from '../../lib/haptics';
+import { ItemizedExpenseForm } from './itemized-expense-form';
+import { TransactionItem } from '@/src/types';
 
 const CATEGORIES = [
   { id: 'hogar', label: 'Hogar', icon: Home },
@@ -41,7 +53,29 @@ const CATEGORIES = [
   { id: 'otros', label: 'Otros', icon: MoreHorizontal },
 ];
 
-function iconForCategory(label: string) {
+const AVAILABLE_ICONS = [
+  { name: 'shopping-bag', icon: ShoppingBag },
+  { name: 'coffee', icon: Coffee },
+  { name: 'bus', icon: Bus },
+  { name: 'shirt', icon: Shirt },
+  { name: 'dog', icon: Dog },
+  { name: 'baby', icon: Baby },
+  { name: 'smile', icon: Smile },
+  { name: 'dumbbell', icon: Dumbbell },
+  { name: 'graduation-cap', icon: GraduationCap },
+  { name: 'scissors', icon: Scissors },
+  { name: 'utensils', icon: Utensils },
+  { name: 'home', icon: Home },
+  { name: 'car', icon: Car },
+  { name: 'gamepad', icon: Gamepad2 },
+  { name: 'heart', icon: HeartPulse },
+];
+
+function iconForCategory(label: string, iconName?: string | null) {
+  if (iconName) {
+    const found = AVAILABLE_ICONS.find(i => i.name === iconName);
+    if (found) return found.icon;
+  }
   const normalized = label.toLowerCase();
   if (normalized.includes('hogar') || normalized.includes('arriendo')) return Home;
   if (normalized.includes('comida') || normalized.includes('mercado')) return Utensils;
@@ -186,6 +220,12 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [quickUnitName, setQuickUnitName] = useState('');
   const [quickSourceName, setQuickSourceName] = useState('');
   const [showQuickSourceForm, setShowQuickSourceForm] = useState(false);
+  const [showQuickUnitForm, setShowQuickUnitForm] = useState(false);
+  const [showQuickCategoryForm, setShowQuickCategoryForm] = useState(false);
+  const [quickCategoryName, setQuickCategoryName] = useState('');
+  const [quickCategoryParentId, setQuickCategoryParentId] = useState('');
+  const [quickCategoryIcon, setQuickCategoryIcon] = useState('shopping-bag');
+  const [isQuickCreateCategoryPending, startQuickCreateCategory] = useTransition();
   const [limit, setLimit] = useState('');
   const [closingDate, setClosingDate] = useState('');
   const [cardName, setCardName] = useState('');
@@ -217,6 +257,15 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  
+  const [transactionItems, setTransactionItems] = useState<Partial<TransactionItem>[]>([]);
+
+  useEffect(() => {
+    if (transactionItems.length > 0) {
+      const total = transactionItems.reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
+      setAmount(total.toString());
+    }
+  }, [transactionItems]);
   const [isIssuerPickerOpen, setIsIssuerPickerOpen] = useState(false);
   const [issuerQuery, setIssuerQuery] = useState('');
   const [isBankPickerOpen, setIsBankPickerOpen] = useState(false);
@@ -235,21 +284,26 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   }, [bankQuery]);
 
   const expenseCategoryOptions = useMemo(() => {
-    if (data.categories.length > 0) {
-      return data.categories.map((category) => ({
-        id: category.id,
-        label: category.label,
-        value: category.value,
-        icon: iconForCategory(category.label),
-      }));
-    }
-
-    return CATEGORIES.map((category) => ({
+    const dbCategories = data.categories.map((category) => ({
+      id: category.id,
+      label: category.label,
+      value: category.value,
+      icon: iconForCategory(category.label, category.icon),
+      parentId: category.parentId,
+    }));
+    
+    const defaultCategories = CATEGORIES.map((category) => ({
       id: category.id,
       label: category.label,
       value: category.label,
       icon: category.icon,
+      parentId: null,
     }));
+    
+    const dbValues = new Set(dbCategories.map(c => c.value));
+    const mergedDefaults = defaultCategories.filter(c => !dbValues.has(c.value));
+    
+    return [...mergedDefaults, ...dbCategories];
   }, [data.categories]);
 
   const filteredIncomeSources = useMemo(() => {
@@ -436,26 +490,34 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       return;
     }
 
-    if (!movementAccountId) {
-      setSubmitError('Primero elige la cuenta destino.');
-      return;
-    }
-
-    setSubmitError(null);
-    startQuickCreate(async () => {
-      try {
-        await createIncomeSource({
-          name: quickSourceName,
-          businessUnitKey: movementUnit,
-          defaultAccountId: movementAccountId,
+    startQuickCreate(() => {
+      createIncomeSource({ name: quickSourceName, businessUnitKey: movementUnit, defaultAccountId: movementAccountId })
+        .then(() => {
+          haptics.success();
+          setShowQuickSourceForm(false);
+          setQuickSourceName('');
+          router.refresh();
+        })
+        .catch((err) => {
+          haptics.error();
+          setSubmitError(err.message || 'No se pudo crear la fuente.');
         });
-        setQuickSourceName('');
-        setShowQuickSourceForm(false);
+    });
+  };
+
+  const handleQuickCreateCategory = () => {
+    startQuickCreateCategory(async () => {
+      try {
+        await createExpenseCategory({ name: quickCategoryName, parentId: quickCategoryParentId || null, icon: quickCategoryIcon });
         haptics.success();
+        setShowQuickCategoryForm(false);
+        setQuickCategoryName('');
+        setQuickCategoryParentId('');
+        setQuickCategoryIcon('shopping-bag');
         router.refresh();
-      } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : 'No se pudo crear la fuente.');
+      } catch (err: any) {
         haptics.error();
+        setSubmitError(err.message || 'No se pudo crear la categoría');
       }
     });
   };
@@ -492,6 +554,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             date: movementDate,
             sourceId: type === 'ingreso' ? movementIncomeSourceId : null,
             sourceLabel: type === 'ingreso' ? data.incomeSources.find((item) => item.id === movementIncomeSourceId)?.label ?? null : null,
+            items: type === 'gasto' ? transactionItems : undefined,
           });
         }
         resetMovementForm();
@@ -605,9 +668,18 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
               onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
               placeholder="0" 
               className="w-full bg-transparent text-5xl font-black text-center focus:outline-none placeholder:text-arca-text-dim/10 py-4"
+              readOnly={transactionItems.length > 0}
             />
           </div>
         </div>
+        
+        {type === 'gasto' && (
+          <ItemizedExpenseForm
+            items={transactionItems}
+            onChange={setTransactionItems}
+            categories={expenseCategoryOptions}
+          />
+        )}
 
         {/* 2. Concepto */}
         <div className="space-y-2">
@@ -627,12 +699,49 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
         {/* 3. Unidad de Negocio (Frente) */}
         {data.units.length > 0 && (
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Unidad de Negocio</label>
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Unidad de Negocio</label>
+              <button
+                type="button"
+                onClick={() => { haptics.light(); setShowQuickUnitForm(!showQuickUnitForm); }}
+                className="text-[10px] font-bold text-arca-accent uppercase tracking-widest flex items-center gap-0.5 hover:text-arca-accent-hover transition-colors"
+              >
+                {showQuickUnitForm ? '✕  Cancelar' : '+ Nueva'}
+              </button>
+            </div>
+            
+            {showQuickUnitForm && (
+              <div className="space-y-3 rounded-2xl border border-arca-accent/30 bg-arca-surface-2 p-4 mb-2">
+                <p className="text-[11px] text-arca-text-dim">Crea una unidad de negocio rápida.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={quickUnitName}
+                    onChange={(e) => setQuickUnitName(e.target.value)}
+                    placeholder="Ej: Freelance, Trabajo..."
+                    className="min-w-0 flex-1 bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleQuickCreateUnit();
+                      setShowQuickUnitForm(false);
+                    }}
+                    disabled={isQuickCreatePending}
+                    className="rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
+                  >
+                    Crear
+                  </button>
+                </div>
+              </div>
+            )}
+
             <select
               value={movementUnit}
               onChange={(e) => setMovementUnit(e.target.value)}
               className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
             >
+              <option value="general">(Personal / Ninguna)</option>
               {data.units.map((unit) => (
                 <option key={unit.id} value={unit.value}>{unit.label}</option>
               ))}
@@ -640,10 +749,93 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </div>
         )}
 
+        {/* Quick create prompts if no units exist */}
+        {data.units.length === 0 && (
+          <div className="space-y-3 rounded-2xl border border-arca-border bg-arca-surface-2 p-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear unidad de negocio rápida</p>
+              <p className="text-[11px] text-arca-text-dim">Puedes crear una para organizar de dónde llega este ingreso, o dejarlo así para gastos personales.</p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={quickUnitName}
+                onChange={(e) => setQuickUnitName(e.target.value)}
+                placeholder="Ej: Freelance, Trabajo..."
+                className="min-w-0 flex-1 bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
+              />
+              <button
+                type="button"
+                onClick={handleQuickCreateUnit}
+                disabled={isQuickCreatePending}
+                className="rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
+              >
+                Crear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 4. Fuente de Ingreso / Categoría */}
         {type === 'gasto' ? (
           <div className="space-y-3">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Categoría</label>
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Categoría</label>
+              <button
+                type="button"
+                onClick={() => { haptics.light(); setShowQuickCategoryForm(!showQuickCategoryForm); }}
+                className="text-[10px] font-bold text-arca-accent uppercase tracking-widest flex items-center gap-0.5 hover:text-arca-accent-hover transition-colors"
+              >
+                {showQuickCategoryForm ? '✕ Cancelar' : '+ Nueva'}
+              </button>
+            </div>
+            
+            {showQuickCategoryForm && (
+              <div className="space-y-3 rounded-2xl border border-arca-accent/30 bg-arca-surface-2 p-4 mb-2">
+                <p className="text-[11px] text-arca-text-dim">Crea una nueva categoría para tus gastos.</p>
+                <input
+                  type="text"
+                  value={quickCategoryName}
+                  onChange={(e) => setQuickCategoryName(e.target.value)}
+                  placeholder="Ej: Snacks, Mascotas..."
+                  className="w-full bg-arca-surface-1 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
+                />
+                <select
+                  value={quickCategoryParentId}
+                  onChange={(e) => setQuickCategoryParentId(e.target.value)}
+                  className="w-full bg-arca-surface-1 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent appearance-none"
+                >
+                  <option value="">(Opcional) Categoría Principal</option>
+                  {expenseCategoryOptions.filter(cat => !cat.parentId).map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                  ))}
+                </select>
+                <div>
+                  <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mb-2">Elige un ícono</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {AVAILABLE_ICONS.map(ic => (
+                      <button
+                        key={ic.name}
+                        type="button"
+                        onClick={() => setQuickCategoryIcon(ic.name)}
+                        className={`p-2 rounded-xl flex justify-center items-center border transition-colors ${quickCategoryIcon === ic.name ? 'bg-arca-accent/20 border-arca-accent text-arca-accent' : 'bg-arca-surface-1 border-arca-border text-arca-text-dim'}`}
+                      >
+                        <ic.icon size={16} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleQuickCreateCategory}
+                  disabled={isQuickCreateCategoryPending || !quickCategoryName.trim()}
+                  className="w-full rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
+                >
+                  {isQuickCreateCategoryPending ? 'Creando...' : 'Crear categoría'}
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-4 gap-2">
               {expenseCategoryOptions.map((cat) => (
                 <button
@@ -715,32 +907,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </div>
         )}
 
-        {/* Quick create prompts */}
-        {type === 'ingreso' && data.units.length === 0 ? (
-          <div className="space-y-3 rounded-2xl border border-arca-border bg-arca-surface-2 p-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear unidad de negocio rápida</p>
-              <p className="text-[11px] text-arca-text-dim">Necesitas al menos una unidad de negocio para ordenar de dónde llega este ingreso.</p>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={quickUnitName}
-                onChange={(e) => setQuickUnitName(e.target.value)}
-                placeholder="Ej: Freelance, Trabajo..."
-                className="min-w-0 flex-1 bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
-              />
-              <button
-                type="button"
-                onClick={handleQuickCreateUnit}
-                disabled={isQuickCreatePending}
-                className="rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
-              >
-                Crear
-              </button>
-            </div>
-          </div>
-        ) : null}
+        {/* Removed Quick create prompts duplicate */}
 
         {/* 5. Cuenta */}
         <div className="space-y-2">

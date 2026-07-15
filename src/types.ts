@@ -34,6 +34,26 @@ export interface Category {
   icon: string; // lucide icon name
   color?: string;
   type: 'expense' | 'income';
+  parentId?: string;
+}
+
+export interface Product {
+  id: string;
+  categoryId?: string;
+  name: string;
+  defaultUnitOfMeasure?: string;
+}
+
+export interface TransactionItem {
+  id: string;
+  transactionId: string;
+  productId?: string;
+  categoryId?: string;
+  itemName?: string;
+  quantity?: number;
+  unitOfMeasure?: string;
+  unitPrice?: number;
+  totalPrice: number;
 }
 
 export interface Account {

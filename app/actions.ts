@@ -425,6 +425,8 @@ export async function createAccount(input: {
   return { ok: true };
 }
 
+import type { TransactionItem } from "@/src/types";
+
 export async function createMovement(input: {
   kind: "income" | "expense";
   amount: number;
@@ -435,6 +437,7 @@ export async function createMovement(input: {
   date?: string;
   sourceId?: string | null;
   sourceLabel?: string | null;
+  items?: Partial<TransactionItem>[];
 }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
@@ -500,6 +503,27 @@ export async function createMovement(input: {
 
   if (transactionError || !transaction) {
     throw new Error(`No se pudo crear el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
+  }
+
+  if (input.items && input.items.length > 0) {
+    const itemsToInsert = input.items.map(item => ({
+      transaction_id: transaction.id,
+      category_id: item.categoryId || null,
+      item_name: item.itemName || 'Item sin nombre',
+      quantity: item.quantity || 1,
+      unit_of_measure: item.unitOfMeasure || 'Unidad',
+      unit_price: item.unitPrice || 0,
+      total_price: item.totalPrice || 0,
+    }));
+
+    const { error: itemsError } = await admin
+      .from("transaction_items")
+      .insert(itemsToInsert);
+
+    if (itemsError) {
+      console.error("Error inserting transaction items:", itemsError);
+      // We don't fail the whole transaction for this MVP but log it
+    }
   }
 
   const { error: accountUpdateError } = await admin
@@ -955,6 +979,38 @@ export async function updateBusinessUnit(input: { id: string; name: string; key:
 
   revalidatePath("/app");
   return { ok: true };
+}
+
+export async function createExpenseCategory(input: {
+  name: string;
+  parentId?: string | null;
+  icon?: string | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const name = input.name.trim();
+  if (!name) throw new Error("El nombre de la categoría es requerido.");
+
+  const { data, error } = await admin
+    .from("expense_categories")
+    .insert({
+      workspace_id: context.workspace.id,
+      name,
+      parent_id: input.parentId || null,
+      icon: input.icon || null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Error al crear la categoría: ${error?.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true, categoryId: data.id };
 }
 
 export async function createIncomeSource(input: {
@@ -2187,6 +2243,47 @@ export async function cancelExpenseTemplate(templateId: string) {
     throw new Error(`No se pudieron cancelar los eventos futuros: ${eventsError.message}`);
   }
 
+  revalidatePath("/app");
+  return { ok: true };
+}
+export async function deleteBusinessUnit(id: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const { error } = await admin
+    .from("business_units")
+    .delete()
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function deleteExpenseCategory(id: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const { error } = await admin
+    .from("expense_categories")
+    .delete()
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function deleteIncomeSource(id: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const { error } = await admin
+    .from("income_sources")
+    .delete()
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id);
+  if (error) throw new Error(error.message);
   revalidatePath("/app");
   return { ok: true };
 }

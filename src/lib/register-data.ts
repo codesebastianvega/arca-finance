@@ -7,6 +7,8 @@ export type RegisterOption = {
   value: string;
   meta?: string;
   amount?: number;
+  parentId?: string | null;
+  icon?: string | null;
 };
 
 export type RegisterViewModel = {
@@ -87,7 +89,7 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       .order("created_at", { ascending: true }),
     supabase
       .from("expense_categories")
-      .select("id, name")
+      .select("id, name, parent_id, icon")
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .order("created_at", { ascending: true }),
@@ -124,6 +126,8 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       id: String(row.id),
       label: String(row.name),
       value: String(row.name),
+      parentId: row.parent_id ? String(row.parent_id) : null,
+      icon: row.icon ? String(row.icon) : null,
     })),
     units: (unitsResult.data ?? []).map((row) => ({
       id: String(row.id),
