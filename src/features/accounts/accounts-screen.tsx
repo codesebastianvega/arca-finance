@@ -1151,7 +1151,9 @@ function WalletCard({
               Disponible: {money(available)}
             </p>
             {minPayment != null && minPayment > 0 && (
-              <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 text-arca-positive bg-white/10 px-2 py-0.5 rounded">
+              <p className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
+                darkText ? "bg-black/10 text-[#2A2117]" : "bg-black/25 text-white"
+              }`}>
                 Cuota: {money(minPayment)}
               </p>
             )}
