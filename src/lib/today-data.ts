@@ -179,7 +179,7 @@ function statusForCritical(event: ScheduledEventRow): "overdue" | "today" | "upc
 }
 
 function isConfirmedStatus(status: string | null | undefined) {
-  return status === "confirmed" || status === "confirmado";
+  return status === "confirmed" || status === "confirmado" || status === "paid";
 }
 
 function timingBucket(value: string | null | undefined): TodayMetricKey | null {
