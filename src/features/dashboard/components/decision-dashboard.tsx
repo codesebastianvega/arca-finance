@@ -316,7 +316,7 @@ export default function DecisionDashboard({
           
           <div className="flex flex-col gap-1 items-end">
             <span className="text-[11px] uppercase tracking-widest text-arca-text-secondary">Bolsillos</span>
-            <span className="text-sm font-bold text-arca-alert">-{formatCOP(cash.protectedSavings)}</span>
+            <span className="text-sm font-bold text-arca-positive">{formatCOP(cash.protectedSavings)}</span>
           </div>
         </div>
       </div>

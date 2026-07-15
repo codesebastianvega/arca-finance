@@ -321,13 +321,13 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     }));
 
   const expectedIncomes = upcomingIncomes
-    .filter((row) => row.dueDate >= monthBounds.start && row.dueDate < monthBounds.nextMonth)
+    .filter((row) => row.dueDate < monthBounds.nextMonth)
     .reduce((sum, row) => sum + row.amount, 0);
 
   const pendingObligations = ((scheduledResult.data ?? []) as ScheduledEventRow[])
     .filter((row) => row.kind !== "income")
     .filter((row) => !isConfirmedStatus(row.status))
-    .filter((row) => row.due_date >= monthBounds.start && row.due_date < monthBounds.nextMonth)
+    .filter((row) => row.due_date < monthBounds.nextMonth)
     .reduce((sum, row) => sum + numberValue(row.amount), 0);
 
   const receivedIncomes = ((transactionsResult.data ?? []) as Array<{ kind: string; amount: number }>)
