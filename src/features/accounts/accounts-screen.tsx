@@ -1094,6 +1094,7 @@ function WalletCard({
   dueDate,
   color,
   darkText,
+  minPayment,
   onClick,
 }: {
   name: string;
