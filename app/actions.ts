@@ -808,6 +808,39 @@ export async function createScheduledObligation(input: {
     });
   }
 
+  let templateId = null;
+
+  // Si la frecuencia NO es "once", creamos la suscripción (expense_template)
+  if (frequency !== "once" && accountId) {
+    const { data: template, error: templateError } = await admin
+      .from("expense_templates")
+      .insert({
+        workspace_id: context.workspace.id,
+        name: title,
+        kind: kind,
+        status: "active",
+        recurrence_mode: "frequency",
+        frequency: frequency,
+        start_date: eventsToInsert[0].due_date,
+        default_amount: amount,
+        default_account_id: accountId,
+        business_unit_key: "general",
+        notes: notesParts.length > 0 ? notesParts.join(" · ") : null,
+      })
+      .select("id")
+      .single();
+
+    if (!templateError && template) {
+      templateId = template.id;
+      // Asignar el template_id a todos los eventos futuros
+      eventsToInsert.forEach((event) => {
+        (event as any).template_id = templateId;
+      });
+    } else {
+      console.error("Error creando expense_template:", templateError);
+    }
+  }
+
   const { error } = await admin.from("scheduled_events").insert(eventsToInsert);
 
   if (error) {
@@ -2566,6 +2599,58 @@ export async function resolveReceivable(
     
     if (recUpdateErr) throw new Error("Error actualizando estado del préstamo: " + recUpdateErr.message);
   }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function cancelExpenseTemplate(templateId: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { error: templateErr } = await admin
+    .from("expense_templates")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", templateId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (templateErr) throw new Error(templateErr.message);
+
+  const { error: eventsErr } = await admin
+    .from("scheduled_events")
+    .delete()
+    .eq("template_id", templateId)
+    .eq("status", "scheduled")
+    .eq("workspace_id", context.workspace.id);
+
+  if (eventsErr) throw new Error(eventsErr.message);
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function cancelIncomeTemplate(templateId: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { error: templateErr } = await admin
+    .from("income_templates")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", templateId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (templateErr) throw new Error(templateErr.message);
+
+  const { error: eventsErr } = await admin
+    .from("scheduled_events")
+    .delete()
+    .eq("template_id", templateId)
+    .eq("status", "scheduled")
+    .eq("workspace_id", context.workspace.id);
+
+  if (eventsErr) throw new Error(eventsErr.message);
 
   revalidatePath("/app");
   return { ok: true };
