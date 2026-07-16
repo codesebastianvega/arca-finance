@@ -406,6 +406,18 @@ create table if not exists public.monthly_budgets (
 create unique index if not exists monthly_budgets_workspace_month_unique
   on public.monthly_budgets(workspace_id, month);
 
+create table if not exists public.category_budgets (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  category_name text not null,
+  limit_amount numeric not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists category_budgets_workspace_category_unique
+  on public.category_budgets(workspace_id, category_name);
+
 create table if not exists public.receivables (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -1352,6 +1364,7 @@ alter table public.savings_goals enable row level security;
 alter table public.savings_transactions enable row level security;
 alter table public.monthly_projections enable row level security;
 alter table public.monthly_budgets enable row level security;
+alter table public.category_budgets enable row level security;
 alter table public.receivables enable row level security;
 alter table public.scheduled_events enable row level security;
 alter table public.income_templates enable row level security;
@@ -1378,6 +1391,7 @@ alter table public.savings_goals force row level security;
 alter table public.savings_transactions force row level security;
 alter table public.monthly_projections force row level security;
 alter table public.monthly_budgets force row level security;
+alter table public.category_budgets force row level security;
 alter table public.receivables force row level security;
 alter table public.scheduled_events force row level security;
 alter table public.income_templates force row level security;
@@ -1552,6 +1566,12 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
+  create policy "category budgets workspace access" on public.category_budgets
+    for all using (public.user_has_workspace_access(workspace_id))
+    with check (public.user_has_workspace_access(workspace_id));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
   create policy "receivables workspace access" on public.receivables
     for all using (public.user_has_workspace_access(workspace_id))
     with check (public.user_has_workspace_access(workspace_id));
@@ -1611,6 +1631,8 @@ drop trigger if exists set_updated_at_monthly_projections on public.monthly_proj
 create trigger set_updated_at_monthly_projections before update on public.monthly_projections for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_monthly_budgets on public.monthly_budgets;
 create trigger set_updated_at_monthly_budgets before update on public.monthly_budgets for each row execute function public.set_updated_at();
+drop trigger if exists set_updated_at_category_budgets on public.category_budgets;
+create trigger set_updated_at_category_budgets before update on public.category_budgets for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_receivables on public.receivables;
 create trigger set_updated_at_receivables before update on public.receivables for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_scheduled_events on public.scheduled_events;

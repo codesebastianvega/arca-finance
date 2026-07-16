@@ -2,6 +2,7 @@ export type CalendarEventKind = "income" | "payment" | "receivable";
 
 export type CalendarEventItem = {
   id: string;
+  templateId?: string | null;
   title: string;
   amount: number;
   amountLabel: string;

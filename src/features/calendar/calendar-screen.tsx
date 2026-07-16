@@ -3,20 +3,30 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowDownLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { haptics } from '@/src/lib/haptics';
 import type { CalendarMonth, CalendarViewModel } from '@/src/lib/calendar-types';
+import type { ObligationItem } from '@/src/lib/obligations-types';
+import type { TodayReceivable } from '@/src/lib/today-data';
+import { ObligationActionModal } from '@/src/features/obligations/components/obligation-action-modal';
+import { ReceivableActionModal } from '@/src/features/dashboard/components/receivable-action-modal';
 
 const WEEK_DAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
 export default function CalendarScreen({
   onBack,
   data,
+  accounts,
 }: {
   onBack: () => void;
   data: CalendarViewModel;
+  accounts: { id: string; label: string }[];
 }) {
   const initialIndex = Math.max(0, data.months.findIndex((month) => month.key === data.initialMonthKey));
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarMonth['events'][number] | null>(null);
+  const router = useRouter();
 
   const currentMonth = data.months[currentIndex];
   const nextDisabled = currentIndex >= data.months.length - 1;
@@ -25,6 +35,40 @@ export default function CalendarScreen({
   useEffect(() => {
     setSelectedDay(null);
   }, [currentIndex]);
+
+  const mappedObligation: ObligationItem | null =
+    selectedEvent && (selectedEvent.kind === 'payment' || selectedEvent.kind === 'income')
+      ? {
+          id: selectedEvent.id,
+          name: selectedEvent.title,
+          amount: selectedEvent.amount,
+          date: selectedEvent.dateLabel,
+          amountLabel: selectedEvent.amountLabel,
+          status: selectedEvent.status as ObligationItem['status'],
+          priority: "medium",
+          groupedOccurrences: 1,
+          kind: selectedEvent.kind === 'payment' ? 'expense' : 'income',
+          dueDate: selectedEvent.dueDate,
+          accountId: null,
+          suggestedAccountId: null,
+          notes: null,
+          templateId: selectedEvent.templateId || "",
+        }
+      : null;
+
+  const mappedReceivable: TodayReceivable | null =
+    selectedEvent && selectedEvent.kind === 'receivable'
+      ? {
+          id: selectedEvent.id,
+          title: selectedEvent.title,
+          amount: selectedEvent.amount,
+          dueLabel: selectedEvent.dateLabel,
+          dueDate: selectedEvent.dueDate,
+          debtorName: selectedEvent.title,
+          status: selectedEvent.status as TodayReceivable['status'],
+          notes: null,
+        }
+      : null;
 
   const gridDays = useMemo(() => {
     const leading = Array.from({ length: currentMonth.firstWeekday }, (_, index) => ({ key: `empty-${index}`, day: null }));
@@ -78,8 +122,8 @@ export default function CalendarScreen({
         </div>
 
         <div className="grid grid-cols-7 gap-2">
-          {WEEK_DAYS.map((day) => (
-            <div key={day} className="text-center text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mb-2">
+          {WEEK_DAYS.map((day, i) => (
+            <div key={i} className="text-center text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mb-2">
               {day}
             </div>
           ))}
@@ -140,7 +184,14 @@ export default function CalendarScreen({
         <div className="card-arca divide-y divide-arca-border overflow-hidden">
           {visibleEvents.length > 0 ? (
             visibleEvents.map((event) => (
-              <div key={`${event.kind}-${event.id}`} className="flex items-center justify-between p-4 bg-arca-surface-1">
+              <button
+                key={`${event.kind}-${event.id}`}
+                onClick={() => {
+                  haptics.medium();
+                  setSelectedEvent(event);
+                }}
+                className="w-full text-left flex items-center justify-between p-4 bg-arca-surface-1 hover:bg-arca-surface-2 transition-colors"
+              >
                 <div className="flex items-center space-x-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconTone(event)}`}>
                     <CalendarIcon size={18} />
@@ -158,13 +209,27 @@ export default function CalendarScreen({
                     {labelForEvent(event)}
                   </span>
                 </div>
-              </div>
+              </button>
             ))
           ) : (
             <div className="p-4 text-xs text-arca-text-dim">No hay eventos programados para este mes.</div>
           )}
         </div>
       </section>
+
+      <ObligationActionModal
+        obligation={mappedObligation}
+        accounts={accounts}
+        onClose={() => setSelectedEvent(null)}
+        onRefresh={() => router.refresh()}
+      />
+
+      <ReceivableActionModal
+        receivable={mappedReceivable}
+        accounts={accounts}
+        onClose={() => setSelectedEvent(null)}
+        onRefresh={() => router.refresh()}
+      />
     </div>
   );
 }

@@ -77,13 +77,9 @@ export async function loadMonthViewModel(context: WorkspaceContext): Promise<Mon
       .lt("date", `${nextMonth}T00:00:00-05:00`)
       .neq("status", "cancelled"),
     supabase
-      .from("monthly_budgets")
-      .select("limit_amount")
-      .eq("workspace_id", workspaceId)
-      .gte("month", start)
-      .lt("month", nextMonth)
-      .limit(1)
-      .maybeSingle(),
+      .from("category_budgets")
+      .select("category_name, limit_amount")
+      .eq("workspace_id", workspaceId),
     supabase.from("savings_goals").select("current").eq("workspace_id", workspaceId).eq("archived", false),
   ]);
 
@@ -94,8 +90,8 @@ export async function loadMonthViewModel(context: WorkspaceContext): Promise<Mon
   if (transactionsResult.error) {
     throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);
   }
-  if (budgetsResult.error && budgetsResult.error.code !== "PGRST116") {
-    throw new Error(`No se pudo leer el presupuesto mensual: ${budgetsResult.error.message}`);
+  if (budgetsResult.error) {
+    throw new Error(`No se pudo leer el presupuesto por categorías: ${budgetsResult.error.message}`);
   }
   if (savingsResult.error) {
     throw new Error(`No se pudo leer el ahorro actual: ${savingsResult.error.message}`);
@@ -119,25 +115,34 @@ export async function loadMonthViewModel(context: WorkspaceContext): Promise<Mon
     grouped.set(category, (grouped.get(category) ?? 0) + toNumber(row.amount));
   }
 
-  const budgetLimit = budgetsResult.data
-    ? toNumber((budgetsResult.data as { limit_amount?: number | string | null }).limit_amount ?? 0)
-    : 0;
-  const totalCategorySpend = Array.from(grouped.values()).reduce((sum, value) => sum + value, 0);
+  const categoryLimits = new Map<string, number>();
+  for (const row of budgetsResult.data ?? []) {
+    categoryLimits.set(String(row.category_name), toNumber(row.limit_amount));
+  }
 
-  const budgetProgress: MonthBudgetProgress[] = Array.from(grouped.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([label, current]) => {
-      const limit =
-        budgetLimit > 0 && totalCategorySpend > 0 ? Math.round((current / totalCategorySpend) * budgetLimit) : Math.max(current, 1);
-
+  const budgetProgress: MonthBudgetProgress[] = Array.from(categoryLimits.entries())
+    .map(([label, limit]) => {
+      const current = grouped.get(label) ?? 0;
       return {
         label,
         current,
         limit,
         color: categoryColor(current, limit),
       };
-    });
+    })
+    .sort((a, b) => b.limit - a.limit); // Ordenar por límite mayor a menor
+
+  // Añadir categorías que tienen gastos pero no límite (si es que queremos mostrarlas)
+  for (const [label, current] of grouped.entries()) {
+    if (!categoryLimits.has(label)) {
+      budgetProgress.push({
+        label,
+        current,
+        limit: 0,
+        color: categoryColor(current, 0),
+      });
+    }
+  }
 
   const coverageMonths = expectedMonthlyExpenses > 0 ? protectedSavings / expectedMonthlyExpenses : 0;
   const coverageProgress = Math.min(100, Math.round((coverageMonths / 6) * 100));

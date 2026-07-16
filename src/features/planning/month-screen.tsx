@@ -65,8 +65,8 @@ function BudgetProgress({
   limit: number;
   color: "arca-accent" | "arca-positive" | "arca-alert";
 }) {
-  const percentage = limit > 0 ? Math.min((current / limit) * 100, 100) : 0;
-  const isOver = current > limit;
+  const percentage = limit > 0 ? Math.min((current / limit) * 100, 100) : (current > 0 ? 100 : 0);
+  const isOver = limit > 0 ? current > limit : current > 0;
   const barColor = color === "arca-alert" ? "bg-arca-alert" : color === "arca-positive" ? "bg-arca-positive" : "bg-arca-accent";
 
   return (
@@ -74,7 +74,7 @@ function BudgetProgress({
       <div className="flex justify-between items-center">
         <span className="text-xs font-bold text-arca-text-primary light:text-arca-light-text-primary uppercase tracking-widest">{label}</span>
         <span className={`text-[10px] font-bold ${isOver ? 'text-arca-alert' : 'text-arca-text-dim'}`}>
-          ${current.toLocaleString()} / ${limit.toLocaleString()}
+          ${current.toLocaleString()} {limit > 0 ? `/ $${limit.toLocaleString()}` : '(Sin Presupuesto)'}
         </span>
       </div>
       <div className="h-2 w-full bg-arca-surface-2 rounded-full overflow-hidden">
