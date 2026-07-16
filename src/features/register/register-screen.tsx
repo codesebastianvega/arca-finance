@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useTransition } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome, createExpenseCategory, createBankCredit } from '@/app/actions';
+import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createPayableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome, createExpenseCategory, createBankCredit } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 import type { RegisterViewModel } from '@/src/lib/register-data';
 import { 
@@ -248,6 +248,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [savingsGoalType, setSavingsGoalType] = useState<'goal' | 'pocket'>(defaultGoalType);
   const [savingsSourceAccountId, setSavingsSourceAccountId] = useState('');
   const [debtorName, setDebtorName] = useState('');
+  const [loanDirection, setLoanDirection] = useState<'given' | 'received'>('given');
   const [loanConcept, setLoanConcept] = useState('');
   const [loanAmount, setLoanAmount] = useState('');
   const [loanAccountId, setLoanAccountId] = useState('');
