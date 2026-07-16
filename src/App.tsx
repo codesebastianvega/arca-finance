@@ -55,6 +55,13 @@ export default function App({
   initialSubscriptionsData: SubscriptionsViewModel;
 }) {
   const [currentScreen, setCurrentScreen] = useState<Screen>('hoy');
+  const [registerParams, setRegisterParams] = useState<{defaultSegment?: string, defaultType?: 'gasto' | 'ingreso'}>({});
+  
+  const handleSetCurrentScreen = (screen: Screen) => {
+    if (screen !== 'registrar') setRegisterParams({});
+    setCurrentScreen(screen);
+  };
+
   const [theme, setTheme] = useState<ThemeId>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('arca-theme') as ThemeId) || 'arca-dark';
@@ -105,14 +112,21 @@ export default function App({
       case 'calendario': return <CalendarScreen onBack={backToMas} data={initialCalendarData} />;
       case 'transferir': return <TransferScreen onBack={backToMas} accounts={initialMoneyData.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance }))} />;
       case 'superadmin': return <SuperAdminScreen onBack={backToMas} />;
-      case 'suscripciones': return <SubscriptionsScreen onBack={backToMas} onNavigateToRegister={() => setCurrentScreen('registrar')} data={initialSubscriptionsData} />;
-      case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} /></div>;
+      case 'suscripciones': return <SubscriptionsScreen 
+        onBack={backToMas} 
+        onNavigateToRegister={(type) => {
+          setRegisterParams({ defaultSegment: 'Obligacion', defaultType: type });
+          setCurrentScreen('registrar');
+        }} 
+        data={initialSubscriptionsData} 
+      />;
+      case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} defaultSegment={registerParams.defaultSegment} defaultType={registerParams.defaultType} /></div>;
       default: return <DecisionDashboard data={initialTodayData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
     }
   };
 
   return (
-    <AppShell currentScreen={currentScreen} setCurrentScreen={setCurrentScreen} registerData={initialRegisterData}>
+    <AppShell currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData}>
       {renderScreen()}
     </AppShell>
   );

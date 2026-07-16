@@ -15,7 +15,7 @@ export default function SubscriptionsScreen({
 }: { 
   data: SubscriptionsViewModel; 
   onBack: () => void;
-  onNavigateToRegister?: () => void;
+  onNavigateToRegister?: (type: 'gasto' | 'ingreso') => void;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'incomes' | 'expenses'>('incomes');
@@ -87,7 +87,7 @@ export default function SubscriptionsScreen({
           <button 
             onClick={() => {
               haptics.light();
-              onNavigateToRegister();
+              onNavigateToRegister(activeTab === 'incomes' ? 'ingreso' : 'gasto');
             }}
             className="w-10 h-10 rounded-full bg-arca-accent text-white flex items-center justify-center shadow-lg"
           >
@@ -130,7 +130,7 @@ export default function SubscriptionsScreen({
               <button 
                 onClick={() => {
                   haptics.light();
-                  onNavigateToRegister();
+                  onNavigateToRegister(activeTab === 'incomes' ? 'ingreso' : 'gasto');
                 }}
                 className="mt-6 px-6 py-3 rounded-xl bg-arca-surface-2 border border-arca-border text-arca-text-primary font-bold text-sm inline-flex items-center gap-2 hover:bg-arca-border transition-colors"
               >
