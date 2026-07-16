@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ChevronLeft, RefreshCw, AlertTriangle, Edit2, X, Check, Plus } from 'lucide-react';
+import { ChevronLeft, RefreshCw, AlertTriangle, Edit2, X, Check, Plus, Settings } from 'lucide-react';
 import { Screen } from '@/src/types';
 import { SubscriptionsViewModel } from '@/src/lib/subscriptions-data';
-import { cancelIncomeTemplate, cancelExpenseTemplate, updateExpenseTemplate } from '@/app/actions';
+import { cancelIncomeTemplate, cancelExpenseTemplate, updateExpenseTemplate, updateIncomeTemplate } from '@/app/actions';
 import { haptics } from '@/src/lib/haptics';
 import { useRouter } from 'next/navigation';
 
@@ -20,6 +20,7 @@ export default function SubscriptionsScreen({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'incomes' | 'expenses'>('incomes');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [managingId, setManagingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editAmount, setEditAmount] = useState('');
 
@@ -30,7 +31,7 @@ export default function SubscriptionsScreen({
       if (activeTab === 'expenses') {
         await updateExpenseTemplate({ id: editingId, name: editName, amount: Number(editAmount) });
       } else {
-        // income edit not implemented yet, just reset
+        await updateIncomeTemplate({ id: editingId, name: editName, amount: Number(editAmount) });
       }
       setEditingId(null);
       router.refresh();
@@ -206,26 +207,46 @@ export default function SubscriptionsScreen({
                   
                   {sub.status === 'active' && (
                     <div className="flex gap-2">
-                      {activeTab === 'expenses' && (
+                      {managingId === sub.id ? (
+                        <>
+                          <button 
+                            onClick={() => {
+                              setEditingId(sub.id);
+                              setManagingId(null);
+                              setEditName(sub.name);
+                              setEditAmount(sub.defaultAmount.toString());
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-arca-surface-2 hover:bg-arca-border text-arca-text-secondary text-xs font-bold flex items-center gap-1 transition-colors"
+                          >
+                            <Edit2 size={12} />
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => {
+                              handleCancelTemplate(sub.id, sub.kind);
+                              setManagingId(null);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-arca-alert/10 hover:bg-arca-alert/20 border border-arca-alert/30 text-arca-alert text-xs font-bold flex items-center gap-1 transition-colors"
+                          >
+                            <AlertTriangle size={12} />
+                            Finalizar
+                          </button>
+                          <button 
+                            onClick={() => setManagingId(null)}
+                            className="px-2 py-1.5 rounded-lg bg-arca-surface-2 hover:bg-arca-border text-arca-text-secondary transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </>
+                      ) : (
                         <button 
-                          onClick={() => {
-                            setEditingId(sub.id);
-                            setEditName(sub.name);
-                            setEditAmount(sub.defaultAmount.toString());
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-arca-surface-2 hover:bg-arca-border text-arca-text-secondary text-xs font-bold flex items-center gap-1 transition-colors"
+                          onClick={() => setManagingId(sub.id)}
+                          className="px-3 py-1.5 rounded-lg bg-arca-surface-2 hover:bg-arca-border border border-arca-border text-arca-text-secondary text-xs font-bold flex items-center gap-1 transition-colors"
                         >
-                          <Edit2 size={12} />
-                          Editar
+                          <Settings size={12} />
+                          Gestionar
                         </button>
                       )}
-                      <button 
-                        onClick={() => handleCancelTemplate(sub.id, sub.kind)}
-                        className="px-3 py-1.5 rounded-lg bg-arca-alert/10 hover:bg-arca-alert/20 border border-arca-alert/30 text-arca-alert text-xs font-bold flex items-center gap-1 transition-colors"
-                      >
-                        <AlertTriangle size={12} />
-                        Finalizar
-                      </button>
                     </div>
                   )}
                 </div>
