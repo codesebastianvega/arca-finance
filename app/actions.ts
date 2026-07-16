@@ -2603,3 +2603,40 @@ export async function resolveReceivable(
   revalidatePath("/app");
   return { ok: true };
 }
+
+export async function updateExpenseTemplate(input: {
+  id: string;
+  name: string;
+  amount: number;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { error: templateErr } = await admin
+    .from("expense_templates")
+    .update({ 
+      name: input.name.trim(), 
+      default_amount: input.amount,
+      updated_at: new Date().toISOString() 
+    })
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id);
+
+  if (templateErr) throw new Error(templateErr.message);
+
+  const { error: eventsErr } = await admin
+    .from("scheduled_events")
+    .update({ 
+      title: input.name.trim(),
+      amount: input.amount 
+    })
+    .eq("template_id", input.id)
+    .eq("status", "scheduled")
+    .eq("workspace_id", context.workspace.id);
+
+  if (eventsErr) throw new Error(eventsErr.message);
+
+  revalidatePath("/app");
+  return { ok: true };
+}

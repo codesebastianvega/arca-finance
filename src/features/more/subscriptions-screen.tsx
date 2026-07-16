@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ChevronLeft, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, RefreshCw, AlertTriangle, Edit2, X, Check } from 'lucide-react';
 import { Screen } from '@/src/types';
 import { SubscriptionsViewModel } from '@/src/lib/subscriptions-data';
-import { cancelIncomeTemplate, cancelExpenseTemplate } from '@/app/actions';
+import { cancelIncomeTemplate, cancelExpenseTemplate, updateExpenseTemplate } from '@/app/actions';
 import { haptics } from '@/src/lib/haptics';
 import { useRouter } from 'next/navigation';
 
@@ -17,6 +17,27 @@ export default function SubscriptionsScreen({
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'incomes' | 'expenses'>('incomes');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    haptics.light();
+    try {
+      if (activeTab === 'expenses') {
+        await updateExpenseTemplate({ id: editingId, name: editName, amount: Number(editAmount) });
+      } else {
+        // income edit not implemented yet, just reset
+      }
+      setEditingId(null);
+      router.refresh();
+      haptics.success();
+    } catch (e) {
+      console.error("Error updating", e);
+      alert("Hubo un error al guardar. Intenta de nuevo.");
+    }
+  };
 
   const handleCancelTemplate = async (templateId: string, kind: 'income' | 'expense') => {
     if (!confirm("¿Seguro que quieres finalizar este contrato/suscripción? Se cancelarán todas las proyecciones futuras.")) return;
@@ -92,45 +113,99 @@ export default function SubscriptionsScreen({
             <p>No tienes {activeTab === 'incomes' ? 'contratos' : 'suscripciones'} registrados aún.</p>
           </div>
         ) : (
-          currentList.map(sub => (
-            <div key={sub.id} className={`card-arca p-4 flex flex-col gap-3 ${sub.status === 'cancelled' ? 'opacity-50 grayscale' : ''}`}>
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-white text-lg leading-tight">{sub.name}</h3>
-                  <p className="text-xs text-arca-text-secondary mt-1">
-                    Inicio: {sub.startDate} {sub.endDate ? `• Fin: ${sub.endDate}` : ''}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-black ${activeTab === 'incomes' ? 'text-arca-positive' : 'text-arca-alert'}`}>
-                    ${new Intl.NumberFormat("es-CO").format(sub.defaultAmount)}
-                  </p>
-                  <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-wider mt-1">
-                    / Mes
-                  </p>
-                </div>
-              </div>
+          currentList.map(sub => {
+            const isEditing = editingId === sub.id;
 
-              <div className="flex justify-between items-center mt-2 pt-3 border-t border-arca-border/40">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${sub.status === 'active' ? 'bg-arca-positive' : 'bg-arca-text-dim'}`} />
-                  <span className="text-xs font-bold text-arca-text-secondary uppercase">
-                    {sub.status === 'active' ? 'Activo' : 'Cancelado'}
-                  </span>
-                </div>
-                
-                {sub.status === 'active' && (
-                  <button 
-                    onClick={() => handleCancelTemplate(sub.id, sub.kind)}
-                    className="px-3 py-1.5 rounded-lg bg-arca-alert/10 hover:bg-arca-alert/20 border border-arca-alert/30 text-arca-alert text-xs font-bold flex items-center gap-1 transition-colors"
-                  >
-                    <AlertTriangle size={12} />
-                    Finalizar
+            if (isEditing) {
+              return (
+                <div key={sub.id} className="card-arca p-4 flex flex-col gap-4 border-arca-accent/30 border">
+                  <div className="flex justify-between items-center mb-1">
+                    <h3 className="font-bold text-white text-sm">Editar {sub.kind === 'income' ? 'Contrato' : 'Suscripción'}</h3>
+                    <button onClick={() => setEditingId(null)} className="p-1 rounded-full bg-arca-surface-2 text-arca-text-secondary hover:text-white">
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-wider ml-1">Nombre</label>
+                      <input 
+                        className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:border-arca-accent outline-none mt-1 text-white" 
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-wider ml-1">Valor mensual</label>
+                      <input 
+                        type="number"
+                        className="w-full bg-arca-surface-2 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:border-arca-accent outline-none mt-1 text-white" 
+                        value={editAmount}
+                        onChange={(e) => setEditAmount(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <button onClick={handleSaveEdit} className="w-full py-3 rounded-xl bg-arca-accent text-white font-bold text-sm flex items-center justify-center gap-2 mt-2">
+                    <Check size={16} /> Guardar Cambios
                   </button>
-                )}
+                </div>
+              );
+            }
+
+            return (
+              <div key={sub.id} className={`card-arca p-4 flex flex-col gap-3 ${sub.status === 'cancelled' ? 'opacity-50 grayscale' : ''}`}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-white text-lg leading-tight">{sub.name}</h3>
+                    <p className="text-xs text-arca-text-secondary mt-1">
+                      Inicio: {sub.startDate} {sub.endDate ? `• Fin: ${sub.endDate}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-black ${activeTab === 'incomes' ? 'text-arca-positive' : 'text-arca-alert'}`}>
+                      ${new Intl.NumberFormat("es-CO").format(sub.defaultAmount)}
+                    </p>
+                    <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-wider mt-1">
+                      / Mes
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center mt-2 pt-3 border-t border-arca-border/40">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${sub.status === 'active' ? 'bg-arca-positive' : 'bg-arca-text-dim'}`} />
+                    <span className="text-xs font-bold text-arca-text-secondary uppercase">
+                      {sub.status === 'active' ? 'Activo' : 'Cancelado'}
+                    </span>
+                  </div>
+                  
+                  {sub.status === 'active' && (
+                    <div className="flex gap-2">
+                      {activeTab === 'expenses' && (
+                        <button 
+                          onClick={() => {
+                            setEditingId(sub.id);
+                            setEditName(sub.name);
+                            setEditAmount(sub.defaultAmount.toString());
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-arca-surface-2 hover:bg-arca-border text-arca-text-secondary text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Edit2 size={12} />
+                          Editar
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleCancelTemplate(sub.id, sub.kind)}
+                        className="px-3 py-1.5 rounded-lg bg-arca-alert/10 hover:bg-arca-alert/20 border border-arca-alert/30 text-arca-alert text-xs font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <AlertTriangle size={12} />
+                        Finalizar
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
