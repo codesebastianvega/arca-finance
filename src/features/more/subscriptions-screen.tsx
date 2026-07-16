@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { ChevronLeft, RefreshCw, AlertTriangle, Edit2, X, Check } from 'lucide-react';
+import { ChevronLeft, RefreshCw, AlertTriangle, Edit2, X, Check, Plus } from 'lucide-react';
 import { Screen } from '@/src/types';
 import { SubscriptionsViewModel } from '@/src/lib/subscriptions-data';
 import { cancelIncomeTemplate, cancelExpenseTemplate, updateExpenseTemplate } from '@/app/actions';
@@ -10,10 +10,12 @@ import { useRouter } from 'next/navigation';
 
 export default function SubscriptionsScreen({ 
   data, 
-  onBack 
+  onBack,
+  onNavigateToRegister
 }: { 
   data: SubscriptionsViewModel; 
   onBack: () => void;
+  onNavigateToRegister?: () => void;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'incomes' | 'expenses'>('incomes');
@@ -61,24 +63,37 @@ export default function SubscriptionsScreen({
   return (
     <div className="flex flex-col gap-6 font-sans w-full pb-32">
       {/* Header */}
-      <header className="flex items-center gap-4 mb-2">
-        <button 
-          onClick={() => {
-            haptics.light();
-            onBack();
-          }}
-          className="w-10 h-10 rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border flex items-center justify-center hover:bg-arca-border transition-colors"
-        >
-          <ChevronLeft size={20} className="text-arca-text-secondary light:text-arca-light-text-secondary" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-black tracking-tighter text-arca-text-primary light:text-arca-light-text-primary">
-            Suscripciones
-          </h1>
-          <p className="text-[10px] font-bold text-arca-text-dim light:text-arca-light-text-secondary uppercase tracking-[0.2em]">
-            Contratos y Recurrencias
-          </p>
+      <header className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => {
+              haptics.light();
+              onBack();
+            }}
+            className="w-10 h-10 rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border flex items-center justify-center hover:bg-arca-border transition-colors"
+          >
+            <ChevronLeft size={20} className="text-arca-text-secondary light:text-arca-light-text-secondary" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-black tracking-tighter text-arca-text-primary light:text-arca-light-text-primary">
+              Suscripciones
+            </h1>
+            <p className="text-[10px] font-bold text-arca-text-dim light:text-arca-light-text-secondary uppercase tracking-[0.2em]">
+              Contratos y Recurrencias
+            </p>
+          </div>
         </div>
+        {onNavigateToRegister && (
+          <button 
+            onClick={() => {
+              haptics.light();
+              onNavigateToRegister();
+            }}
+            className="w-10 h-10 rounded-full bg-arca-accent text-white flex items-center justify-center shadow-lg"
+          >
+            <Plus size={20} />
+          </button>
+        )}
       </header>
 
       {/* Tabs */}
@@ -111,6 +126,17 @@ export default function SubscriptionsScreen({
           <div className="text-center py-12 px-4 text-arca-text-dim">
             <RefreshCw size={32} className="mx-auto mb-4 opacity-50" />
             <p>No tienes {activeTab === 'incomes' ? 'contratos' : 'suscripciones'} registrados aún.</p>
+            {onNavigateToRegister && (
+              <button 
+                onClick={() => {
+                  haptics.light();
+                  onNavigateToRegister();
+                }}
+                className="mt-6 px-6 py-3 rounded-xl bg-arca-surface-2 border border-arca-border text-arca-text-primary font-bold text-sm inline-flex items-center gap-2 hover:bg-arca-border transition-colors"
+              >
+                <Plus size={16} /> Crear {activeTab === 'incomes' ? 'contrato' : 'suscripción'}
+              </button>
+            )}
           </div>
         ) : (
           currentList.map(sub => {

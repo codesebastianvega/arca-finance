@@ -105,7 +105,7 @@ export default function App({
       case 'calendario': return <CalendarScreen onBack={backToMas} data={initialCalendarData} />;
       case 'transferir': return <TransferScreen onBack={backToMas} accounts={initialMoneyData.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance }))} />;
       case 'superadmin': return <SuperAdminScreen onBack={backToMas} />;
-      case 'suscripciones': return <SubscriptionsScreen onBack={backToMas} data={initialSubscriptionsData} />;
+      case 'suscripciones': return <SubscriptionsScreen onBack={backToMas} onNavigateToRegister={() => setCurrentScreen('registrar')} data={initialSubscriptionsData} />;
       case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} /></div>;
       default: return <DecisionDashboard data={initialTodayData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
     }
