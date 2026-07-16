@@ -1804,17 +1804,17 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
         <div className={`p-5 ${loanDirection === 'given' ? 'bg-arca-alert/5 border-arca-alert/10' : 'bg-arca-positive/5 border-arca-positive/10'} rounded-3xl border flex flex-col items-center text-center space-y-2`}>
           <HandCoins size={36} className={loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} />
           <h4 className={`text-xs font-bold uppercase ${loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} tracking-widest`}>
-            {loanDirection === 'given' ? "Prestar a alguien" : "Recibir Pr\u00e9stamo"}
+            {loanDirection === 'given' ? "Prestar a alguien" : "Recibir Préstamo"}
           </h4>
           <p className="text-[10px] text-arca-text-dim px-2">
-            \u00dasalo para pr\u00e9stamos informales con amigos, familiares o conocidos.
+            Úsalo para préstamos informales con amigos, familiares o conocidos.
           </p>
           <button 
             type="button" 
             onClick={() => { haptics.light(); setActiveSegment('Credito'); }}
             className={`text-[9px] font-bold underline ${loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} mt-1`}
           >
-            \u00bfEs un cr\u00e9dito con un banco? Toca aqu\u00ed.
+            ¿Es un crédito con un banco? Toca aquí.
           </button>
         </div>
 
