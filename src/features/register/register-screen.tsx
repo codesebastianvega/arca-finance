@@ -1801,14 +1801,21 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       </div>
 
       <div className="space-y-4">
-        <div className={`p-6 ${loanDirection === 'given' ? 'bg-arca-alert/5 border-arca-alert/10' : 'bg-arca-positive/5 border-arca-positive/10'} rounded-3xl border flex flex-col items-center text-center space-y-2`}>
-          <HandCoins size={40} className={loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} />
+        <div className={`p-5 ${loanDirection === 'given' ? 'bg-arca-alert/5 border-arca-alert/10' : 'bg-arca-positive/5 border-arca-positive/10'} rounded-3xl border flex flex-col items-center text-center space-y-2`}>
+          <HandCoins size={36} className={loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} />
           <h4 className={`text-xs font-bold uppercase ${loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} tracking-widest`}>
-            {"Registrar pr\u00e9stamo"}
+            {loanDirection === 'given' ? "Prestar a alguien" : "Recibir Pr\u00e9stamo"}
           </h4>
-          <p className="text-[9px] text-arca-text-dim uppercase tracking-wider">
-            {loanDirection === 'given' ? 'Dinero que sale hoy y luego regresa.' : 'Dinero que entra hoy y luego sale.'}
+          <p className="text-[10px] text-arca-text-dim px-2">
+            \u00dasalo para pr\u00e9stamos informales con amigos, familiares o conocidos.
           </p>
+          <button 
+            type="button" 
+            onClick={() => { haptics.light(); setActiveSegment('Credito'); }}
+            className={`text-[9px] font-bold underline ${loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} mt-1`}
+          >
+            \u00bfEs un cr\u00e9dito con un banco? Toca aqu\u00ed.
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -1956,7 +1963,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
           <button onClick={() => { haptics.light(); setActiveSegment('Prestamo'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
             <div className="w-10 h-10 rounded-full bg-[#F58220]/10 text-[#F58220] flex items-center justify-center group-hover:bg-[#F58220]/20 transition-colors"><HandCoins size={20} /></div>
-            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Prestar a otro</span>
+            <span className="text-[10px] font-bold text-arca-text-primary uppercase tracking-widest text-center">Préstamo</span>
           </button>
 
           <button onClick={() => { haptics.light(); setActiveSegment('Obligacion'); }} className="flex flex-col items-center justify-center p-3 bg-arca-surface-2 border border-arca-border rounded-2xl gap-2 transition-transform active:scale-95 group">
