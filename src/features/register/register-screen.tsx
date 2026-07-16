@@ -249,6 +249,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [savingsSourceAccountId, setSavingsSourceAccountId] = useState('');
   const [debtorName, setDebtorName] = useState('');
   const [loanDirection, setLoanDirection] = useState<'given' | 'received'>('given');
+  const [loanSkipIncome, setLoanSkipIncome] = useState(false);
   const [loanConcept, setLoanConcept] = useState('');
   const [loanAmount, setLoanAmount] = useState('');
   const [loanAccountId, setLoanAccountId] = useState('');
@@ -667,6 +668,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             dueDate: returnDate || null,
             accountId: loanAccountId,
             notes: loanNotes || null,
+            skipIncomeMovement: loanSkipIncome,
           });
         }
         resetLoanForm();
@@ -1868,10 +1870,33 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </div>
         </div>
 
+        {loanDirection === 'received' && (
+          <div 
+            onClick={() => { haptics.light(); setLoanSkipIncome(!loanSkipIncome); }}
+            className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+              loanSkipIncome ? 'bg-arca-accent/10 border-arca-accent/30' : 'bg-arca-surface-2 border-arca-border'
+            }`}
+          >
+            <div className="flex flex-col">
+              <span className={`text-[11px] font-bold uppercase tracking-wider ${loanSkipIncome ? 'text-arca-accent' : 'text-arca-text-primary'}`}>
+                El dinero ya fue gastado
+              </span>
+              <span className="text-[9px] text-arca-text-dim max-w-[200px] mt-1 leading-relaxed">
+                Si activas esto, no se sumará saldo a tus cuentas hoy. Sólo se registrará la deuda futura.
+              </span>
+            </div>
+            <div className={`w-10 h-6 rounded-full p-1 transition-colors relative ${loanSkipIncome ? 'bg-arca-accent' : 'bg-arca-surface-3'}`}>
+              <div className={`w-4 h-4 rounded-full bg-white transition-transform ${loanSkipIncome ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
-              {loanDirection === 'given' ? "Sale de esta cuenta" : "Entra a esta cuenta"}
+              {loanDirection === 'given' 
+                ? "Sale de esta cuenta" 
+                : loanSkipIncome ? "Se pagará desde esta cuenta" : "Entra a esta cuenta"}
             </label>
             {loanAccountId ? (
               <span className="text-[10px] font-semibold text-arca-text-dim">
@@ -1911,7 +1936,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
                       </p>
                     </div>
                     <p className="text-[8px] text-arca-text-dim uppercase truncate">
-                      {(account.meta ?? 'cuenta').toUpperCase()} · {loanDirection === 'given' ? 'Sale de esta cuenta' : 'Entra a esta cuenta'}
+                      {(account.meta ?? 'cuenta').toUpperCase()} · {loanDirection === 'given' ? 'Sale de esta cuenta' : loanSkipIncome ? 'Se pagará desde aquí' : 'Entra a esta cuenta'}
                     </p>
                   </div>
                 </button>

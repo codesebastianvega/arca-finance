@@ -2685,6 +2685,7 @@ export async function createPayableLoan(input: {
   dueDate?: string | null;
   accountId: string;
   notes?: string | null;
+  skipIncomeMovement?: boolean;
 }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
@@ -2697,10 +2698,11 @@ export async function createPayableLoan(input: {
   const dueDate = input.dueDate?.trim() || null;
   const accountId = input.accountId.trim();
   const notes = input.notes?.trim() || null;
+  const skipIncome = !!input.skipIncomeMovement;
 
   if (!lenderName) throw new Error("Debes indicar quien te prestó el dinero.");
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("El monto debe ser mayor a cero.");
-  if (!accountId) throw new Error("Debes elegir a qué cuenta entró el dinero.");
+  if (!accountId) throw new Error("Debes elegir una cuenta.");
   if (!dueDate) throw new Error("Debes definir la fecha en la que pagarás.");
 
   const { data: account, error: accountError } = await admin
@@ -2711,39 +2713,55 @@ export async function createPayableLoan(input: {
     .maybeSingle();
 
   if (accountError || !account) {
-    throw new Error(`No se pudo leer la cuenta de destino: ${accountError?.message ?? "sin respuesta"}`);
+    throw new Error(`No se pudo leer la cuenta: ${accountError?.message ?? "sin respuesta"}`);
   }
-
-  const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-  const nextBalance = currentBalance + amount;
 
   const title = requestedTitle || `Préstamo de ${lenderName}`;
   
-  // 1. Crear transaccion de ingreso HOY
-  const transactionDate = todayDateInBogota();
-  const { error: transactionError } = await admin
-    .from("transactions")
-    .insert({
-      workspace_id: context.workspace.id,
-      kind: "income",
-      status: "confirmed",
-      amount,
-      concept: title,
-      account_id: accountId,
-      category: "ingreso", // or prestamo_recibido if exists
-      unit: "general",
-      date: `${transactionDate}T00:00:00-05:00`,
-      posted_at: new Date().toISOString(),
-      source_type: "manual",
-      metadata: {
-        lender_name: lenderName,
-        account_name: account.name,
-        loan_type: "payable_loan"
-      },
-    });
+  if (!skipIncome) {
+    const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
+    const nextBalance = currentBalance + amount;
 
-  if (transactionError) {
-    throw new Error(`No se pudo registrar la entrada del prestamo: ${transactionError.message}`);
+    // 1. Crear transaccion de ingreso HOY
+    const transactionDate = todayDateInBogota();
+    const { error: transactionError } = await admin
+      .from("transactions")
+      .insert({
+        workspace_id: context.workspace.id,
+        kind: "income",
+        status: "confirmed",
+        amount,
+        concept: title,
+        account_id: accountId,
+        category: "ingreso",
+        unit: "general",
+        date: `${transactionDate}T00:00:00-05:00`,
+        posted_at: new Date().toISOString(),
+        source_type: "manual",
+        metadata: {
+          lender_name: lenderName,
+          account_name: account.name,
+          loan_type: "payable_loan"
+        },
+      });
+
+    if (transactionError) {
+      throw new Error(`No se pudo registrar la entrada del prestamo: ${transactionError.message}`);
+    }
+
+    // 3. Actualizar cuenta (movido antes del evento programado para agrupar lógica de ingreso)
+    const { error: accountUpdateError } = await admin
+      .from("accounts")
+      .update({
+        balance: nextBalance,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", accountId)
+      .eq("workspace_id", context.workspace.id);
+
+    if (accountUpdateError) {
+      throw new Error(`Se creo el prestamo, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
+    }
   }
 
   // 2. Crear Scheduled Event de Gasto futuro para pagar el prestamo
@@ -2761,21 +2779,7 @@ export async function createPayableLoan(input: {
     });
 
   if (eventError) {
-    throw new Error(`Se registró el ingreso, pero falló agendar el pago futuro: ${eventError.message}`);
-  }
-
-  // 3. Actualizar cuenta
-  const { error: accountUpdateError } = await admin
-    .from("accounts")
-    .update({
-      balance: nextBalance,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", accountId)
-    .eq("workspace_id", context.workspace.id);
-
-  if (accountUpdateError) {
-    throw new Error(`Se creo el prestamo, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
+    throw new Error(`Fallo al agendar el pago futuro: ${eventError.message}`);
   }
 
   revalidatePath("/app");
