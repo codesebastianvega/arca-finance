@@ -7,6 +7,8 @@ import type { TodayViewModel, TodayReceivable } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
 import { confirmScheduledEventNow, cancelScheduledEvent, cancelIncomeTemplate } from "@/app/actions";
 import { ReceivableActionModal } from "./receivable-action-modal";
+import { ObligationActionModal } from "../../../features/obligations/components/obligation-action-modal";
+import type { ObligationItem } from "@/src/lib/obligations-types";
 
 function formatCOP(amount: number | null | undefined): string {
   if (amount == null) return "$0";
@@ -41,76 +43,50 @@ export default function DecisionDashboard({
 }) {
   const { greeting, budget, metrics, cash, criticalPayments, receivables, upcomingIncomes, monthlyBudget } = data;
   const router = useRouter();
-  const [isConfirming, startTransition] = useTransition();
-  const [selectedIncome, setSelectedIncome] = useState<{id: string, title: string, amount: number} | null>(null);
-  const [confirmAmount, setConfirmAmount] = useState<string>("");
-  const [actionSheetIncome, setActionSheetIncome] = useState<{id: string, templateId?: string | null, title: string, amount: number} | null>(null);
+  const [actionSheetIncome, setActionSheetIncome] = useState<{id: string, templateId?: string | null, title: string, amount: number, dueLabel: string, dueDate: string} | null>(null);
   const [actionSheetReceivable, setActionSheetReceivable] = useState<TodayReceivable | null>(null);
+  const [selectedCriticalPayment, setSelectedCriticalPayment] = useState<typeof criticalPayments[0] | null>(null);
+
+  const mappedObligation: ObligationItem | null = selectedCriticalPayment ? {
+    id: selectedCriticalPayment.id,
+    name: selectedCriticalPayment.title,
+    amount: selectedCriticalPayment.amount,
+    date: selectedCriticalPayment.dueLabel,
+    amountLabel: formatCOP(selectedCriticalPayment.amount),
+    status: selectedCriticalPayment.status,
+    priority: "high",
+    groupedOccurrences: 1,
+    kind: selectedCriticalPayment.kind as any,
+    dueDate: selectedCriticalPayment.dueDate,
+    accountId: selectedCriticalPayment.accountId,
+    suggestedAccountId: selectedCriticalPayment.suggestedAccountId,
+    notes: selectedCriticalPayment.notes,
+    templateId: null
+  } : null;
+
+  const mappedIncomeObligation: ObligationItem | null = actionSheetIncome ? {
+    id: actionSheetIncome.id,
+    name: actionSheetIncome.title,
+    amount: actionSheetIncome.amount,
+    date: actionSheetIncome.dueLabel,
+    amountLabel: formatCOP(actionSheetIncome.amount),
+    status: "upcoming",
+    priority: "medium",
+    groupedOccurrences: 1,
+    kind: "income",
+    dueDate: actionSheetIncome.dueDate,
+    accountId: null,
+    suggestedAccountId: null,
+    notes: null,
+    templateId: actionSheetIncome.templateId || null
+  } : null;
 
   const limitedIncomes = upcomingIncomes.slice(0, 3);
   const hiddenIncomesCount = upcomingIncomes.length > 3 ? upcomingIncomes.length - 3 : 0;
 
-  const handleOpenActionSheet = (income: {id: string, templateId?: string | null, title: string, amount: number}) => {
+  const handleOpenActionSheet = (income: {id: string, templateId?: string | null, title: string, amount: number, dueLabel: string, dueDate: string}) => {
     haptics.medium();
     setActionSheetIncome(income);
-  };
-
-  const handleSelectConfirm = () => {
-    if (!actionSheetIncome) return;
-    haptics.medium();
-    setSelectedIncome(actionSheetIncome);
-    setConfirmAmount(actionSheetIncome.amount.toString());
-    setActionSheetIncome(null);
-  };
-
-  const handleCancelThisPayment = () => {
-    if (!actionSheetIncome) return;
-    if (!confirm("¿Seguro que quieres cancelar este pago esperado?")) return;
-    haptics.success();
-    startTransition(async () => {
-      try {
-        await cancelScheduledEvent(actionSheetIncome.id);
-        setActionSheetIncome(null);
-        router.refresh();
-      } catch (e) {
-        console.error("Error al cancelar pago:", e);
-      }
-    });
-  };
-
-  const handleCancelTemplate = () => {
-    if (!actionSheetIncome || !actionSheetIncome.templateId) return;
-    if (!confirm("¿Seguro que quieres finalizar este contrato? No se generarán más proyecciones para este ingreso.")) return;
-    haptics.success();
-    startTransition(async () => {
-      try {
-        await cancelIncomeTemplate(actionSheetIncome.templateId!);
-        setActionSheetIncome(null);
-        router.refresh();
-      } catch (e) {
-        console.error("Error al cancelar contrato:", e);
-      }
-    });
-  };
-
-  const executeConfirm = () => {
-    if (!selectedIncome) return;
-    const finalAmount = Number(confirmAmount);
-    if (isNaN(finalAmount) || finalAmount <= 0) {
-      alert("Por favor ingresa un monto válido mayor a 0");
-      return;
-    }
-
-    haptics.success();
-    startTransition(async () => {
-      try {
-        await confirmScheduledEventNow(selectedIncome.id, finalAmount);
-        setSelectedIncome(null);
-        router.refresh();
-      } catch (e) {
-        console.error("Error al confirmar ingreso:", e);
-      }
-    });
   };
 
   return (
@@ -334,7 +310,10 @@ export default function DecisionDashboard({
             {criticalPayments.length > 0 ? (
               <div className="divide-y divide-arca-border light:divide-arca-light-border">
                 {criticalPayments.map((p) => (
-                  <div key={p.id} className="p-4 flex justify-between items-center group cursor-pointer hover:bg-arca-bg-secondary light:hover:bg-arca-light-bg-secondary transition-colors" onClick={() => onOpenObligations?.()}>
+                  <div key={p.id} className="p-4 flex justify-between items-center group cursor-pointer hover:bg-arca-bg-secondary light:hover:bg-arca-light-bg-secondary transition-colors" onClick={() => {
+                    haptics.medium();
+                    setSelectedCriticalPayment(p);
+                  }}>
                     <div className="flex flex-col gap-1">
                       <span className="text-sm font-bold text-arca-text-primary light:text-arca-light-text-primary group-hover:text-arca-accent light:group-hover:text-arca-light-accent transition-colors">{p.title}</span>
                       <span className={`text-[10px] font-bold uppercase tracking-wider ${
@@ -403,9 +382,8 @@ export default function DecisionDashboard({
                 {limitedIncomes.map((income) => (
                   <button
                     key={income.id}
-                    disabled={isConfirming}
-                    onClick={() => handleOpenActionSheet({id: income.id, templateId: income.templateId, title: income.title, amount: income.amount})}
-                    className="w-full p-4 flex items-center justify-between hover:bg-arca-border/30 transition-colors text-left disabled:opacity-50"
+                    onClick={() => handleOpenActionSheet({id: income.id, templateId: income.templateId, title: income.title, amount: income.amount, dueLabel: income.dueLabel, dueDate: income.dueDate})}
+                    className="w-full p-4 flex items-center justify-between hover:bg-arca-border/30 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-arca-positive/10 flex items-center justify-center">
@@ -439,107 +417,24 @@ export default function DecisionDashboard({
         </div>
       </div>
 
-      {/* Custom Confirmation Modal */}
-      {selectedIncome && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-arca-surface-1 light:bg-arca-light-surface-1 rounded-3xl p-6 shadow-2xl border border-arca-border/50 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 rounded-full bg-arca-positive/20 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 size={24} className="text-arca-positive" />
-            </div>
-            <h3 className="text-lg font-bold text-center text-white mb-1">Confirmar Ingreso</h3>
-            <p className="text-sm text-center text-arca-positive font-bold mb-4">
-              {selectedIncome.title}
-            </p>
-            <div className="mb-6">
-              <div className="relative flex items-center bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border/40 rounded-xl px-4 py-1 focus-within:border-arca-positive transition-colors">
-                <input 
-                  type="text" 
-                  inputMode="numeric"
-                  value={confirmAmount ? new Intl.NumberFormat("es-CO").format(Number(confirmAmount)) : ""}
-                  onChange={(e) => {
-                    const rawValue = e.target.value.replace(/\D/g, "");
-                    setConfirmAmount(rawValue);
-                  }}
-                  className="w-full bg-transparent text-white font-bold text-lg py-2 focus:outline-none placeholder:text-arca-text-dim text-right pr-2"
-                  placeholder="0"
-                />
-                <span className="text-arca-text-dim font-bold text-xs ml-2">COP</span>
-              </div>
-              <span className="text-[10px] text-arca-text-dim mt-2 block text-center">Ajusta el monto si recibiste un valor distinto.</span>
-            </div>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setSelectedIncome(null)} 
-                disabled={isConfirming}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm bg-arca-surface-2 light:bg-arca-light-surface-2 text-arca-text-secondary hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={executeConfirm}
-                disabled={isConfirming}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm bg-arca-positive text-white hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-arca-positive/20 flex items-center justify-center disabled:opacity-50"
-              >
-                {isConfirming ? (
-                  <RefreshCw size={18} className="animate-spin" />
-                ) : (
-                  "Confirmar"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Action Sheet para Próximos Ingresos */}
-      {actionSheetIncome && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionSheetIncome(null)} />
-          <div className="relative z-10 w-full max-w-sm bg-arca-base light:bg-arca-light-base rounded-3xl p-6 shadow-2xl border border-arca-border/20 slide-up">
-            <div className="w-12 h-1 bg-arca-border/40 mx-auto rounded-full mb-6" />
-            <h3 className="text-lg font-bold text-center text-white mb-1">{actionSheetIncome.title}</h3>
-            <p className="text-sm text-center text-arca-text-secondary font-bold mb-6">
-              {formatCOP(actionSheetIncome.amount)}
-            </p>
-
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={handleSelectConfirm} 
-                className="w-full py-4 rounded-xl bg-arca-surface-2 hover:bg-arca-surface-3 border border-arca-border font-bold text-white transition-all flex items-center justify-center"
-              >
-                <CheckCircle2 size={18} className="mr-2 text-arca-positive" />
-                Confirmar / Editar Monto
-              </button>
-              <button 
-                onClick={handleCancelThisPayment} 
-                className="w-full py-4 rounded-xl bg-arca-surface-2 hover:bg-arca-surface-3 border border-arca-border font-bold text-white transition-all flex items-center justify-center"
-              >
-                Omitir este pago (cancelar)
-              </button>
-              {actionSheetIncome.templateId && (
-                <button 
-                  onClick={handleCancelTemplate} 
-                  className="w-full py-4 rounded-xl bg-arca-alert/10 hover:bg-arca-alert/20 border border-arca-alert/30 font-bold text-arca-alert transition-all flex items-center justify-center"
-                >
-                  <AlertTriangle size={18} className="mr-2" />
-                  Finalizar Contrato
-                </button>
-              )}
-              <button 
-                onClick={() => setActionSheetIncome(null)} 
-                className="w-full py-4 rounded-xl bg-transparent font-bold text-arca-text-dim hover:text-white transition-all mt-2"
-              >
-                Volver
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ObligationActionModal
+        obligation={mappedIncomeObligation}
+        accounts={data.accountOptions}
+        onClose={() => setActionSheetIncome(null)}
+        onRefresh={() => router.refresh()}
+      />
 
       <ReceivableActionModal 
         receivable={actionSheetReceivable}
         accounts={data.accountOptions}
         onClose={() => setActionSheetReceivable(null)}
+        onRefresh={() => router.refresh()}
+      />
+
+      <ObligationActionModal
+        obligation={mappedObligation}
+        accounts={data.accountOptions}
+        onClose={() => setSelectedCriticalPayment(null)}
         onRefresh={() => router.refresh()}
       />
     </div>
