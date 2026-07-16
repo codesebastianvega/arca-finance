@@ -2677,3 +2677,107 @@ export async function updateIncomeTemplate(input: {
   revalidatePath("/app");
   return { ok: true };
 }
+
+export async function createPayableLoan(input: {
+  lenderName: string;
+  title?: string | null;
+  amount: number;
+  dueDate?: string | null;
+  accountId: string;
+  notes?: string | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const lenderName = input.lenderName.trim();
+  const requestedTitle = input.title?.trim() || "";
+  const amount = Number(input.amount ?? 0);
+  const dueDate = input.dueDate?.trim() || null;
+  const accountId = input.accountId.trim();
+  const notes = input.notes?.trim() || null;
+
+  if (!lenderName) throw new Error("Debes indicar quien te prestó el dinero.");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("El monto debe ser mayor a cero.");
+  if (!accountId) throw new Error("Debes elegir a qué cuenta entró el dinero.");
+  if (!dueDate) throw new Error("Debes definir la fecha en la que pagarás.");
+
+  const { data: account, error: accountError } = await admin
+    .from("accounts")
+    .select("id, name, balance")
+    .eq("id", accountId)
+    .eq("workspace_id", context.workspace.id)
+    .maybeSingle();
+
+  if (accountError || !account) {
+    throw new Error(`No se pudo leer la cuenta de destino: ${accountError?.message ?? "sin respuesta"}`);
+  }
+
+  const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
+  const nextBalance = currentBalance + amount;
+
+  const title = requestedTitle || `Préstamo de ${lenderName}`;
+  
+  // 1. Crear transaccion de ingreso HOY
+  const transactionDate = todayDateInBogota();
+  const { error: transactionError } = await admin
+    .from("transactions")
+    .insert({
+      workspace_id: context.workspace.id,
+      kind: "income",
+      status: "confirmed",
+      amount,
+      concept: title,
+      account_id: accountId,
+      category: "ingreso", // or prestamo_recibido if exists
+      unit: "general",
+      date: `${transactionDate}T00:00:00-05:00`,
+      posted_at: new Date().toISOString(),
+      source_type: "manual",
+      metadata: {
+        lender_name: lenderName,
+        account_name: account.name,
+        loan_type: "payable_loan"
+      },
+    });
+
+  if (transactionError) {
+    throw new Error(`No se pudo registrar la entrada del prestamo: ${transactionError.message}`);
+  }
+
+  // 2. Crear Scheduled Event de Gasto futuro para pagar el prestamo
+  const { error: eventError } = await admin
+    .from("scheduled_events")
+    .insert({
+      workspace_id: context.workspace.id,
+      title: `Pagar ${title}`,
+      amount,
+      due_date: dueDate,
+      status: "scheduled",
+      kind: "expense",
+      account_id: accountId,
+      notes: notes || null
+    });
+
+  if (eventError) {
+    throw new Error(`Se registró el ingreso, pero falló agendar el pago futuro: ${eventError.message}`);
+  }
+
+  // 3. Actualizar cuenta
+  const { error: accountUpdateError } = await admin
+    .from("accounts")
+    .update({
+      balance: nextBalance,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", accountId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (accountUpdateError) {
+    throw new Error(`Se creo el prestamo, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}

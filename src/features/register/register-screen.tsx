@@ -649,14 +649,25 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
         });
         resetDebtForm();
       } else if (activeSegment === 'Prestamo') {
-        await createReceivableLoan({
-          debtorName,
-          title: loanConcept,
-          amount: Number(loanAmount || '0'),
-          dueDate: returnDate || null,
-          accountId: loanAccountId,
-          notes: loanNotes || null,
-        });
+        if (loanDirection === 'given') {
+          await createReceivableLoan({
+            debtorName,
+            title: loanConcept,
+            amount: Number(loanAmount || '0'),
+            dueDate: returnDate || null,
+            accountId: loanAccountId,
+            notes: loanNotes || null,
+          });
+        } else {
+          await createPayableLoan({
+            lenderName: debtorName,
+            title: loanConcept,
+            amount: Number(loanAmount || '0'),
+            dueDate: returnDate || null,
+            accountId: loanAccountId,
+            notes: loanNotes || null,
+          });
+        }
         resetLoanForm();
       } else {
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -1771,20 +1782,43 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
   const renderLoanForm = () => (
     <div className="space-y-6">
+      <div className="flex bg-arca-surface-2 light:bg-arca-light-surface-2 p-1 rounded-2xl border border-arca-border light:border-arca-light-border">
+        <button 
+          onClick={() => { haptics.light(); setLoanDirection('given'); }}
+          className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center space-x-2 ${loanDirection === 'given' ? 'bg-arca-alert text-white shadow-lg shadow-arca-alert/20' : 'text-arca-text-dim'}`}
+        >
+          <ArrowDownLeft size={14} />
+          <span>Prestar a alguien</span>
+        </button>
+        <button 
+          onClick={() => { haptics.light(); setLoanDirection('received'); }}
+          className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center space-x-2 ${loanDirection === 'received' ? 'bg-arca-positive text-white shadow-lg shadow-arca-positive/20' : 'text-arca-text-dim'}`}
+        >
+          <ArrowUpRight size={14} />
+          <span>Recibir préstamo</span>
+        </button>
+      </div>
+
       <div className="space-y-4">
-        <div className="p-6 bg-arca-positive/5 rounded-3xl border border-arca-positive/10 flex flex-col items-center text-center space-y-2">
-          <HandCoins size={40} className="text-arca-positive" />
-          <h4 className="text-xs font-bold uppercase text-arca-positive tracking-widest">{"Registrar pr\u00e9stamo"}</h4>
-          <p className="text-[9px] text-arca-text-dim uppercase tracking-wider">Dinero que sale hoy y luego regresa.</p>
+        <div className={`p-6 ${loanDirection === 'given' ? 'bg-arca-alert/5 border-arca-alert/10' : 'bg-arca-positive/5 border-arca-positive/10'} rounded-3xl border flex flex-col items-center text-center space-y-2`}>
+          <HandCoins size={40} className={loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} />
+          <h4 className={`text-xs font-bold uppercase ${loanDirection === 'given' ? 'text-arca-alert' : 'text-arca-positive'} tracking-widest`}>
+            {"Registrar pr\u00e9stamo"}
+          </h4>
+          <p className="text-[9px] text-arca-text-dim uppercase tracking-wider">
+            {loanDirection === 'given' ? 'Dinero que sale hoy y luego regresa.' : 'Dinero que entra hoy y luego sale.'}
+          </p>
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">{"A qui\u00e9n le prestaste"}</label>
+          <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+            {loanDirection === 'given' ? "A qui\u00e9n le prestaste" : "Qui\u00e9n te prest\u00f3"}
+          </label>
           <input
             type="text"
             value={debtorName}
             onChange={(e) => setDebtorName(e.target.value)}
-            placeholder="Ej: Cliente, amigo o familiar"
+            placeholder={loanDirection === 'given' ? "Ej: Cliente, amigo o familiar" : "Ej: Camila, Brayan, Banco"}
             className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none"
           />
         </div>
@@ -1802,7 +1836,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Monto prestado</label>
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+              {loanDirection === 'given' ? "Monto prestado" : "Monto recibido"}
+            </label>
             <input
               type="number"
               value={loanAmount}
@@ -1812,7 +1848,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">{"Fecha de devoluci\u00f3n"}</label>
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+              {loanDirection === 'given' ? "Fecha de devoluci\u00f3n" : "Fecha a pagar"}
+            </label>
             <input
               type="date"
               value={returnDate}
@@ -1824,7 +1862,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Sale de esta cuenta</label>
+            <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+              {loanDirection === 'given' ? "Sale de esta cuenta" : "Entra a esta cuenta"}
+            </label>
             {loanAccountId ? (
               <span className="text-[10px] font-semibold text-arca-text-dim">
                 Disponible:{" "}
@@ -1863,7 +1903,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
                       </p>
                     </div>
                     <p className="text-[8px] text-arca-text-dim uppercase truncate">
-                      {(account.meta ?? 'cuenta').toUpperCase()} · Sale de esta cuenta
+                      {(account.meta ?? 'cuenta').toUpperCase()} · {loanDirection === 'given' ? 'Sale de esta cuenta' : 'Entra a esta cuenta'}
                     </p>
                   </div>
                 </button>
