@@ -10,9 +10,13 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.17",
+    "@ai-sdk/openai": "^4.0.15",
+    "@ai-sdk/react": "^4.0.32",
     "@google/genai": "^2.4.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.56.0",
+    "ai": "^7.0.29",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
