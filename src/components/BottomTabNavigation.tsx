@@ -16,7 +16,7 @@ export default function BottomTabNavigation({
 }: BottomTabNavigationProps) {
   
   const navItems: { label: string; icon: any; id: Screen }[] = [
-    { label: 'Hoy', icon: Home, id: 'hoy' },
+    { label: 'Inicio', icon: Home, id: 'hoy' },
     { label: 'Dinero', icon: Wallet, id: 'dinero_cuentas' },
     { label: 'Agenda', icon: CalendarDays, id: 'obligaciones' },
     { label: 'Más', icon: MoreHorizontal, id: 'mas' },
@@ -30,7 +30,7 @@ export default function BottomTabNavigation({
           <TabItem 
             key={item.id} 
             item={item} 
-            isActive={currentScreen === item.id || (item.id === 'dinero_cuentas' && currentScreen.startsWith('dinero_'))} 
+            isActive={currentScreen === item.id || (item.id === 'hoy' && currentScreen === 'resumen') || (item.id === 'dinero_cuentas' && currentScreen.startsWith('dinero_'))}
             onClick={() => onScreenChange(item.id)} 
           />
         ))}

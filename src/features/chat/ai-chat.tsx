@@ -2,21 +2,41 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Sparkles, User, Bot, Loader2 } from 'lucide-react';
+import { X, Send, Sparkles, User, Bot } from 'lucide-react';
+import { MessageResponse } from '@/src/components/ai-elements/message';
+import {
+  FinancialActionCard,
+  isFinancialActionPart,
+  type FinancialActionPart,
+} from './financial-action-card';
 
-export default function AiChat({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function AiChat({
+  isOpen,
+  onClose,
+  initialPrompt,
+  onInitialPromptConsumed,
+  currencyCode,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  initialPrompt?: string | null;
+  onInitialPromptConsumed?: () => void;
+  currencyCode: string;
+}) {
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
-  const { messages, sendMessage, isLoading } = useChat({
-    api: '/api/chat',
-    maxSteps: 5,
+  const { messages, sendMessage, status, addToolApprovalResponse } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onError: (error) => {
       console.error('Chat error:', error);
       setErrorToast("Los servidores de Google están ocupados, intenta de nuevo.");
       setTimeout(() => setErrorToast(null), 5000);
     }
   });
+  const isLoading = status === 'submitted' || status === 'streaming';
   const [inputValue, setInputValue] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -27,10 +47,18 @@ export default function AiChat({ isOpen, onClose }: { isOpen: boolean; onClose: 
     }
   }, [messages]);
 
+  useEffect(() => {
+    const prompt = initialPrompt?.trim();
+    if (!isOpen || !prompt || isLoading) return;
+
+    onInitialPromptConsumed?.();
+    void sendMessage({ text: prompt });
+  }, [initialPrompt, isLoading, isOpen, onInitialPromptConsumed, sendMessage]);
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading) return;
-    sendMessage({ role: 'user', content: inputValue });
+    sendMessage({ text: inputValue });
     setInputValue('');
   };
 
@@ -50,52 +78,29 @@ export default function AiChat({ isOpen, onClose }: { isOpen: boolean; onClose: 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 h-[85vh] bg-black/70 backdrop-blur-2xl rounded-t-[32px] z-50 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-emerald-500/20 overflow-hidden text-white"
+            className="fixed bottom-0 left-0 right-0 h-[85vh] bg-arca-base/95 backdrop-blur-2xl rounded-t-[32px] z-50 flex flex-col shadow-[0_-18px_55px_rgba(0,0,0,0.65)] border-t border-arca-border-strong overflow-hidden text-arca-text-primary"
           >
-            {/* Animated Background Orbs */}
+            {/* Subtle Arca ambient light */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-              <motion.div
-                animate={{
-                  scale: [1, 1.2, 1],
-                  opacity: [0.3, 0.5, 0.3],
-                  rotate: [0, 90, 180, 270, 360],
-                }}
-                transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                className="absolute top-[-20%] left-[-20%] w-[40rem] h-[40rem] bg-purple-500/20 rounded-full blur-[120px]"
-              />
-              <motion.div
-                animate={{
-                  scale: [1, 1.5, 1],
-                  opacity: [0.2, 0.4, 0.2],
-                  rotate: [360, 270, 180, 90, 0],
-                }}
-                transition={{ duration: 20, repeat: Infinity, ease: "linear", delay: 1 }}
-                className="absolute bottom-[-20%] right-[-20%] w-[50rem] h-[50rem] bg-fuchsia-500/20 rounded-full blur-[150px]"
-              />
-              <motion.div
-                animate={{
-                  opacity: [0.1, 0.3, 0.1],
-                  scale: [0.8, 1.1, 0.8],
-                }}
-                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-[30%] left-[30%] w-64 h-64 bg-violet-600/20 rounded-full blur-[80px]"
-              />
+              <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-arca-accent/[0.06] blur-[100px]" />
+              <div className="absolute -bottom-36 -left-24 h-80 w-80 rounded-full bg-arca-positive/[0.035] blur-[120px]" />
             </div>
 
             {/* Header */}
-            <div className="relative z-10 flex items-center justify-between p-6 border-b border-white/10 bg-transparent">
+            <div className="relative z-10 flex items-center justify-between p-6 border-b border-arca-border bg-arca-surface-1/80">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500/30 to-fuchsia-500/20 border border-purple-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                  <Sparkles className="text-purple-400" size={20} />
+                <div className="w-10 h-10 rounded-2xl bg-arca-accent/10 border border-arca-accent/25 flex items-center justify-center">
+                  <Sparkles className="text-arca-accent" size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white tracking-wide">Nova</h3>
-                  <p className="text-xs text-purple-200/60 font-medium uppercase tracking-wider">Asistente Premium</p>
+                  <h3 className="text-lg font-bold text-arca-text-primary tracking-wide">Nova</h3>
+                  <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-[0.16em]">Agente financiera</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all"
+                aria-label="Cerrar Nova"
+                className="w-10 h-10 rounded-full bg-arca-surface-2 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-text-primary hover:border-arca-border-strong transition-all"
               >
                 <X size={20} />
               </button>
@@ -123,65 +128,88 @@ export default function AiChat({ isOpen, onClose }: { isOpen: boolean; onClose: 
                     animate={{ rotate: 360 }}
                     transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
                   >
-                    <Sparkles size={48} className="text-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
+                    <Sparkles size={48} className="text-arca-accent" />
                   </motion.div>
-                  <p className="text-sm text-purple-100/70 max-w-[250px] font-medium">
+                  <p className="text-sm text-arca-text-secondary max-w-[250px] font-medium">
                     Escribe algo como: "¿Cuánto me sobra este mes?"
                   </p>
                 </div>
               )}
               
-              {messages.map((m) => (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  key={m.id} 
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`flex items-end space-x-2 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${m.role === 'user' ? 'bg-white/10 border-white/20 backdrop-blur-md' : 'bg-purple-500/20 border-purple-500/40 backdrop-blur-md shadow-[0_0_10px_rgba(168,85,247,0.2)]'}`}>
-                      {m.role === 'user' ? <User size={16} className="text-white" /> : <Bot size={16} className="text-purple-400" />}
+              {messages.map((m) => {
+                const text = m.parts
+                  .filter((part) => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('');
+                const showLoading = m.role === 'assistant' && !text && isLoading;
+                const financialActions = m.parts.filter((part) =>
+                  isFinancialActionPart(part),
+                ) as unknown as FinancialActionPart[];
+                const isStreamingMessage =
+                  m.role === 'assistant' &&
+                  isLoading &&
+                  m.id === messages.at(-1)?.id;
+
+                // Tool-only messages remain in SDK state but should not leave
+                // a completed empty bubble in the visible conversation.
+                if (!text && !showLoading && financialActions.length === 0) return null;
+
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={m.id}
+                    className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`flex items-end space-x-2 max-w-[92%] ${m.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${m.role === 'user' ? 'bg-arca-surface-2 border-arca-border-strong' : 'bg-arca-accent/10 border-arca-accent/30'}`}>
+                        {m.role === 'user' ? <User size={16} className="text-arca-text-secondary" /> : <Bot size={16} className="text-arca-accent" />}
+                      </div>
+                      <div className={`flex min-w-0 flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        {(text || showLoading) && (
+                          <div className={`p-4 rounded-[20px] text-sm leading-relaxed border ${m.role === 'user' ? 'whitespace-pre-wrap bg-arca-surface-2 border-arca-border-strong text-arca-text-primary rounded-br-sm' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary rounded-bl-sm shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'}`}>
+                            {m.role === 'assistant' ? (
+                              <MessageResponse
+                                className="nova-markdown"
+                                isAnimating={isStreamingMessage}
+                              >
+                                {text}
+                              </MessageResponse>
+                            ) : (
+                              text
+                            )}
+
+                            {showLoading && (
+                              <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
+                                <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                                <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
+                                <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {financialActions.map((part) => (
+                          <FinancialActionCard
+                            currencyCode={currencyCode}
+                            key={part.toolCallId ?? `${m.id}-${part.type}`}
+                            onApproval={(id, approved) => {
+                              void addToolApprovalResponse({ id, approved });
+                            }}
+                            part={part}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <div className={`p-4 rounded-[20px] text-sm leading-relaxed backdrop-blur-md border ${m.role === 'user' ? 'bg-white/10 border-white/20 text-white rounded-br-sm shadow-lg' : 'bg-purple-950/40 border-purple-500/30 text-purple-50 rounded-bl-sm shadow-[0_4px_20px_rgba(0,0,0,0.3)]'}`}>
-                      {m.content}
-                      {/* AI SDK v7 responses often use parts instead of content */}
-                      {(m as any).parts?.map((part: any, index: number) => {
-                        if (part.type === 'text') {
-                          return <span key={index}>{part.text}</span>;
-                        }
-                        if (part.type === 'tool-invocation') {
-                          return (
-                            <div key={index} className="mt-3 pt-3 border-t border-purple-500/20 text-xs opacity-80 flex items-center text-purple-200">
-                              <Loader2 size={12} className="mr-2 animate-spin text-purple-400" /> Consultando base de datos ({part.toolInvocation.toolName})...
-                            </div>
-                          );
-                        }
-                        return null;
-                      })}
-                      {m.toolInvocations && m.toolInvocations.map(tool => (
-                        <div key={tool.toolCallId} className="mt-3 pt-3 border-t border-purple-500/20 text-xs opacity-80 flex items-center text-purple-200">
-                          <Loader2 size={12} className="mr-2 animate-spin text-purple-400" /> Consultando datos...
-                        </div>
-                      ))}
-                      
-                      {/* Mostrar puntos de carga si el mensaje está vacío (cargando) */}
-                      {m.role === 'assistant' && !m.content && (!(m as any).parts || (m as any).parts.length === 0) && (
-                        <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
-                          <motion.div className="w-1.5 h-1.5 bg-purple-400 rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
-                          <motion.div className="w-1.5 h-1.5 bg-purple-400 rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
-                          <motion.div className="w-1.5 h-1.5 bg-fuchsia-400 rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
 
               <div ref={messagesEndRef} />
             </div>
 
             {/* Input Form */}
-            <div className="relative z-10 p-4 pb-safe bg-black/20 backdrop-blur-xl border-t border-white/10">
+            <div className="relative z-10 p-4 pb-safe bg-arca-surface-1/90 backdrop-blur-xl border-t border-arca-border">
               <form onSubmit={onSubmit} className="relative flex items-center">
                 <input
                   type="text"
@@ -189,12 +217,13 @@ export default function AiChat({ isOpen, onClose }: { isOpen: boolean; onClose: 
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Pregúntale a Nova..."
-                  className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 rounded-full pl-6 pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:bg-white/10 text-sm shadow-inner transition-all"
+                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-6 pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
                 />
                 <button
                   type="submit"
                   disabled={isLoading || !inputValue.trim()}
-                  className="absolute right-2 w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-500 flex items-center justify-center text-white hover:opacity-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(168,85,247,0.4)] disabled:shadow-none"
+                  aria-label="Enviar mensaje"
+                  className="absolute right-2 w-10 h-10 rounded-full bg-arca-accent flex items-center justify-center text-[#15110c] hover:bg-arca-accent-hover disabled:opacity-30 transition-all disabled:shadow-none"
                 >
                   <Send size={18} className="ml-0.5" />
                 </button>

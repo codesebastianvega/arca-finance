@@ -1,5 +1,6 @@
 export type Screen = 
   | 'hoy' 
+  | 'resumen'
   | 'dashboard' 
   | 'dinero_cuentas' 
   | 'dinero_tarjetas' 

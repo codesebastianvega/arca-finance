@@ -14,6 +14,7 @@ import type { TodayViewModel } from './lib/today-data';
 import type { SubscriptionsViewModel } from './lib/subscriptions-data';
 import AppShell from './features/app-shell/app-shell';
 import DecisionDashboard from './features/dashboard/components/decision-dashboard';
+import NovaHome from './features/dashboard/components/nova-home';
 import ExecutiveDashboard from './features/dashboard/components/executive-dashboard';
 import ObligationsScreen from './features/obligations/obligations-screen';
 import AccountsScreen from './features/accounts/accounts-screen';
@@ -32,6 +33,7 @@ import SubscriptionsScreen from './features/more/subscriptions-screen';
 export type ThemeId = 'arca-dark' | 'neon-night' | 'glass-ocean' | 'arca-light';
 
 export default function App({
+  currencyCode,
   initialTodayData,
   initialMoneyData,
   initialObligationsData,
@@ -43,6 +45,7 @@ export default function App({
   initialRegisterData,
   initialSubscriptionsData,
 }: {
+  currencyCode: string;
   initialTodayData: TodayViewModel;
   initialMoneyData: MoneyViewModel;
   initialObligationsData: ObligationsViewModel;
@@ -87,9 +90,20 @@ export default function App({
 
   const renderScreen = () => {
     const backToMas = () => setCurrentScreen('mas');
+    const openNova = (prompt?: string) => {
+      window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt } }));
+    };
     
     switch (currentScreen) {
-      case 'hoy': return <DecisionDashboard 
+      case 'hoy': return <NovaHome
+        data={initialTodayData}
+        currency={currencyCode}
+        onOpenNova={openNova}
+        onOpenObligations={() => setCurrentScreen('obligaciones')}
+        onOpenMovements={() => setCurrentScreen('movimientos')}
+        onOpenSummary={() => setCurrentScreen('resumen')}
+      />;
+      case 'resumen': return <DecisionDashboard
         data={initialTodayData} 
         onOpenMovements={() => setCurrentScreen('movimientos')} 
         onOpenTransfer={() => setCurrentScreen('transferir')}
@@ -121,12 +135,19 @@ export default function App({
         data={initialSubscriptionsData} 
       />;
       case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} defaultSegment={registerParams.defaultSegment} defaultType={registerParams.defaultType} /></div>;
-      default: return <DecisionDashboard data={initialTodayData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
+      default: return <NovaHome
+        data={initialTodayData}
+        currency={currencyCode}
+        onOpenNova={openNova}
+        onOpenObligations={() => setCurrentScreen('obligaciones')}
+        onOpenMovements={() => setCurrentScreen('movimientos')}
+        onOpenSummary={() => setCurrentScreen('resumen')}
+      />;
     }
   };
 
   return (
-    <AppShell currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData}>
+    <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData}>
       {renderScreen()}
     </AppShell>
   );
