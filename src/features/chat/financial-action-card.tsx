@@ -3,6 +3,7 @@
 import type { ToolUIPart } from 'ai';
 import {
   CalendarPlus,
+  ArrowRight,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
@@ -118,10 +119,14 @@ export function FinancialActionCard({
   part,
   currencyCode,
   onApproval,
+  onContinue,
+  onViewChanges,
 }: {
   part: FinancialActionPart;
   currencyCode: string;
   onApproval: (id: string, approved: boolean) => void;
+  onContinue?: () => void;
+  onViewChanges?: () => void;
 }) {
   const input = part.input ?? {};
   const presentation = actionPresentation(part);
@@ -196,9 +201,30 @@ export function FinancialActionCard({
       </ConfirmationRequest>
 
       <ConfirmationAccepted>
-        <div className="flex items-center gap-2 border-t border-arca-border px-4 py-3 text-sm text-arca-positive">
-          <CheckCircle2 size={18} />
-          <span>{part.state === 'output-available' ? 'Acción completada' : 'Aprobado, procesando…'}</span>
+        <div className="border-t border-arca-border px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-arca-positive">
+            <CheckCircle2 size={18} />
+            <span>{part.state === 'output-available' ? 'Acción completada' : 'Aprobado, procesando…'}</span>
+          </div>
+          {part.state === 'output-available' && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onContinue}
+                className="h-10 rounded-xl border border-arca-border-strong px-3 text-xs font-bold text-arca-text-secondary transition-colors hover:bg-arca-surface-2 hover:text-arca-text-primary"
+              >
+                Seguir con Nova
+              </button>
+              <button
+                type="button"
+                onClick={onViewChanges}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-arca-accent px-3 text-xs font-black text-[#15110c] transition-colors hover:bg-arca-accent-hover"
+              >
+                Ver cambios
+                <ArrowRight size={15} />
+              </button>
+            </div>
+          )}
         </div>
       </ConfirmationAccepted>
 

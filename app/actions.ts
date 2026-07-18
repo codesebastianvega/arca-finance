@@ -2104,15 +2104,19 @@ export async function updateManualTransaction(input: {
   category: string;
   unit: string;
   date: string;
+  accountId: string;
 }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
 
   if (!admin) throw new Error("Supabase admin client no disponible.");
 
+  if (!input.accountId) throw new Error("Selecciona la cuenta o banco del movimiento.");
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("El valor debe ser mayor que cero.");
+
   const { data: transaction, error: transactionError } = await admin
     .from("transactions")
-    .select("id, workspace_id, kind, amount, account_id, source_type")
+    .select("id, workspace_id, kind, amount, account_id, source_type, concept, category, unit, date")
     .eq("id", input.id)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -2121,57 +2125,106 @@ export async function updateManualTransaction(input: {
     throw new Error(`No se pudo leer el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
   }
 
-  if (transaction.source_type && transaction.source_type !== "manual" && transaction.source_type !== "income_source") {
-    throw new Error("Este movimiento viene de otro flujo y no se puede editar aqui.");
+  const isLinkedMovement = Boolean(transaction.source_type && transaction.source_type !== "manual");
+  const previousAmount = typeof transaction.amount === "number" ? transaction.amount : Number(transaction.amount ?? 0);
+  const effectiveAmount = isLinkedMovement ? previousAmount : input.amount;
+
+  const previousAccountId = transaction.account_id ? String(transaction.account_id) : null;
+  const nextAccountId = input.accountId;
+  const accountIds = Array.from(new Set([previousAccountId, nextAccountId].filter(Boolean))) as string[];
+  const { data: accounts, error: accountsError } = await admin
+    .from("accounts")
+    .select("id, balance")
+    .eq("workspace_id", context.workspace.id)
+    .in("id", accountIds);
+
+  if (accountsError) {
+    throw new Error(`No se pudieron leer las cuentas: ${accountsError.message}`);
   }
 
-  if (transaction.account_id) {
-    const { data: account, error: accountError } = await admin
-      .from("accounts")
-      .select("id, balance")
-      .eq("id", transaction.account_id)
-      .eq("workspace_id", context.workspace.id)
-      .maybeSingle();
+  const accountMap = new Map(
+    (accounts ?? []).map((account) => [
+      String(account.id),
+      typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0),
+    ]),
+  );
+  const nextAccountBalance = accountMap.get(nextAccountId);
 
-    if (accountError || !account) {
-      throw new Error(`No se pudo leer la cuenta del movimiento: ${accountError?.message ?? "sin respuesta"}`);
+  if (nextAccountBalance == null) throw new Error("La cuenta seleccionada no existe o no pertenece a este espacio.");
+  if (previousAccountId && !accountMap.has(previousAccountId)) throw new Error("No se pudo leer la cuenta original del movimiento.");
+
+  const previousDelta = transactionDelta(String(transaction.kind), previousAmount);
+  const nextDelta = transactionDelta(String(transaction.kind), effectiveAmount);
+  const originalBalances = new Map(accountMap);
+  const targetBalances = new Map(accountMap);
+
+  if (previousAccountId === nextAccountId) {
+    targetBalances.set(nextAccountId, nextAccountBalance - previousDelta + nextDelta);
+  } else {
+    if (previousAccountId) {
+      targetBalances.set(previousAccountId, (accountMap.get(previousAccountId) ?? 0) - previousDelta);
     }
+    targetBalances.set(nextAccountId, nextAccountBalance + nextDelta);
+  }
 
-    const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-    const previousAmount = typeof transaction.amount === "number" ? transaction.amount : Number(transaction.amount ?? 0);
-    const previousDelta = transactionDelta(String(transaction.kind), previousAmount);
-    const nextDelta = transactionDelta(String(transaction.kind), input.amount);
-    const nextBalance = currentBalance - previousDelta + nextDelta;
+  if ((targetBalances.get(nextAccountId) ?? 0) < 0 && nextDelta < 0) {
+    throw new Error("La cuenta seleccionada no tiene saldo suficiente para este movimiento.");
+  }
 
-    if (nextBalance < 0 && nextDelta < 0) {
-      throw new Error("La cuenta no tiene saldo suficiente para dejar este monto.");
-    }
+  const changedAccountIds = Array.from(targetBalances.keys()).filter(
+    (accountId) => targetBalances.get(accountId) !== originalBalances.get(accountId),
+  );
+  const updatedAccountIds: string[] = [];
 
+  for (const accountId of changedAccountIds) {
     const { error: balanceError } = await admin
       .from("accounts")
-      .update({ balance: nextBalance, updated_at: new Date().toISOString() })
-      .eq("id", transaction.account_id)
+      .update({ balance: targetBalances.get(accountId), updated_at: new Date().toISOString() })
+      .eq("id", accountId)
       .eq("workspace_id", context.workspace.id);
 
     if (balanceError) {
-      throw new Error(`No se pudo actualizar el saldo de la cuenta: ${balanceError.message}`);
+      for (const updatedAccountId of updatedAccountIds) {
+        await admin
+          .from("accounts")
+          .update({ balance: originalBalances.get(updatedAccountId), updated_at: new Date().toISOString() })
+          .eq("id", updatedAccountId)
+          .eq("workspace_id", context.workspace.id);
+      }
+      throw new Error(`No se pudo trasladar el saldo entre cuentas: ${balanceError.message}`);
     }
+    updatedAccountIds.push(accountId);
   }
+
+  const editableFields = isLinkedMovement
+    ? {
+        account_id: nextAccountId,
+        updated_at: new Date().toISOString(),
+      }
+    : {
+        concept: input.concept.trim(),
+        amount: input.amount,
+        category: input.category.trim(),
+        unit: input.unit.trim(),
+        account_id: nextAccountId,
+        date: `${input.date}T00:00:00-05:00`,
+        updated_at: new Date().toISOString(),
+      };
 
   const { error: updateError } = await admin
     .from("transactions")
-    .update({
-      concept: input.concept.trim(),
-      amount: input.amount,
-      category: input.category.trim(),
-      unit: input.unit.trim(),
-      date: `${input.date}T00:00:00-05:00`,
-      updated_at: new Date().toISOString(),
-    })
+    .update(editableFields)
     .eq("id", input.id)
     .eq("workspace_id", context.workspace.id);
 
   if (updateError) {
+    for (const accountId of updatedAccountIds) {
+      await admin
+        .from("accounts")
+        .update({ balance: originalBalances.get(accountId), updated_at: new Date().toISOString() })
+        .eq("id", accountId)
+        .eq("workspace_id", context.workspace.id);
+    }
     throw new Error(`No se pudo actualizar el movimiento: ${updateError.message}`);
   }
 

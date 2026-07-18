@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, Sparkles, User, Bot } from 'lucide-react';
 import { MessageResponse } from '@/src/components/ai-elements/message';
@@ -18,13 +19,16 @@ export default function AiChat({
   initialPrompt,
   onInitialPromptConsumed,
   currencyCode,
+  onViewChanges,
 }: {
   isOpen: boolean;
   onClose: () => void;
   initialPrompt?: string | null;
   onInitialPromptConsumed?: () => void;
   currencyCode: string;
+  onViewChanges?: () => void;
 }) {
+  const router = useRouter();
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const { messages, sendMessage, status, addToolApprovalResponse } = useChat({
@@ -38,7 +42,8 @@ export default function AiChat({
   });
   const isLoading = status === 'submitted' || status === 'streaming';
   const [inputValue, setInputValue] = useState('');
-  
+  const inputRef = useRef<HTMLInputElement>(null);
+  const refreshedToolCallsRef = useRef(new Set<string>());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,6 +51,26 @@ export default function AiChat({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  useEffect(() => {
+    let shouldRefresh = false;
+
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (
+          isFinancialActionPart(part) &&
+          part.state === 'output-available' &&
+          part.toolCallId &&
+          !refreshedToolCallsRef.current.has(part.toolCallId)
+        ) {
+          refreshedToolCallsRef.current.add(part.toolCallId);
+          shouldRefresh = true;
+        }
+      }
+    }
+
+    if (shouldRefresh) router.refresh();
+  }, [messages, router]);
 
   useEffect(() => {
     const prompt = initialPrompt?.trim();
@@ -137,14 +162,12 @@ export default function AiChat({
               )}
               
               {messages.map((m) => {
-                const text = m.parts
-                  .filter((part) => part.type === 'text')
-                  .map((part) => part.text)
-                  .join('');
-                const showLoading = m.role === 'assistant' && !text && isLoading;
-                const financialActions = m.parts.filter((part) =>
-                  isFinancialActionPart(part),
-                ) as unknown as FinancialActionPart[];
+                const hasVisiblePart = m.parts.some(
+                  (part) =>
+                    (part.type === 'text' && Boolean(part.text)) ||
+                    isFinancialActionPart(part),
+                );
+                const showLoading = m.role === 'assistant' && !hasVisiblePart && isLoading;
                 const isStreamingMessage =
                   m.role === 'assistant' &&
                   isLoading &&
@@ -152,7 +175,7 @@ export default function AiChat({
 
                 // Tool-only messages remain in SDK state but should not leave
                 // a completed empty bubble in the visible conversation.
-                if (!text && !showLoading && financialActions.length === 0) return null;
+                if (!hasVisiblePart && !showLoading) return null;
 
                 return (
                   <motion.div
@@ -166,39 +189,55 @@ export default function AiChat({
                         {m.role === 'user' ? <User size={16} className="text-arca-text-secondary" /> : <Bot size={16} className="text-arca-accent" />}
                       </div>
                       <div className={`flex min-w-0 flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                        {(text || showLoading) && (
-                          <div className={`p-4 rounded-[20px] text-sm leading-relaxed border ${m.role === 'user' ? 'whitespace-pre-wrap bg-arca-surface-2 border-arca-border-strong text-arca-text-primary rounded-br-sm' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary rounded-bl-sm shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'}`}>
-                            {m.role === 'assistant' ? (
-                              <MessageResponse
-                                className="nova-markdown"
-                                isAnimating={isStreamingMessage}
+                        {m.parts.map((part, index) => {
+                          if (part.type === 'text' && part.text) {
+                            return (
+                              <div
+                                key={`${m.id}-text-${index}`}
+                                className={`p-4 rounded-[20px] text-sm leading-relaxed border ${m.role === 'user' ? 'whitespace-pre-wrap bg-arca-surface-2 border-arca-border-strong text-arca-text-primary rounded-br-sm' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary rounded-bl-sm shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'}`}
                               >
-                                {text}
-                              </MessageResponse>
-                            ) : (
-                              text
-                            )}
-
-                            {showLoading && (
-                              <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
-                                <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
-                                <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
-                                <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
+                                {m.role === 'assistant' ? (
+                                  <MessageResponse
+                                    className="nova-markdown"
+                                    isAnimating={isStreamingMessage}
+                                  >
+                                    {part.text}
+                                  </MessageResponse>
+                                ) : (
+                                  part.text
+                                )}
                               </div>
-                            )}
+                            );
+                          }
+
+                          if (isFinancialActionPart(part)) {
+                            const actionPart = part as FinancialActionPart;
+                            return (
+                              <FinancialActionCard
+                                currencyCode={currencyCode}
+                                key={actionPart.toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                onApproval={(id, approved) => {
+                                  void addToolApprovalResponse({ id, approved });
+                                }}
+                                onContinue={() => inputRef.current?.focus()}
+                                onViewChanges={onViewChanges}
+                                part={actionPart}
+                              />
+                            );
+                          }
+
+                          return null;
+                        })}
+
+                        {showLoading && (
+                          <div className={`p-4 rounded-[20px] text-sm leading-relaxed border ${m.role === 'user' ? 'whitespace-pre-wrap bg-arca-surface-2 border-arca-border-strong text-arca-text-primary rounded-br-sm' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary rounded-bl-sm shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'}`}>
+                            <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
+                              <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                              <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
+                              <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
+                            </div>
                           </div>
                         )}
-
-                        {financialActions.map((part) => (
-                          <FinancialActionCard
-                            currencyCode={currencyCode}
-                            key={part.toolCallId ?? `${m.id}-${part.type}`}
-                            onApproval={(id, approved) => {
-                              void addToolApprovalResponse({ id, approved });
-                            }}
-                            part={part}
-                          />
-                        ))}
                       </div>
                     </div>
                   </motion.div>
@@ -212,6 +251,7 @@ export default function AiChat({
             <div className="relative z-10 p-4 pb-safe bg-arca-surface-1/90 backdrop-blur-xl border-t border-arca-border">
               <form onSubmit={onSubmit} className="relative flex items-center">
                 <input
+                  ref={inputRef}
                   type="text"
                   autoFocus
                   value={inputValue}

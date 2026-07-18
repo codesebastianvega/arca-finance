@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ArrowUpRight, ArrowDownLeft, Clock, AlertTriangle, Bell, Search, Send, RefreshCw, Target, Receipt, TrendingUp, AlertCircle } from "lucide-react";
+import { CheckCircle2, ArrowUpRight, Clock, AlertTriangle, Bell, Search, Send, Target, Receipt, TrendingUp, AlertCircle } from "lucide-react";
 import type { TodayViewModel, TodayReceivable } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
 import { confirmScheduledEventNow, cancelScheduledEvent, cancelIncomeTemplate } from "@/app/actions";
@@ -130,29 +130,6 @@ export default function DecisionDashboard({
           </button>
         </div>
       )}
-
-      {/* Quick Actions Horizontal List */}
-      <section className="mb-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-        <div className="flex space-x-4 min-w-max">
-          {[
-            { label: 'Gasto', icon: ArrowUpRight, color: 'bg-arca-alert light:bg-arca-light-alert', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento", type: 'gasto' } })) },
-            { label: 'Ingreso', icon: ArrowDownLeft, color: 'bg-arca-positive light:bg-arca-light-positive', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Movimiento", type: 'ingreso' } })) },
-            { label: 'Transferir', icon: RefreshCw, color: 'bg-arca-accent light:bg-arca-light-accent', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Transferencia" } })) },
-            { label: 'Meta', icon: Target, color: 'bg-[#7CB342]', action: () => window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ahorro", goalType: "goal" } })) },
-          ].map((action, i) => (
-            <button 
-              key={i}
-              onClick={action.action}
-              className="flex flex-col items-center space-y-2 group active:scale-95 transition-transform"
-            >
-              <div className={`w-14 h-14 ${action.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:-translate-y-1 transition-transform`}>
-                <action.icon size={24} className="text-white" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim light:text-arca-light-text-secondary">{action.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
 
       {/* PRESUPUESTO MENSUAL */}
       <div className="flex flex-col gap-3">

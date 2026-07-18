@@ -5,11 +5,14 @@ import {
   Plus,
   PiggyBank,
   CreditCard as CardIcon,
-  PieChart as ChartIcon,
   Trophy,
   Edit2,
   Trash2,
   AlertCircle,
+  ArrowRight,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -73,9 +76,11 @@ function money(value: number) {
 export default function AccountsScreen({
   defaultTab = "cuentas",
   data,
+  onOpenMovements,
 }: {
   defaultTab?: TabId;
   data: MoneyViewModel;
+  onOpenMovements?: () => void;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
@@ -289,53 +294,98 @@ export default function AccountsScreen({
 
   return (
     <div className="space-y-6">
-      <section className="card-arca p-5">
-        <div className="flex justify-between items-center mb-4">
+      <div className="space-y-3">
+      <section className="card-arca overflow-hidden p-5">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-widest">Gastos del mes</p>
-            <h4 className="text-xl font-bold text-arca-text-primary light:text-arca-light-text-primary">{data.spending.totalLabel}</h4>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-widest">Radiografía de gastos</p>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-arca-accent">{data.spending.monthLabel}</span>
+            </div>
+            <h4 className="mt-1 text-2xl font-black tracking-tight text-arca-text-primary light:text-arca-light-text-primary">{data.spending.totalLabel}</h4>
           </div>
-          <div className="w-10 h-10 rounded-full bg-arca-surface-2 flex items-center justify-center">
-            <ChartIcon size={18} className="text-arca-accent" />
-          </div>
+          {data.spending.changePercent == null ? (
+            <span className="rounded-full border border-arca-border bg-arca-surface-2 px-2.5 py-1.5 text-[9px] font-bold text-arca-text-dim">Primer mes medido</span>
+          ) : (
+            <span className={`flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[10px] font-bold ${data.spending.changePercent <= 0 ? 'border-arca-positive/25 bg-arca-positive/10 text-arca-positive' : 'border-arca-alert/25 bg-arca-alert/10 text-arca-alert'}`}>
+              {data.spending.changePercent <= 0 ? <TrendingDown size={13} /> : <TrendingUp size={13} />}
+              {Math.abs(data.spending.changePercent)}% vs. mes anterior
+            </span>
+          )}
         </div>
 
-        <div className="h-40 w-full">
+        <div className="relative mx-auto mt-2 h-44 w-full max-w-[240px]">
           {data.spending.breakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={data.spending.breakdown} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={8} dataKey="value" stroke="none">
-                  {data.spending.breakdown.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1E1811",
-                    borderRadius: "12px",
-                    border: "1px solid #33291B",
-                    fontSize: "10px",
-                    fontWeight: "bold",
-                    color: "#F3ECDC",
-                  }}
-                  itemStyle={{ color: "#F3ECDC" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={data.spending.breakdown} cx="50%" cy="50%" innerRadius={56} outerRadius={78} paddingAngle={3} dataKey="value" stroke="#100d09" strokeWidth={3}>
+                    {data.spending.breakdown.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => money(Number(value))}
+                    contentStyle={{
+                      backgroundColor: "#1E1811",
+                      borderRadius: "12px",
+                      border: "1px solid #33291B",
+                      fontSize: "10px",
+                      fontWeight: "bold",
+                      color: "#F3ECDC",
+                    }}
+                    itemStyle={{ color: "#F3ECDC" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-black text-arca-text-primary">
+                  {data.spending.budgetUsagePercent != null ? `${data.spending.budgetUsagePercent}%` : `${data.spending.breakdown[0]?.percentage ?? 0}%`}
+                </span>
+                <span className="max-w-20 text-[9px] font-bold uppercase leading-tight tracking-wider text-arca-text-dim">
+                  {data.spending.budgetUsagePercent != null ? 'del presupuesto' : 'categoría principal'}
+                </span>
+              </div>
+            </>
           ) : (
             <div className="h-full flex items-center justify-center text-xs text-arca-text-dim">Aún no hay gastos reales este mes.</div>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mt-2">
+        <div className="mt-2 space-y-3">
           {data.spending.breakdown.map((item) => (
-            <div key={item.name} className="flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-[10px] text-arca-text-secondary font-medium">{item.name}</span>
+            <div key={item.name}>
+              <div className="mb-1.5 flex items-center gap-2">
+                <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-arca-text-secondary">{item.name}</span>
+                <span className="text-[11px] font-bold text-arca-text-primary">{money(item.value)}</span>
+                <span className="w-8 text-right text-[10px] font-bold text-arca-text-dim">{item.percentage}%</span>
+              </div>
+              <div className="ml-4 h-1.5 overflow-hidden rounded-full bg-arca-surface-2">
+                <div className="h-full rounded-full" style={{ width: `${item.percentage}%`, backgroundColor: item.color }} />
+              </div>
             </div>
           ))}
         </div>
+
       </section>
+
+      {data.spending.breakdown[0] ? (
+        <aside className="mx-2 flex items-start gap-2.5 border-l border-arca-accent/35 py-1 pl-3">
+          <Sparkles className="mt-0.5 shrink-0 text-arca-accent" size={15} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] leading-relaxed text-arca-text-dim">
+              <span className="font-bold text-arca-text-secondary">Nota de Nova:</span> {data.spending.breakdown[0].name} concentra el {data.spending.breakdown[0].percentage}% de tus gastos.
+              {data.spending.breakdown[0].percentage >= 45 ? ' Podrías revisar si existe margen para reducirlo.' : ' La distribución se mantiene equilibrada.'}
+            </p>
+            <button type="button" onClick={onOpenMovements} className="mt-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-arca-accent">
+              Ver movimientos
+              <ArrowRight size={12} />
+            </button>
+          </div>
+        </aside>
+      ) : null}
+      </div>
 
       <div className="flex bg-arca-surface-2 light:bg-arca-light-surface-2 p-1 rounded-full border border-arca-border light:border-arca-light-border">
         {tabs.map((tab) => (

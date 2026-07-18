@@ -121,6 +121,10 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         initialPrompt={novaInitialPrompt}
         onInitialPromptConsumed={() => setNovaInitialPrompt(null)}
         currencyCode={currencyCode}
+        onViewChanges={() => {
+          setCurrentScreen('resumen');
+          setIsAiChatOpen(false);
+        }}
       />
     </div>
   );

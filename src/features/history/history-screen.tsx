@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowDownLeft,
   Edit2,
@@ -236,7 +237,13 @@ export default function HistoryScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {editingItem ? <EditMovementModal item={editingItem} onClose={() => setEditingItem(null)} /> : null}
+        {editingItem ? (
+          <EditMovementModal
+            accountOptions={data.accountOptions}
+            item={editingItem}
+            onClose={() => setEditingItem(null)}
+          />
+        ) : null}
       </AnimatePresence>
     </div>
   );
@@ -252,21 +259,27 @@ function ReceiptRow({ label, value }: { label: string; value: string }) {
 }
 
 function EditMovementModal({
+  accountOptions,
   item,
   onClose,
 }: {
+  accountOptions: HistoryViewModel['accountOptions'];
   item: HistoryItem;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isLinkedMovement = Boolean(item.sourceType && item.sourceType !== 'manual');
+  const lockedFieldClass = isLinkedMovement ? 'cursor-not-allowed opacity-60' : '';
 
   return (
-    <div className="fixed inset-0 z-[320] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[320] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm sm:items-center sm:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="w-full max-w-md card-arca p-6"
+        className="card-arca max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5 sm:p-6"
       >
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-arca-text-primary uppercase tracking-widest">Editar movimiento</h3>
@@ -281,39 +294,69 @@ function EditMovementModal({
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             startTransition(async () => {
-              await updateManualTransaction({
-                id: item.id,
-                concept: String(form.get('concept') ?? ''),
-                amount: Number(form.get('amount') ?? 0),
-                category: String(form.get('category') ?? ''),
-                unit: String(form.get('unit') ?? ''),
-                date: String(form.get('date') ?? ''),
-              });
-              onClose();
+              setErrorMessage(null);
+              try {
+                await updateManualTransaction({
+                  id: item.id,
+                  concept: String(form.get('concept') ?? ''),
+                  amount: Number(form.get('amount') ?? 0),
+                  category: String(form.get('category') ?? ''),
+                  unit: String(form.get('unit') ?? ''),
+                  date: String(form.get('date') ?? ''),
+                  accountId: String(form.get('accountId') ?? ''),
+                });
+                router.refresh();
+                onClose();
+              } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : 'No se pudo actualizar el movimiento.');
+              }
             });
           }}
         >
+          {isLinkedMovement ? (
+            <p className="rounded-xl border border-arca-accent/25 bg-arca-accent/10 px-3 py-2 text-xs leading-relaxed text-arca-text-secondary">
+              Este movimiento proviene de otro flujo. Puedes corregir la cuenta, mientras sus demás datos permanecen protegidos.
+            </p>
+          ) : null}
           <Field label="Concepto">
-            <input name="concept" defaultValue={item.concept} className="w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm" />
+            <input name="concept" readOnly={isLinkedMovement} defaultValue={item.concept} className={`w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm ${lockedFieldClass}`} />
           </Field>
           <Field label="Valor">
-            <input name="amount" type="number" min="0" step="1" defaultValue={item.amount} className="w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm" />
+            <input name="amount" readOnly={isLinkedMovement} type="number" min="0" step="1" defaultValue={item.amount} className={`w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm ${lockedFieldClass}`} />
           </Field>
           <Field label="Categoria">
-            <input name="category" defaultValue={item.category} className="w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm" />
+            <input name="category" readOnly={isLinkedMovement} defaultValue={item.category} className={`w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm ${lockedFieldClass}`} />
           </Field>
           <Field label="Unidad">
-            <input name="unit" defaultValue={item.unit} className="w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm" />
+            <input name="unit" readOnly={isLinkedMovement} defaultValue={item.unit} className={`w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm ${lockedFieldClass}`} />
+          </Field>
+          <Field label="Cuenta o banco">
+            <select
+              name="accountId"
+              required
+              defaultValue={item.accountId ?? ''}
+              className="w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm"
+            >
+              <option value="" disabled>Selecciona una cuenta</option>
+              {accountOptions.map((account) => (
+                <option key={account.id} value={account.id}>{account.label}</option>
+              ))}
+            </select>
           </Field>
           <Field label="Fecha">
-            <input name="date" type="date" defaultValue={item.dateInputValue} className="w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm" />
+            <input name="date" readOnly={isLinkedMovement} type="date" defaultValue={item.dateInputValue} className={`w-full h-11 px-3 bg-arca-surface-2 border border-arca-border rounded-xl text-sm ${lockedFieldClass}`} />
           </Field>
+          {errorMessage ? (
+            <p role="alert" className="rounded-xl border border-arca-alert/30 bg-arca-alert/10 px-3 py-2 text-xs text-arca-alert">
+              {errorMessage}
+            </p>
+          ) : null}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 h-11 rounded-xl border border-arca-border text-sm text-arca-text-dim">
               Cerrar
             </button>
             <button type="submit" disabled={isPending} className="px-4 h-11 rounded-xl bg-arca-accent text-white text-sm font-semibold disabled:opacity-50">
-              Guardar
+              {isPending ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
         </form>
