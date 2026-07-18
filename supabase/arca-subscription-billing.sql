@@ -56,13 +56,13 @@ alter table public.subscription_reminders force row level security;
 
 do $$ begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'subscription_invoices' and policyname = 'subscription invoices workspace read') then
-    create policy "subscription invoices workspace read" on public.subscription_invoices for select using (public.is_workspace_member(workspace_id));
+    create policy "subscription invoices workspace read" on public.subscription_invoices for select using (public.user_has_workspace_access(workspace_id));
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'subscription_payments' and policyname = 'subscription payments workspace read') then
-    create policy "subscription payments workspace read" on public.subscription_payments for select using (public.is_workspace_member(workspace_id));
+    create policy "subscription payments workspace read" on public.subscription_payments for select using (public.user_has_workspace_access(workspace_id));
   end if;
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'subscription_reminders' and policyname = 'subscription reminders workspace read') then
-    create policy "subscription reminders workspace read" on public.subscription_reminders for select using (public.is_workspace_member(workspace_id));
+    create policy "subscription reminders workspace read" on public.subscription_reminders for select using (public.user_has_workspace_access(workspace_id));
   end if;
 end $$;
 
