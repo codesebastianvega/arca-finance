@@ -100,17 +100,17 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
       {isSuperAdmin ? (
         <section>
           <div className="mb-3 px-1">
-            <h2 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-arca-alert"><ShieldAlert size={13} /> Administración</h2>
+            <h2 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent"><ShieldAlert size={13} /> Administración</h2>
             <p className="mt-1 text-[10px] text-arca-text-dim">Acceso exclusivo del propietario de Arca</p>
           </div>
-          <div className="overflow-hidden rounded-[22px] border border-arca-alert/20 bg-arca-alert/[0.04]">
-            <MenuRow icon={ShieldAlert} label="SuperAdmin" highlight="danger" onClick={() => handleMenuClick("superadmin")} />
+          <div className="overflow-hidden rounded-[22px] border border-arca-accent/25 bg-arca-accent/[0.04]">
+            <MenuRow icon={ShieldAlert} label="Panel de Arca" description="Clientes, uso de Nova y operación" onClick={() => handleMenuClick("superadmin")} />
           </div>
         </section>
       ) : null}
 
       <div className="overflow-hidden rounded-[22px] border border-arca-border bg-arca-surface-1">
-        <MenuRow icon={LogOut} label="Salir" highlight="danger" showChevron={false} onClick={() => window.location.assign("/auth/sign-out")} />
+        <MenuRow icon={LogOut} label="Cerrar sesión" highlight="danger" showChevron={false} onClick={() => window.location.assign("/auth/sign-out")} />
       </div>
 
       <PwaInstallCard />
@@ -118,13 +118,13 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
   );
 }
 
-function MenuRow({ icon: Icon, label, highlight = "default", showChevron = true, onClick }: { icon: LucideIcon; label: string; highlight?: "default" | "danger"; showChevron?: boolean; onClick: () => void }) {
+function MenuRow({ icon: Icon, label, description, highlight = "default", showChevron = true, onClick }: { icon: LucideIcon; label: string; description?: string; highlight?: "default" | "danger"; showChevron?: boolean; onClick: () => void }) {
   const danger = highlight === "danger";
   return (
     <motion.button type="button" whileTap={{ scale: 0.985 }} onClick={onClick} className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-arca-surface-2/70">
       <span className="flex items-center gap-4">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${danger ? "bg-arca-alert/10 text-arca-alert" : "bg-arca-accent/[0.08] text-arca-accent"}`}><Icon size={18} /></span>
-        <span className={`text-sm font-bold ${danger ? "text-arca-alert" : "text-arca-text-primary"}`}>{label}</span>
+        <span><span className={`block text-sm font-bold ${danger ? "text-arca-alert" : "text-arca-text-primary"}`}>{label}</span>{description ? <span className="mt-0.5 block text-[9px] text-arca-text-dim">{description}</span> : null}</span>
       </span>
       {showChevron ? <ChevronRight size={17} className="text-arca-text-dim" /> : null}
     </motion.button>

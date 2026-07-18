@@ -141,7 +141,7 @@ async function readWorkspaceContext(userId: string) {
 
   const subscriptionResult = await supabase
     .from("workspace_subscriptions")
-    .select("id, workspace_id, plan_code, status, provider, starts_at, ends_at, trial_ends_at")
+    .select("id, workspace_id, plan_code, status, provider, starts_at, ends_at, trial_ends_at, metadata")
     .eq("workspace_id", workspace.id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -159,6 +159,9 @@ async function readWorkspaceContext(userId: string) {
       startsAt: subscriptionResult.data.starts_at ? String(subscriptionResult.data.starts_at) : undefined,
       endsAt: subscriptionResult.data.ends_at ? String(subscriptionResult.data.ends_at) : undefined,
       trialEndsAt: subscriptionResult.data.trial_ends_at ? String(subscriptionResult.data.trial_ends_at) : undefined,
+      metadata: subscriptionResult.data.metadata && typeof subscriptionResult.data.metadata === "object"
+        ? subscriptionResult.data.metadata as Record<string, unknown>
+        : {},
     };
   }
 

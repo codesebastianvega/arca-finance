@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
+import { BellRing, ChevronRight, Plus, X } from 'lucide-react';
 import { Screen } from '../../types';
 import { haptics } from '../../lib/haptics';
 import { NAV_ITEMS, getNavItem } from './nav';
@@ -13,6 +13,8 @@ import RegisterScreen from '../register/register-screen';
 import type { RegisterViewModel } from '@/src/lib/register-data';
 import AiChat from '../chat/ai-chat';
 import { Wand2 } from 'lucide-react';
+import { recordAppUsage } from '@/app/telemetry-actions';
+import type { BillingNotice } from '@/src/lib/billing-data';
 
 interface AppShellProps {
   currentScreen: Screen;
@@ -20,9 +22,11 @@ interface AppShellProps {
   children: React.ReactNode;
   registerData: RegisterViewModel;
   currencyCode: string;
+  canUseNova: boolean;
+  billingNotice: BillingNotice | null;
 }
 
-export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode }: AppShellProps) {
+export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode, canUseNova, billingNotice }: AppShellProps) {
   const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
@@ -50,7 +54,22 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   }, []);
 
   useEffect(() => {
+    const sessionKey = crypto.randomUUID();
+    void recordAppUsage({ sessionKey, activeSeconds: 1 });
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void recordAppUsage({ sessionKey, activeSeconds: 60 });
+      }
+    }, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     const handleOpenNova = (event: Event) => {
+      if (!canUseNova) {
+        setCurrentScreen('configuracion');
+        return;
+      }
       const customEvent = event as CustomEvent<{ prompt?: string }>;
       setNovaInitialPrompt(customEvent.detail?.prompt?.trim() || null);
       setIsAiChatOpen(true);
@@ -58,13 +77,14 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
 
     window.addEventListener('open-nova', handleOpenNova);
     return () => window.removeEventListener('open-nova', handleOpenNova);
-  }, []);
+  }, [canUseNova, setCurrentScreen]);
 
   return (
     <div className="min-h-screen bg-arca-base light:bg-arca-light-base text-arca-text-primary light:text-arca-light-text-primary transition-colors duration-500 overflow-x-hidden selection:bg-arca-accent/30 selection:text-arca-accent">
       
       {/* Main Content Area */}
       <main className="max-w-lg mx-auto px-6 pt-8 pb-32 min-h-screen">
+        {billingNotice && currentScreen !== 'configuracion' ? <button type="button" onClick={() => setCurrentScreen('configuracion')} className={`mb-4 flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${billingNotice.overdue ? 'border-arca-alert/30 bg-arca-alert/[0.08]' : 'border-arca-accent/30 bg-arca-accent/[0.07]'}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${billingNotice.overdue ? 'bg-arca-alert/10 text-arca-alert' : 'bg-arca-accent/10 text-arca-accent'}`}><BellRing size={18} /></span><span className="min-w-0 flex-1"><span className="block text-xs font-black text-arca-text-primary">{billingNotice.overdue ? 'Tu suscripción tiene un pago pendiente' : billingNotice.daysUntilDue <= 0 ? 'Estamos esperando tu comprobante' : `Tu suscripción vence en ${billingNotice.daysUntilDue} días`}</span><span className="mt-0.5 block text-[9px] text-arca-text-dim">{billingNotice.planName} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(billingNotice.amountCop)}</span></span><ChevronRight size={16} className="shrink-0 text-arca-text-dim" /></button> : null}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentScreen}
@@ -79,7 +99,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       </main>
 
       {/* Floating Action Button for AI Chat - Mezcla de Opción 2 (Glassmorphism) y Opción 3 (Cyberpulse) */}
-      {currentScreen !== 'hoy' && currentScreen !== 'transferir' && currentScreen !== 'dashboard' && currentScreen !== 'movimientos' && (
+      {canUseNova && currentScreen !== 'hoy' && currentScreen !== 'transferir' && currentScreen !== 'dashboard' && currentScreen !== 'movimientos' && (
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => {
@@ -121,7 +141,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       </BottomSheet>
 
       {/* AI Chat Bot */}
-      <AiChat
+      {canUseNova ? <AiChat
         isOpen={isAiChatOpen}
         onClose={() => setIsAiChatOpen(false)}
         initialPrompt={novaInitialPrompt}
@@ -131,7 +151,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
           setCurrentScreen('resumen');
           setIsAiChatOpen(false);
         }}
-      />
+      /> : null}
     </div>
   );
 }

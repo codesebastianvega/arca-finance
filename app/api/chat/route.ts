@@ -7,10 +7,11 @@ import {
   type UIMessage,
 } from 'ai';
 import { z } from 'zod';
-import { createSupabaseServerComponentClient } from '@/src/lib/supabase';
+import { createSupabaseServerComponentClient, getSupabaseAdminClient } from '@/src/lib/supabase';
 import { getCurrentWorkspaceContext } from '@/src/lib/auth';
 import { createFinancialTools } from '@/src/lib/ai/financial-tools';
 import { normalizeNovaPreferences } from '@/src/lib/nova-preferences';
+import { DEFAULT_BILLING_PLANS, normalizeBillingPlan } from '@/src/lib/billing';
 
 export const maxDuration = 30;
 
@@ -25,11 +26,12 @@ function toNumber(value: unknown) {
 }
 
 export async function POST(req: Request) {
+  const requestStartedAt = Date.now();
+  const requestId = crypto.randomUUID();
   try {
     const body: { messages: UIMessage[]; novaPreferences?: unknown } = await req.json();
     const { messages } = body;
     const novaPreferences = normalizeNovaPreferences(body.novaPreferences);
-    console.log("MENSAJES ENTRANTES:", JSON.stringify(messages, null, 2));
 
     const context = await getCurrentWorkspaceContext();
     if (!context) {
@@ -37,6 +39,46 @@ export async function POST(req: Request) {
     }
 
     const workspaceId = context.workspace.id;
+    const vipExpiresAt = typeof context.subscription?.metadata?.vip_expires_at === 'string'
+      ? new Date(context.subscription.metadata.vip_expires_at).getTime()
+      : null;
+    const hasVipAccess = Boolean(context.subscription?.metadata?.vip_full_access) && (!vipExpiresAt || vipExpiresAt > Date.now());
+    const hasPaidAccess = Boolean(
+      context.subscription
+      && context.subscription.planCode !== 'free'
+      && (context.subscription.status === 'active' || context.subscription.status === 'trialing'),
+    );
+
+    if (!context.profile.isSuperAdmin && !hasVipAccess && !hasPaidAccess) {
+      return new Response('Nova está disponible en los planes Arca Personal y Arca Negocios.', { status: 403 });
+    }
+
+    if (!context.profile.isSuperAdmin && !hasVipAccess && context.subscription) {
+      const admin = getSupabaseAdminClient();
+      if (admin) {
+        const fallbackPlan = DEFAULT_BILLING_PLANS.find((plan) => plan.code === context.subscription?.planCode);
+        const planResult = await admin
+          .from('subscription_plans')
+          .select('code, name, monthly_price_cop, active, metadata')
+          .eq('code', context.subscription.planCode)
+          .maybeSingle();
+        const configuredPlan = planResult.data ? normalizeBillingPlan(planResult.data) : fallbackPlan;
+        const monthlyLimit = configuredPlan?.aiMonthlyLimit ?? fallbackPlan?.aiMonthlyLimit ?? 0;
+        if (monthlyLimit > 0) {
+          const monthStart = new Date();
+          monthStart.setDate(1);
+          monthStart.setHours(0, 0, 0, 0);
+          const usageResult = await admin
+            .from('ai_usage_events')
+            .select('id', { count: 'exact', head: true })
+            .eq('workspace_id', workspaceId)
+            .gte('created_at', monthStart.toISOString());
+          if (!usageResult.error && (usageResult.count ?? 0) >= monthlyLimit) {
+            return new Response(`Alcanzaste las ${monthlyLimit} acciones mensuales de Nova incluidas en tu plan.`, { status: 429 });
+          }
+        }
+      }
+    }
 
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       console.error("Falta GOOGLE_GENERATIVE_AI_API_KEY en las variables de entorno");
@@ -88,6 +130,25 @@ REGLAS DE TRABAJO:
       // A tool call consumes one step. Allow the model to use the result and
       // produce the final user-facing answer in the following step.
       stopWhen: stepCountIs(8),
+      onFinish: async ({ totalUsage, finishReason, steps }) => {
+        const admin = getSupabaseAdminClient();
+        if (!admin) return;
+        await admin.from('ai_usage_events').insert({
+          workspace_id: workspaceId,
+          user_id: context.profile.id,
+          request_id: requestId,
+          provider: 'google',
+          model: 'gemini-3.1-flash-lite',
+          input_tokens: totalUsage.inputTokens ?? 0,
+          output_tokens: totalUsage.outputTokens ?? 0,
+          total_tokens: totalUsage.totalTokens ?? 0,
+          estimated_cost_cop: 0,
+          latency_ms: Date.now() - requestStartedAt,
+          tool_calls: steps.reduce((sum, step) => sum + step.toolCalls.length, 0),
+          status: finishReason === 'error' ? 'error' : 'success',
+          finish_reason: finishReason,
+        });
+      },
       tools: {
         ...financialTools,
         get_safe_to_spend: tool({

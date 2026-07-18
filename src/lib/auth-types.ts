@@ -33,6 +33,7 @@ export interface WorkspaceSubscription {
   startsAt?: string;
   endsAt?: string;
   trialEndsAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface WorkspaceContext {

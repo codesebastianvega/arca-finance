@@ -14,6 +14,9 @@ import type { TodayViewModel } from './lib/today-data';
 import type { SubscriptionsViewModel } from './lib/subscriptions-data';
 import type { ObligationFilter } from './lib/obligations-types';
 import type { AnalyticsViewModel } from './lib/analytics-types';
+import type { SuperAdminViewModel } from './lib/superadmin-types';
+import type { BillingPlan } from './lib/billing';
+import type { BillingNotice } from './lib/billing-data';
 import AppShell from './features/app-shell/app-shell';
 import DecisionDashboard from './features/dashboard/components/decision-dashboard';
 import NovaHome from './features/dashboard/components/nova-home';
@@ -38,8 +41,10 @@ export type AppUserSummary = {
   fullName: string;
   email: string;
   planLabel: string;
+  planCode: 'free' | 'personal_pro' | 'business';
   trialDaysRemaining?: number;
   isSuperAdmin: boolean;
+  canUseNova: boolean;
 };
 
 export default function App({
@@ -55,6 +60,9 @@ export default function App({
   initialRegisterData,
   initialSubscriptionsData,
   initialAnalyticsData,
+  initialSuperAdminData,
+  initialBillingPlans,
+  initialBillingNotice,
   initialOnboardingRequired,
   userSummary,
 }: {
@@ -70,6 +78,9 @@ export default function App({
   initialRegisterData: RegisterViewModel;
   initialSubscriptionsData: SubscriptionsViewModel;
   initialAnalyticsData: AnalyticsViewModel;
+  initialSuperAdminData: SuperAdminViewModel | null;
+  initialBillingPlans: BillingPlan[];
+  initialBillingNotice: BillingNotice | null;
   initialOnboardingRequired: boolean;
   userSummary: AppUserSummary;
 }) {
@@ -164,7 +175,7 @@ export default function App({
         />
       );
       case 'movimientos': return <HistoryScreen onBack={backToMas} onOpenNova={openNova} data={initialHistoryData} currency={currencyCode} />;
-      case 'configuracion': return <ConfiguracionScreen onBack={backToMas} theme={theme} setTheme={setTheme} data={initialRegisterData} user={userSummary} />;
+      case 'configuracion': return <ConfiguracionScreen onBack={backToMas} theme={theme} setTheme={setTheme} data={initialRegisterData} user={userSummary} plans={initialBillingPlans} />;
       case 'calendario': return <CalendarScreen onBack={backToMas} onOpenNova={openNova} data={initialCalendarData} accounts={initialTodayData.accountOptions} currency={currencyCode} />;
       case 'transferir': return (
         <TransferScreen
@@ -176,7 +187,7 @@ export default function App({
           currency={currencyCode}
         />
       );
-      case 'superadmin': return userSummary.isSuperAdmin ? <SuperAdminScreen onBack={backToMas} /> : <MasScreen onScreenChange={setCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} currency={currencyCode} isSuperAdmin={false} />;
+      case 'superadmin': return userSummary.isSuperAdmin && initialSuperAdminData ? <SuperAdminScreen onBack={backToMas} data={initialSuperAdminData} /> : <MasScreen onScreenChange={setCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} currency={currencyCode} isSuperAdmin={false} />;
       case 'suscripciones': return <SubscriptionsScreen 
         onBack={backToMas} 
         onNavigateToRegister={(type) => {
@@ -205,7 +216,7 @@ export default function App({
 
   return (
     <>
-      <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData}>
+      <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData} canUseNova={userSummary.canUseNova} billingNotice={initialBillingNotice}>
         {renderScreen()}
       </AppShell>
       {showOnboarding ? (

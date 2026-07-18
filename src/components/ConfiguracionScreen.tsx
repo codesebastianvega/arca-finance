@@ -39,6 +39,8 @@ import {
   Pencil,
   Plus,
   CreditCard,
+  Copy,
+  ExternalLink,
   Mail,
   KeyRound,
 } from 'lucide-react';
@@ -62,6 +64,8 @@ import {
   normalizeNovaPreferences,
   type NovaPreferences,
 } from '../lib/nova-preferences';
+import { ARCA_MANUAL_PAYMENT, buildPaymentProofWhatsAppUrl, type BillingPlan } from '../lib/billing';
+import { requestSubscriptionPayment } from '@/app/billing-actions';
 
 const AVAILABLE_ICONS = [
   { name: 'shopping-bag', icon: ShoppingBag },
@@ -145,12 +149,16 @@ const EMPTY_EDITOR: EditorState = {
   parentId: '',
 };
 
-export default function ConfiguracionScreen({ onBack, theme, setTheme, data, user }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel; user: AppUserSummary }) {
+export default function ConfiguracionScreen({ onBack, theme, setTheme, data, user, plans }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel; user: AppUserSummary; plans: BillingPlan[] }) {
   const router = useRouter();
   const [novaPreferences, setNovaPreferences] = useState<NovaPreferences>(DEFAULT_NOVA_PREFERENCES);
   const [managerView, setManagerView] = useState<ManagerView>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [selectedPlanCode, setSelectedPlanCode] = useState<'personal_pro' | 'business'>(user.planCode === 'business' ? 'business' : 'personal_pro');
+  const [paymentKeyCopied, setPaymentKeyCopied] = useState(false);
+  const [paymentRequestPending, setPaymentRequestPending] = useState(false);
+  const [paymentRequestMessage, setPaymentRequestMessage] = useState('');
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -226,6 +234,38 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
   };
 
   const currentTheme = THEMES.find(t => t.id === theme) ?? THEMES[0];
+  const selectedPaymentPlan = plans.find((plan) => plan.code === selectedPlanCode) ?? plans.find((plan) => plan.code === 'personal_pro');
+  const openPaymentProof = async () => {
+    if (!selectedPaymentPlan || selectedPaymentPlan.code === 'free') return;
+    const whatsappWindow = window.open('about:blank', '_blank');
+    if (whatsappWindow) whatsappWindow.opener = null;
+    setPaymentRequestPending(true);
+    setPaymentRequestMessage('');
+    try {
+      const request = await requestSubscriptionPayment({ planCode: selectedPaymentPlan.code });
+      const url = buildPaymentProofWhatsAppUrl({ fullName: user.fullName, email: user.email, planLabel: selectedPaymentPlan.name, amountCop: request.amountCop, invoiceId: request.invoiceId });
+      if (whatsappWindow) whatsappWindow.location.href = url;
+      else window.location.href = url;
+      setPaymentRequestMessage('Solicitud registrada. Envía el comprobante para validarla.');
+      router.refresh();
+    } catch (error) {
+      whatsappWindow?.close();
+      setPaymentRequestMessage(error instanceof Error ? error.message : 'No pudimos iniciar el pago.');
+    } finally {
+      setPaymentRequestPending(false);
+    }
+  };
+
+  const copyPaymentKey = async () => {
+    try {
+      await navigator.clipboard.writeText(ARCA_MANUAL_PAYMENT.key);
+      haptics.light();
+      setPaymentKeyCopied(true);
+      window.setTimeout(() => setPaymentKeyCopied(false), 1800);
+    } catch {
+      window.prompt('Copia la llave de pago', ARCA_MANUAL_PAYMENT.key);
+    }
+  };
 
   // We combine the database categories here to render them all. The defaults won't have an ID that we can delete.
   const dbCategories = data.categories.map((category) => ({
@@ -487,13 +527,34 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
                 <button onClick={() => setIsPlanOpen(false)} aria-label="Cerrar planes" className="flex h-10 w-10 items-center justify-center rounded-full bg-arca-surface-2 text-arca-text-dim"><X size={18} /></button>
               </div>
               <div className="space-y-3">
-                <PlanOption name="Arca Gratis" description="Control financiero esencial y registro manual. No incluye Nova." current={user.planLabel.toLowerCase().includes('gratuito')} />
-                <PlanOption name="Personal Pro" description="La experiencia personal automatizada y acompañada por Nova." current={user.planLabel.toLowerCase().includes('personal')} />
-                <PlanOption name="Arca Business" description="Operación financiera para negocios, proyectos y equipos." current={user.planLabel.toLowerCase().includes('business')} />
+                {plans.filter((plan) => plan.active || plan.code === user.planCode).map((plan) => <PlanOption key={plan.code} plan={plan} current={user.planCode === plan.code} selected={plan.code === selectedPlanCode} onSelect={() => { if (plan.code !== 'free') setSelectedPlanCode(plan.code); }} />)}
               </div>
-              <div className="mt-4 rounded-2xl border border-arca-border bg-arca-surface-1 p-4">
-                <p className="text-xs font-bold text-arca-text-primary">Estamos definiendo el lanzamiento</p>
-                <p className="mt-1 text-[10px] leading-relaxed text-arca-text-dim">Los precios y el detalle definitivo de funciones se publicarán aquí. Por ahora no se realizarán cobros ni cambios de plan desde la aplicación.</p>
+              <div className="mt-4 overflow-hidden rounded-2xl border border-arca-accent/30 bg-arca-accent/[0.06]">
+                <div className="border-b border-arca-border p-4">
+                  <p className="text-[8px] font-black uppercase tracking-[0.2em] text-arca-accent">Pago manual habilitado</p>
+                  <div className="mt-1 flex items-end justify-between gap-3"><p className="text-sm font-bold text-arca-text-primary">Paga con la llave de Nu</p><p className="text-sm font-black text-arca-accent">{selectedPaymentPlan ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(selectedPaymentPlan.monthlyPriceCop) : null}</p></div>
+                  <p className="mt-1 text-[10px] leading-relaxed text-arca-text-dim">Por ahora este es el único medio de pago de Arca. Después de transferir, envía el comprobante para que validemos tu suscripción.</p>
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center justify-between rounded-2xl border border-arca-border bg-arca-surface-1 px-4 py-3">
+                    <div>
+                      <p className="text-[8px] font-black uppercase tracking-wider text-arca-text-dim">Llave {ARCA_MANUAL_PAYMENT.provider}</p>
+                      <p className="mt-1 text-lg font-black tracking-wide text-arca-text-primary">{ARCA_MANUAL_PAYMENT.key}</p>
+                    </div>
+                    <button type="button" onClick={copyPaymentKey} className="flex h-10 items-center gap-2 rounded-xl bg-arca-surface-2 px-3 text-[9px] font-black uppercase tracking-wider text-arca-accent" aria-label="Copiar llave de pago">
+                      <Copy size={14} /> {paymentKeyCopied ? 'Copiada' : 'Copiar'}
+                    </button>
+                  </div>
+                  <button type="button" disabled={paymentRequestPending} onClick={openPaymentProof} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-xs font-black text-black disabled:opacity-50">
+                    {paymentRequestPending ? 'Preparando solicitud…' : 'Enviar comprobante por WhatsApp'} <ExternalLink size={15} />
+                  </button>
+                  {paymentRequestMessage ? <p className="mt-2 rounded-xl bg-arca-surface-2 px-3 py-2 text-center text-[9px] text-arca-text-secondary">{paymentRequestMessage}</p> : null}
+                  <p className="mt-2 text-center text-[9px] text-arca-text-dim">El mensaje se abrirá preparado para {ARCA_MANUAL_PAYMENT.whatsappDisplay}.</p>
+                </div>
+              </div>
+              <div className="mt-3 rounded-2xl border border-arca-border bg-arca-surface-1 p-4">
+                <p className="text-xs font-bold text-arca-text-primary">Activación manual</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-arca-text-dim">Cuando validemos el comprobante, activaremos el plan y su nueva fecha de renovación. Recibirás avisos antes del próximo vencimiento.</p>
               </div>
             </motion.section>
           </motion.div>
@@ -594,13 +655,16 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
   );
 }
 
-function PlanOption({ name, description, current }: { name: string; description: string; current: boolean }) {
+function PlanOption({ plan, current, selected, onSelect }: { plan: BillingPlan; current: boolean; selected: boolean; onSelect: () => void }) {
+  const price = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(plan.monthlyPriceCop);
   return (
-    <div className={`rounded-2xl border p-4 ${current ? 'border-arca-accent bg-arca-accent/[0.08]' : 'border-arca-border bg-arca-surface-1'}`}>
+    <button type="button" disabled={plan.code === 'free'} onClick={onSelect} className={`w-full rounded-2xl border p-4 text-left transition-colors ${selected ? 'border-arca-accent bg-arca-accent/[0.08]' : current ? 'border-arca-success/30 bg-arca-success/[0.04]' : 'border-arca-border bg-arca-surface-1'} disabled:cursor-default`}>
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-sm font-bold text-arca-text-primary">{name}</p><p className="mt-1 text-[10px] leading-relaxed text-arca-text-dim">{description}</p></div>
-        {current ? <span className="shrink-0 rounded-full bg-arca-accent px-2 py-1 text-[8px] font-black uppercase tracking-wider text-black">Actual</span> : <span className="shrink-0 rounded-full bg-arca-surface-2 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-arca-text-dim">Próximamente</span>}
+        <div><p className="text-sm font-bold text-arca-text-primary">{plan.name}</p><p className="mt-1 text-[10px] leading-relaxed text-arca-text-dim">{plan.description}</p></div>
+        <div className="shrink-0 text-right"><p className="text-sm font-black text-arca-text-primary">{plan.monthlyPriceCop ? price : 'Gratis'}</p><p className="text-[8px] text-arca-text-dim">{plan.monthlyPriceCop ? '/ mes' : 'Siempre'}</p></div>
       </div>
-    </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">{plan.features.map((feature) => <p key={feature} className="flex gap-1.5 text-[9px] leading-relaxed text-arca-text-secondary"><Check size={11} className="mt-0.5 shrink-0 text-arca-success" /> {feature}</p>)}</div>
+      <div className="mt-3 flex items-center justify-between border-t border-arca-border pt-3"><span className="text-[9px] font-semibold text-arca-text-dim">{plan.aiMonthlyLimit ? `${plan.aiMonthlyLimit} acciones de Nova al mes` : 'No incluye Nova'}</span>{current ? <span className="rounded-full bg-arca-success/10 px-2 py-1 text-[8px] font-black uppercase tracking-wider text-arca-success">Plan actual</span> : selected ? <span className="rounded-full bg-arca-accent px-2 py-1 text-[8px] font-black uppercase tracking-wider text-black">Elegido</span> : null}</div>
+    </button>
   );
 }

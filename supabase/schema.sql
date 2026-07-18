@@ -72,14 +72,24 @@ create table if not exists public.workspace_subscriptions (
 
 insert into public.subscription_plans (code, name, monthly_price_cop, active)
 values
-  ('free', 'Free', 0, true),
-  ('personal_pro', 'Personal Pro', 0, true),
-  ('business', 'Business', 0, true)
+  ('free', 'Arca Gratis', 0, true),
+  ('personal_pro', 'Arca Personal', 14900, true),
+  ('business', 'Arca Negocios', 39900, true)
 on conflict (code) do update
 set
   name = excluded.name,
   monthly_price_cop = excluded.monthly_price_cop,
   active = excluded.active;
+
+update public.subscription_plans
+set metadata = case code
+  when 'free' then jsonb_build_object('catalog_version', 1, 'ai_monthly_limit', 0, 'description', 'Control financiero esencial y registro manual.', 'features', jsonb_build_array('Hasta 2 cuentas', 'Movimientos manuales', 'Agenda y presupuesto básico', 'Sin Nova'))
+  when 'personal_pro' then jsonb_build_object('catalog_version', 1, 'ai_monthly_limit', 150, 'description', 'Tu dinero organizado y acompañado por Nova.', 'features', jsonb_build_array('Cuentas ilimitadas', 'Nova y automatizaciones', 'Planeación y proyección', 'Metas y recordatorios'))
+  when 'business' then jsonb_build_object('catalog_version', 1, 'ai_monthly_limit', 500, 'description', 'Control personal y operativo para proyectos y negocios.', 'features', jsonb_build_array('Todo Arca Personal', 'Unidades de negocio', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación'))
+  else metadata
+end
+where code in ('free', 'personal_pro', 'business')
+  and coalesce((metadata ->> 'catalog_version')::integer, 0) < 1;
 
 create table if not exists public.accounts (
   id uuid primary key default gen_random_uuid(),
@@ -1729,3 +1739,69 @@ create policy "bank credits workspace access" on public.bank_credits
   );
 
 create trigger set_updated_at_bank_credits before update on public.bank_credits for each row execute function public.set_updated_at();
+
+-- Telemetria interna para SuperAdmin. No almacena prompts ni respuestas de Nova.
+create table if not exists public.app_usage_sessions (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  session_key text not null unique,
+  started_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  duration_seconds integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.ai_usage_events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  request_id text,
+  provider text not null default 'google',
+  model text not null,
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  total_tokens integer not null default 0,
+  estimated_cost_cop numeric not null default 0,
+  latency_ms integer,
+  tool_calls integer not null default 0,
+  status text not null default 'success',
+  finish_reason text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.admin_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid not null references auth.users(id) on delete restrict,
+  workspace_id uuid references public.workspaces(id) on delete set null,
+  action text not null,
+  previous_value jsonb not null default '{}'::jsonb,
+  next_value jsonb not null default '{}'::jsonb,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists app_usage_sessions_workspace_seen_idx on public.app_usage_sessions(workspace_id, last_seen_at desc);
+create index if not exists app_usage_sessions_user_seen_idx on public.app_usage_sessions(user_id, last_seen_at desc);
+create index if not exists ai_usage_events_workspace_created_idx on public.ai_usage_events(workspace_id, created_at desc);
+create index if not exists ai_usage_events_user_created_idx on public.ai_usage_events(user_id, created_at desc);
+create index if not exists admin_audit_log_workspace_created_idx on public.admin_audit_log(workspace_id, created_at desc);
+
+alter table public.app_usage_sessions enable row level security;
+alter table public.ai_usage_events enable row level security;
+alter table public.admin_audit_log enable row level security;
+alter table public.app_usage_sessions force row level security;
+alter table public.ai_usage_events force row level security;
+alter table public.admin_audit_log force row level security;
+
+do $$ begin
+  create policy "usage sessions superadmin read" on public.app_usage_sessions for select using (public.user_is_superadmin());
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "ai usage superadmin read" on public.ai_usage_events for select using (public.user_is_superadmin());
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "admin audit superadmin access" on public.admin_audit_log for all using (public.user_is_superadmin()) with check (public.user_is_superadmin());
+exception when duplicate_object then null; end $$;

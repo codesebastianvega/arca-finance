@@ -1,4 +1,5 @@
 import App from "@/src/App";
+import { redirect } from "next/navigation";
 import { requireWorkspaceContext } from "@/src/lib/auth";
 import { loadBusinessViewModel } from "@/src/lib/business-data";
 import { loadCalendarViewModel } from "@/src/lib/calendar-data";
@@ -11,9 +12,12 @@ import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadSubscriptionsViewModel } from "@/src/lib/subscriptions-data";
 import { loadAnalyticsViewModel } from "@/src/lib/analytics-data";
+import { loadSuperAdminViewModel } from "@/src/lib/superadmin-data";
+import { loadBillingNotice, loadBillingPlans } from "@/src/lib/billing-data";
 
 export default async function AuthenticatedAppPage() {
   const context = await requireWorkspaceContext();
+  if (context.workspace.status === "paused" && !context.profile.isSuperAdmin) redirect("/account-paused");
   const [
     initialTodayData,
     initialMoneyData,
@@ -26,6 +30,8 @@ export default async function AuthenticatedAppPage() {
     initialRegisterData,
     initialSubscriptionsData,
     initialAnalyticsData,
+    initialBillingPlans,
+    initialBillingNotice,
   ] = await Promise.all([
     loadTodayViewModel(context),
     loadMoneyViewModel(context),
@@ -38,19 +44,29 @@ export default async function AuthenticatedAppPage() {
     loadRegisterViewModel(context),
     loadSubscriptionsViewModel(context),
     loadAnalyticsViewModel(context),
+    loadBillingPlans(),
+    loadBillingNotice(context),
   ]);
 
   const trialEndsAt = context.subscription?.trialEndsAt;
+  const initialSuperAdminData = context.profile.isSuperAdmin ? await loadSuperAdminViewModel() : null;
   const trialDaysRemaining = trialEndsAt
     ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : undefined;
   const planLabel = context.subscription?.planCode === "business"
-    ? "Business"
+    ? "Arca Negocios"
     : context.subscription?.planCode === "personal_pro"
       ? context.subscription.status === "trialing"
-        ? "Prueba Personal Pro"
-        : "Personal Pro"
-      : "Plan gratuito";
+        ? "Prueba Arca Personal"
+        : "Arca Personal"
+      : "Arca Gratis";
+  const vipExpiresAt = typeof context.subscription?.metadata?.vip_expires_at === "string"
+    ? new Date(context.subscription.metadata.vip_expires_at).getTime()
+    : null;
+  const hasVipAccess = Boolean(context.subscription?.metadata?.vip_full_access)
+    && (!vipExpiresAt || vipExpiresAt > Date.now());
+  const hasActiveSubscription = context.subscription?.status === "active" || context.subscription?.status === "trialing";
+  const canUseNova = context.profile.isSuperAdmin || hasVipAccess || Boolean(hasActiveSubscription && context.subscription?.planCode !== "free");
 
   return (
     <App
@@ -66,13 +82,18 @@ export default async function AuthenticatedAppPage() {
       initialRegisterData={initialRegisterData}
       initialSubscriptionsData={initialSubscriptionsData}
       initialAnalyticsData={initialAnalyticsData}
+      initialSuperAdminData={initialSuperAdminData}
+      initialBillingPlans={initialBillingPlans}
+      initialBillingNotice={initialBillingNotice}
       initialOnboardingRequired={initialRegisterData.accounts.length === 0}
       userSummary={{
         fullName: context.profile.fullName || context.profile.email?.split("@")[0] || "Usuario de Arca",
         email: context.profile.email || "",
         planLabel,
+        planCode: context.subscription?.planCode ?? "free",
         trialDaysRemaining,
         isSuperAdmin: context.profile.isSuperAdmin,
+        canUseNova,
       }}
     />
   );
