@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { createTransfer } from '@/app/actions';
 import { haptics } from '../../lib/haptics';
+import { useActionFeedback } from '../feedback/action-feedback-provider';
 
 type TransferAccount = { id: string; name: string; balance: number };
 type TransferResult = {
@@ -63,6 +64,7 @@ export default function TransferScreen({
   currency?: string;
 }) {
   const router = useRouter();
+  const feedback = useActionFeedback();
   const [fromAccountId, setFromAccountId] = useState(accounts[0]?.id ?? '');
   const [toAccountId, setToAccountId] = useState(accounts[1]?.id ?? '');
   const [amount, setAmount] = useState('');
@@ -133,6 +135,7 @@ export default function TransferScreen({
     if (!canSubmit) return;
 
     setError(null);
+    feedback.start('Procesando transferencia…', 'Estamos moviendo el dinero y recalculando ambas cuentas.');
     startTransition(async () => {
       try {
         await createTransfer({
@@ -150,10 +153,13 @@ export default function TransferScreen({
           destinationAfter,
         });
         haptics.success();
+        feedback.succeed('Transferencia completada', `${money(parsedAmount, currency)} pasó a ${toAccount?.name ?? 'la cuenta destino'}.`);
         setIsSuccess(true);
         router.refresh();
       } catch (submissionError) {
-        setError(submissionError instanceof Error ? submissionError.message : 'No se pudo registrar la transferencia.');
+        const message = submissionError instanceof Error ? submissionError.message : 'No se pudo registrar la transferencia.';
+        setError(message);
+        feedback.fail('No pudimos transferir', message);
         haptics.error();
       }
     });

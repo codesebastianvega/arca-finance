@@ -1,6 +1,8 @@
 import { motion } from "motion/react";
-import { ChevronRight, LogOut, ShieldAlert, Sparkles, type LucideIcon } from "lucide-react";
+import { ChevronRight, LockKeyhole, LogOut, ShieldAlert, Sparkles, type LucideIcon } from "lucide-react";
 import type { Screen } from "../types";
+import type { AdminPlanCode } from "../lib/superadmin-types";
+import { canAccessScreen, requiredPlanForScreen } from "../lib/plan-entitlements";
 import { haptics } from "../lib/haptics";
 import { getNavItem, type NavItem } from "../features/app-shell/nav";
 import { PwaInstallCard } from "../features/pwa/pwa-install-card";
@@ -10,6 +12,8 @@ interface MasScreenProps {
   totalBalance: number;
   currency: string;
   isSuperAdmin: boolean;
+  planCode: AdminPlanCode;
+  fullAccess: boolean;
 }
 
 type MenuSection = {
@@ -54,7 +58,7 @@ function resolveItems(ids: Screen[]) {
   return ids.map((id) => getNavItem(id)).filter((item): item is NavItem => Boolean(item));
 }
 
-export default function MasScreen({ onScreenChange, totalBalance, currency, isSuperAdmin }: MasScreenProps) {
+export default function MasScreen({ onScreenChange, totalBalance, currency, isSuperAdmin, planCode, fullAccess }: MasScreenProps) {
   const handleMenuClick = (screen: Screen) => {
     haptics.medium();
     onScreenChange(screen);
@@ -90,9 +94,12 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
             <p className="mt-1 text-[10px] text-arca-text-dim">{section.subtitle}</p>
           </div>
           <div className="overflow-hidden rounded-[22px] border border-arca-border bg-arca-surface-1 divide-y divide-arca-border light:divide-arca-light-border">
-            {resolveItems(section.items).map((item) => (
-              <MenuRow key={item.id} icon={item.icon} label={item.label} onClick={() => handleMenuClick(item.id)} />
-            ))}
+            {resolveItems(section.items).map((item) => {
+              const locked = !canAccessScreen(item.id, planCode, fullAccess);
+              const requiredPlan = requiredPlanForScreen(item.id);
+              const lockedLabel = requiredPlan === "business" ? "Requiere Arca Negocios" : "Requiere Arca Personal";
+              return <MenuRow key={item.id} icon={item.icon} label={item.label} description={locked ? lockedLabel : undefined} locked={locked} onClick={() => handleMenuClick(item.id)} />;
+            })}
           </div>
         </section>
       ))}
@@ -118,7 +125,7 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
   );
 }
 
-function MenuRow({ icon: Icon, label, description, highlight = "default", showChevron = true, onClick }: { icon: LucideIcon; label: string; description?: string; highlight?: "default" | "danger"; showChevron?: boolean; onClick: () => void }) {
+function MenuRow({ icon: Icon, label, description, highlight = "default", showChevron = true, locked = false, onClick }: { icon: LucideIcon; label: string; description?: string; highlight?: "default" | "danger"; showChevron?: boolean; locked?: boolean; onClick: () => void }) {
   const danger = highlight === "danger";
   return (
     <motion.button type="button" whileTap={{ scale: 0.985 }} onClick={onClick} className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-arca-surface-2/70">
@@ -126,7 +133,7 @@ function MenuRow({ icon: Icon, label, description, highlight = "default", showCh
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${danger ? "bg-arca-alert/10 text-arca-alert" : "bg-arca-accent/[0.08] text-arca-accent"}`}><Icon size={18} /></span>
         <span><span className={`block text-sm font-bold ${danger ? "text-arca-alert" : "text-arca-text-primary"}`}>{label}</span>{description ? <span className="mt-0.5 block text-[9px] text-arca-text-dim">{description}</span> : null}</span>
       </span>
-      {showChevron ? <ChevronRight size={17} className="text-arca-text-dim" /> : null}
+      {locked ? <span className="flex h-8 w-8 items-center justify-center rounded-full border border-arca-accent/20 bg-arca-accent/[0.06] text-arca-accent"><LockKeyhole size={14} /></span> : showChevron ? <ChevronRight size={17} className="text-arca-text-dim" /> : null}
     </motion.button>
   );
 }

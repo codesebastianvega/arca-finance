@@ -16,15 +16,21 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["finance", "productivity"],
     icons: [
       {
-        src: "/icons/arca-icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/icons/arca-192.png?v=4",
+        sizes: "192x192",
+        type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/arca-maskable.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/icons/arca-512.png?v=4",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icons/arca-maskable-512.png?v=4",
+        sizes: "512x512",
+        type: "image/png",
         purpose: "maskable",
       },
     ],

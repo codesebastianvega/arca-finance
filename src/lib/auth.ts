@@ -323,10 +323,11 @@ export async function bootstrapWorkspaceForUser(params: { userId: string; email?
   if (!existingSubscription.data) {
     const { error: subscriptionError } = await admin.from("workspace_subscriptions").insert({
       workspace_id: workspaceId,
-      plan_code: "personal_pro",
-      status: "trialing",
+      plan_code: "free",
+      status: "active",
       provider: "manual",
-      trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      trial_ends_at: null,
+      metadata: { onboarding_plan_selected: false },
     });
 
     if (subscriptionError) {

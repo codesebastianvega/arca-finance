@@ -35,6 +35,8 @@ import SuperAdminScreen from './components/SuperAdminScreen';
 import MasScreen from './components/MasScreen';
 import SubscriptionsScreen from './features/more/subscriptions-screen';
 import NewUserOnboarding from './features/onboarding/new-user-onboarding';
+import PlanLockedScreen from './components/PlanLockedScreen';
+import { canAccessScreen, requiredPlanForScreen } from './lib/plan-entitlements';
 
 export type ThemeId = 'arca-dark' | 'neon-night' | 'glass-ocean' | 'arca-light';
 export type AppUserSummary = {
@@ -44,6 +46,7 @@ export type AppUserSummary = {
   planCode: 'free' | 'personal_pro' | 'business';
   trialDaysRemaining?: number;
   isSuperAdmin: boolean;
+  hasVipAccess: boolean;
   canUseNova: boolean;
 };
 
@@ -120,11 +123,30 @@ export default function App({
     }
   }, [theme]);
 
+  useEffect(() => {
+    const openNotifications = () => {
+      window.sessionStorage.setItem('arca-open-notifications', '1');
+      setCurrentScreen('resumen');
+    };
+    if (new URLSearchParams(window.location.search).get('open') === 'notifications') openNotifications();
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NAVIGATE' && String(event.data.url ?? '').includes('open=notifications')) openNotifications();
+    };
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+  }, []);
+
   const renderScreen = () => {
     const backToMas = () => setCurrentScreen('mas');
     const openNova = (prompt?: string) => {
       window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt } }));
     };
+
+    const fullAccess = userSummary.isSuperAdmin || userSummary.hasVipAccess;
+    const requiredPlan = requiredPlanForScreen(currentScreen);
+    if (requiredPlan && !canAccessScreen(currentScreen, userSummary.planCode, fullAccess)) {
+      return <PlanLockedScreen requiredPlan={requiredPlan} onBack={backToMas} onViewPlans={() => setCurrentScreen('configuracion')} />;
+    }
     
     switch (currentScreen) {
       case 'hoy': return <NovaHome
@@ -152,12 +174,13 @@ export default function App({
         onOpenRegister={() => setCurrentScreen('registrar')}
         onOpenBusiness={() => setCurrentScreen('negocios')}
         onOpenMonthPlan={() => setCurrentScreen('planeacion_mes')}
+        onNavigate={handleSetCurrentScreen}
       />;
       case 'dinero_cuentas': return <AccountsScreen defaultTab="cuentas" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
       case 'dinero_tarjetas': return <AccountsScreen defaultTab="tarjetas" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
       case 'dinero_ahorro': return <AccountsScreen defaultTab="ahorro" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
       case 'obligaciones': return <ObligationsScreen data={initialObligationsData} currency={currencyCode} onBack={backToMas} onOpenNova={openNova} initialMode={obligationsInitialMode} initialFilter={obligationsInitialFilter} />;
-      case 'mas': return <MasScreen onScreenChange={setCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} currency={currencyCode} isSuperAdmin={userSummary.isSuperAdmin} />;
+      case 'mas': return <MasScreen onScreenChange={handleSetCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} currency={currencyCode} isSuperAdmin={userSummary.isSuperAdmin} planCode={userSummary.planCode} fullAccess={fullAccess} />;
       case 'dashboard': return <ExecutiveDashboard data={initialAnalyticsData} currency={currencyCode} onBack={backToMas} onOpenNova={openNova} onOpenMovements={() => setCurrentScreen('movimientos')} />;
       case 'planeacion_mes': return <MonthScreen onBack={backToMas} onOpenNova={openNova} data={initialMonthData} currency={currencyCode} />;
       case 'planeacion_proyeccion': return <ProjectionScreen onBack={backToMas} onOpenNova={openNova} data={initialProjectionData} currency={currencyCode} />;
@@ -187,7 +210,7 @@ export default function App({
           currency={currencyCode}
         />
       );
-      case 'superadmin': return userSummary.isSuperAdmin && initialSuperAdminData ? <SuperAdminScreen onBack={backToMas} data={initialSuperAdminData} /> : <MasScreen onScreenChange={setCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} currency={currencyCode} isSuperAdmin={false} />;
+      case 'superadmin': return userSummary.isSuperAdmin && initialSuperAdminData ? <SuperAdminScreen onBack={backToMas} data={initialSuperAdminData} /> : <MasScreen onScreenChange={handleSetCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} currency={currencyCode} isSuperAdmin={false} planCode={userSummary.planCode} fullAccess={fullAccess} />;
       case 'suscripciones': return <SubscriptionsScreen 
         onBack={backToMas} 
         onNavigateToRegister={(type) => {
@@ -223,6 +246,7 @@ export default function App({
         <NewUserOnboarding
           firstName={userSummary.fullName.split(/\s+/)[0] || "hola"}
           currency={currencyCode}
+          plans={initialBillingPlans}
           onComplete={() => setShowOnboarding(false)}
         />
       ) : null}

@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/favicon.ico",
+        destination: "/icons/arca-icon.svg?v=3",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

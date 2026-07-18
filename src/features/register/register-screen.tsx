@@ -43,6 +43,7 @@ import TransferScreen from '../transfers/transfer-screen';
 import { haptics } from '../../lib/haptics';
 import { ItemizedExpenseForm } from './itemized-expense-form';
 import { TransactionItem } from '@/src/types';
+import { useActionFeedback } from '../feedback/action-feedback-provider';
 
 const CATEGORIES = [
   { id: 'hogar', label: 'Hogar', icon: Home },
@@ -188,6 +189,7 @@ const REGISTER_GROUPS = [
 
 export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento', defaultGoalType = 'goal', defaultType = 'gasto', defaultDate = '' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string; defaultGoalType?: 'goal' | 'pocket'; defaultType?: 'gasto' | 'ingreso'; defaultDate?: string }) {
   const router = useRouter();
+  const feedback = useActionFeedback();
   const [isQuickCreatePending, startQuickCreate] = useTransition();
   const [activeSegment, setActiveSegment] = useState(defaultSegment);
   const [activeGroup, setActiveGroup] = useState<'movimiento' | 'planificado' | 'estructura'>(() => {
@@ -555,6 +557,8 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     haptics.light();
     setSubmitError(null);
     setIsSubmitting(true);
+    const pendingLabel = activeSegment === 'Movimiento' ? (type === 'gasto' ? 'Registrando gasto…' : 'Registrando ingreso…') : `Guardando ${activeSegment.toLowerCase()}…`;
+    feedback.start(pendingLabel, 'Espera mientras actualizamos tus saldos y métricas.');
 
     try {
       if (activeSegment === 'Movimiento') {
@@ -677,6 +681,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       }
 
       setIsSuccess(true);
+      feedback.succeed(activeSegment === 'Movimiento' ? 'Movimiento registrado' : `${activeSegment} guardado`, 'Tu información financiera ya fue actualizada.');
       haptics.success();
       router.refresh();
       if (onSuccess) {
@@ -684,7 +689,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       }
       setTimeout(() => setIsSuccess(false), 2000);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'No se pudo guardar.');
+      const message = error instanceof Error ? error.message : 'No se pudo guardar.';
+      setSubmitError(message);
+      feedback.fail('No pudimos completar la acción', message);
       haptics.error();
     } finally {
       setIsSubmitting(false);

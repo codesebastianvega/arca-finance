@@ -93,6 +93,7 @@ export default async function AuthenticatedAppPage() {
         planCode: context.subscription?.planCode ?? "free",
         trialDaysRemaining,
         isSuperAdmin: context.profile.isSuperAdmin,
+        hasVipAccess,
         canUseNova,
       }}
     />

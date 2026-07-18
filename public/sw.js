@@ -1,8 +1,9 @@
-const STATIC_CACHE = "arca-static-v1";
+const STATIC_CACHE = "arca-static-v3";
 const PRECACHE_URLS = [
   "/offline",
-  "/icons/arca-icon.svg",
-  "/icons/arca-maskable.svg",
+  "/icons/arca-192.png?v=4",
+  "/icons/arca-512.png?v=4",
+  "/icons/arca-maskable-512.png?v=4",
 ];
 
 self.addEventListener("install", (event) => {
@@ -57,5 +58,32 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow("/app"));
+  const targetUrl = event.notification.data?.url || "/app";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const appClient = clients.find((client) => "focus" in client);
+      if (appClient) {
+        appClient.postMessage({ type: "PUSH_NAVIGATE", url: targetUrl });
+        return appClient.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    }),
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data?.json() || {};
+  } catch {
+    payload = { body: event.data?.text() || "Tienes una actualización financiera en Arca." };
+  }
+  event.waitUntil(self.registration.showNotification(payload.title || "Arca te recuerda", {
+    body: payload.body || "Revisa tus próximos compromisos.",
+    icon: "/icons/arca-192.png?v=4",
+    badge: "/icons/arca-maskable-512.png?v=4",
+    tag: payload.tag || "arca-financial-reminder",
+    data: { url: payload.url || "/app" },
+    vibrate: [120, 60, 120],
+  }));
 });

@@ -66,3 +66,37 @@ export async function requestSubscriptionPayment(input: { planCode: Exclude<Admi
   revalidatePath('/app');
   return { invoiceId, amountCop: invoiceAmountCop };
 }
+
+export async function selectInitialSubscriptionPlan(input: { planCode: AdminPlanCode }) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error('No se pudo seleccionar el plan.');
+  const plan = await admin.from('subscription_plans').select('code, active').eq('code', input.planCode).maybeSingle();
+  if (plan.error || !plan.data || plan.data.active === false) throw new Error('Este plan no está disponible.');
+
+  const now = new Date();
+  const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const existing = await admin.from('workspace_subscriptions').select('id, metadata').eq('workspace_id', context.workspace.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (existing.error) throw new Error(`No se pudo validar tu suscripción: ${existing.error.message}`);
+  const existingMetadata = existing.data?.metadata && typeof existing.data.metadata === 'object'
+    ? existing.data.metadata as Record<string, unknown>
+    : {};
+  if (existingMetadata.onboarding_plan_selected === true) throw new Error('Tu plan inicial ya fue seleccionado. Puedes cambiarlo desde Configuración.');
+
+  const values = {
+    plan_code: input.planCode,
+    status: input.planCode === 'free' ? 'active' : 'trialing',
+    provider: 'manual',
+    starts_at: now.toISOString(),
+    ends_at: null,
+    trial_ends_at: input.planCode === 'free' ? null : trialEndsAt,
+    metadata: { ...existingMetadata, onboarding_plan_selected: true },
+    updated_at: now.toISOString(),
+  };
+  const result = existing.data
+    ? await admin.from('workspace_subscriptions').update(values).eq('id', existing.data.id)
+    : await admin.from('workspace_subscriptions').insert({ workspace_id: context.workspace.id, ...values });
+  if (result.error) throw new Error(`No se pudo guardar el plan: ${result.error.message}`);
+  revalidatePath('/app');
+  return { ok: true };
+}

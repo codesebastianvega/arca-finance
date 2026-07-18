@@ -377,6 +377,26 @@ export async function createAccount(input: {
   if (!type) throw new Error("La cuenta necesita un tipo.");
   if (!Number.isFinite(balance) || balance < 0) throw new Error("El saldo inicial debe ser valido.");
 
+  const vipExpiresAt = typeof context.subscription?.metadata?.vip_expires_at === "string"
+    ? new Date(context.subscription.metadata.vip_expires_at).getTime()
+    : null;
+  const hasVipAccess = Boolean(context.subscription?.metadata?.vip_full_access)
+    && (!vipExpiresAt || vipExpiresAt > Date.now());
+  const isFreePlan = !context.profile.isSuperAdmin
+    && !hasVipAccess
+    && (context.subscription?.planCode ?? "free") === "free";
+
+  if (isFreePlan) {
+    const { count, error: countError } = await admin
+      .from("accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", context.workspace.id)
+      .eq("active", true)
+      .eq("archived", false);
+    if (countError) throw new Error(`No se pudo validar el límite del plan: ${countError.message}`);
+    if ((count ?? 0) >= 2) throw new Error("Arca Gratis permite hasta 2 cuentas. Activa Arca Personal para agregar cuentas ilimitadas.");
+  }
+
   const { data: newAccount, error } = await admin
     .from("accounts")
     .insert({

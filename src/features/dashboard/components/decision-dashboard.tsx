@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CalendarClock, Clock, AlertTriangle, Bell, Search, Send, Target, Receipt, TrendingUp, AlertCircle, ChevronRight, X, Sparkles } from "lucide-react";
+import { CheckCircle2, CalendarClock, Clock, AlertTriangle, Send, Target, Receipt, TrendingUp, AlertCircle, ChevronRight, X, Sparkles } from "lucide-react";
 import type { TodayViewModel, TodayReceivable, TodayMonthlyBudgetItem } from "@/src/lib/today-data";
 import type { ObligationFilter } from "@/src/lib/obligations-types";
 import { haptics } from "@/src/lib/haptics";
@@ -11,6 +11,8 @@ import { ReceivableActionModal } from "./receivable-action-modal";
 import { ObligationActionModal } from "../../../features/obligations/components/obligation-action-modal";
 import type { ObligationItem } from "@/src/lib/obligations-types";
 import { CalculationHelper } from "@/src/components/calculation-helper";
+import { HomeHeaderActions } from "./home-header-actions";
+import type { Screen } from "@/src/types";
 
 function formatCOP(amount: number | null | undefined): string {
   if (amount == null) return "$0";
@@ -35,6 +37,7 @@ export default function DecisionDashboard({
   onOpenBusiness,
   onOpenMonthPlan,
   onOpenNova,
+  onNavigate,
 }: { 
   data: TodayViewModel;
   onOpenMovements?: () => void;
@@ -44,6 +47,7 @@ export default function DecisionDashboard({
   onOpenBusiness?: () => void;
   onOpenMonthPlan?: () => void;
   onOpenNova: (prompt?: string) => void;
+  onNavigate: (screen: Screen) => void;
 }) {
   const { greeting, budget, metrics, cash, criticalPayments, receivables, upcomingIncomes, monthlyBudget } = data;
   const router = useRouter();
@@ -112,15 +116,7 @@ export default function DecisionDashboard({
           <p className="text-[10px] font-bold text-arca-text-dim light:text-arca-light-text-secondary uppercase tracking-[0.2em]">{greeting.dateLabel}</p>
           <h1 className="text-3xl font-black tracking-tighter text-arca-text-primary light:text-arca-light-text-primary">Hola, {greeting.firstName}</h1>
         </div>
-        <div className="flex space-x-2">
-          <button className="w-10 h-10 rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border flex items-center justify-center">
-            <Search size={18} className="text-arca-text-secondary light:text-arca-light-text-secondary" />
-          </button>
-          <button className="w-10 h-10 rounded-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border flex items-center justify-center relative">
-            <Bell size={18} className="text-arca-text-secondary light:text-arca-light-text-secondary" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-arca-alert light:bg-arca-light-alert rounded-full border-2 border-arca-base light:border-arca-light-base" />
-          </button>
-        </div>
+        <HomeHeaderActions data={data} onNavigate={onNavigate} onOpenObligations={onOpenObligations} onOpenNova={onOpenNova} />
       </header>
 
       {/* Onboarding Alert Card if no accounts exist */}

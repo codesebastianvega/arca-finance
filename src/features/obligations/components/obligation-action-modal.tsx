@@ -8,6 +8,7 @@ import { canEditObligation } from "@/src/lib/obligations-types";
 import type { ObligationItem } from "@/src/lib/obligations-types";
 import { haptics } from "@/src/lib/haptics";
 import { useRouter } from "next/navigation";
+import { useActionFeedback } from "@/src/features/feedback/action-feedback-provider";
 
 interface ObligationActionModalProps {
   obligation: ObligationItem | null;
@@ -23,6 +24,7 @@ export function ObligationActionModal({
   onRefresh,
 }: ObligationActionModalProps) {
   const router = useRouter();
+  const feedback = useActionFeedback();
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
   
@@ -93,6 +95,7 @@ export function ObligationActionModal({
 
   const handleAdjustConfirm = () => {
     setActionError(null);
+    feedback.start(obligation.kind === 'income' ? "Registrando ingreso…" : "Registrando pago…", "Estamos actualizando el compromiso y la cuenta seleccionada.");
     startTransition(async () => {
       try {
         await adjustAndConfirmScheduledEvent({
@@ -102,10 +105,13 @@ export function ObligationActionModal({
           accountId: adjustAccountId || undefined,
         });
         haptics.success();
+        feedback.succeed(obligation.kind === 'income' ? "Ingreso confirmado" : "Pago confirmado", `${obligation.name} quedó actualizado.`);
         onRefresh();
         onClose();
       } catch (error) {
-        setActionError(error instanceof Error ? error.message : "No se pudo confirmar el pago.");
+        const message = error instanceof Error ? error.message : "No se pudo confirmar el pago.";
+        setActionError(message);
+        feedback.fail("No pudimos confirmar la acción", message);
         haptics.error();
       }
     });
