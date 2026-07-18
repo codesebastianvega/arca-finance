@@ -192,6 +192,30 @@ export default function NovaHome({
         </div>
       </section>
 
+      <button
+        type="button"
+        onClick={onOpenSummary}
+        className="group flex w-full items-center gap-4 rounded-[24px] border border-arca-border-strong bg-arca-surface-1 p-4 text-left shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)] transition-colors hover:bg-arca-surface-2 light:border-arca-light-border light:bg-arca-light-surface-1"
+      >
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-arca-accent/10 text-arca-accent">
+          <BarChart3 size={22} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">
+            Vista completa
+          </span>
+          <span className="mt-0.5 block text-base font-black text-arca-text-primary light:text-arca-light-text-primary">
+            Ver resumen financiero
+          </span>
+          <span className="mt-1 block text-[11px] leading-relaxed text-arca-text-secondary light:text-arca-light-text-secondary">
+            Presupuesto, pagos, ingresos, cobros y movimientos del mes.
+          </span>
+        </span>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-arca-border bg-arca-surface-2 text-arca-accent transition-transform group-hover:translate-x-0.5">
+          <ArrowRight size={17} />
+        </span>
+      </button>
+
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -235,31 +259,7 @@ export default function NovaHome({
       </div>
 
       <section>
-        <button
-          type="button"
-          onClick={onOpenSummary}
-          className="group flex w-full items-center gap-4 rounded-[24px] border border-arca-border-strong bg-arca-surface-1 p-4 text-left shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)] transition-colors hover:bg-arca-surface-2 light:border-arca-light-border light:bg-arca-light-surface-1"
-        >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-arca-accent/10 text-arca-accent">
-            <BarChart3 size={22} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">
-              Vista completa
-            </span>
-            <span className="mt-0.5 block text-base font-black text-arca-text-primary light:text-arca-light-text-primary">
-              Ver resumen financiero
-            </span>
-            <span className="mt-1 block text-[11px] leading-relaxed text-arca-text-secondary light:text-arca-light-text-secondary">
-              Presupuesto, pagos, ingresos, cobros y movimientos del mes.
-            </span>
-          </span>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-arca-border bg-arca-surface-2 text-arca-accent transition-transform group-hover:translate-x-0.5">
-            <ArrowRight size={17} />
-          </span>
-        </button>
-
-        <h2 className="mb-3 mt-5 text-xs font-black uppercase tracking-[0.16em] text-arca-text-secondary light:text-arca-light-text-secondary">
+        <h2 className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-arca-text-secondary light:text-arca-light-text-secondary">
           Acciones rápidas
         </h2>
 

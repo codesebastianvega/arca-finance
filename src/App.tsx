@@ -112,9 +112,9 @@ export default function App({
         onOpenBusiness={() => setCurrentScreen('negocios')}
         onOpenMonthPlan={() => setCurrentScreen('planeacion_mes')}
       />;
-      case 'dinero_cuentas': return <AccountsScreen defaultTab="cuentas" data={initialMoneyData} />;
-      case 'dinero_tarjetas': return <AccountsScreen defaultTab="tarjetas" data={initialMoneyData} />;
-      case 'dinero_ahorro': return <AccountsScreen defaultTab="ahorro" data={initialMoneyData} />;
+      case 'dinero_cuentas': return <AccountsScreen defaultTab="cuentas" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
+      case 'dinero_tarjetas': return <AccountsScreen defaultTab="tarjetas" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
+      case 'dinero_ahorro': return <AccountsScreen defaultTab="ahorro" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
       case 'obligaciones': return <ObligationsScreen data={initialObligationsData} />;
       case 'mas': return <MasScreen onScreenChange={setCurrentScreen} totalBalance={initialTodayData.cash.totalBalance} />;
       case 'dashboard': return <ExecutiveDashboard onBack={backToMas} />;

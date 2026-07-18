@@ -44,6 +44,7 @@ export type MoneySpendingSlice = {
   name: string;
   value: number;
   color: string;
+  percentage: number;
 };
 
 export type MoneyAccount = {
@@ -82,6 +83,11 @@ export type MoneyViewModel = {
     total: number;
     totalLabel: string;
     breakdown: MoneySpendingSlice[];
+    monthLabel: string;
+    previousTotal: number;
+    changePercent: number | null;
+    budget: number | null;
+    budgetUsagePercent: number | null;
   };
 };
 
@@ -113,8 +119,11 @@ function monthBoundsInBogota() {
   const month = Number(monthStr);
   const start = `${yearStr}-${monthStr}-01`;
   const nextMonth = month === 12 ? `${year + 1}-01-01` : `${yearStr}-${String(month + 1).padStart(2, "0")}-01`;
-  const monthLabel = new Intl.DateTimeFormat("es-CO", { month: "short", timeZone: "America/Bogota" }).format(new Date(`${start}T00:00:00-05:00`));
-  return { start, nextMonth, monthLabel };
+  const previousYear = month === 1 ? year - 1 : year;
+  const previousMonth = month === 1 ? 12 : month - 1;
+  const previousStart = `${previousYear}-${String(previousMonth).padStart(2, "0")}-01`;
+  const monthLabel = new Intl.DateTimeFormat("es-CO", { month: "long", timeZone: "America/Bogota" }).format(new Date(`${start}T00:00:00-05:00`));
+  return { start, nextMonth, previousStart, monthLabel };
 }
 
 const CARD_COLOR_BY_ISSUER: Record<string, { color: string; darkText?: boolean }> = {
@@ -139,14 +148,34 @@ const CARD_COLOR_BY_ISSUER: Record<string, { color: string; darkText?: boolean }
 };
 
 const SPENDING_COLOR_BY_CATEGORY: Record<string, string> = {
-  hogar: "#C68A45",
-  comida: "#7A8F5C",
-  ocio: "#4A3B26",
-  salud: "#C1543A",
-  transporte: "#8D6E63",
-  servicios: "#D49A57",
-  general: "#C68A45",
+  hogar: "#D8A04D",
+  comida: "#9CAF76",
+  ocio: "#8C7196",
+  salud: "#D27A6A",
+  transporte: "#5F8E89",
+  servicios: "#6F91A3",
+  claro: "#6F91A3",
+  general: "#D8A04D",
+  expense: "#D8A04D",
+  deudas: "#E06B52",
+  debt_payment: "#E06B52",
+  prestamos: "#C97B5B",
+  prestamo: "#C97B5B",
+  card_payment: "#7B829E",
 };
+
+const SPENDING_FALLBACK_COLORS = ["#D8A04D", "#5F8E89", "#C97B5B", "#8C7196", "#9CAF76"];
+
+function spendingCategoryLabel(category: string) {
+  const labels: Record<string, string> = {
+    expense: "Gastos generales",
+    debt_payment: "Deudas",
+    card_payment: "Tarjetas",
+    prestamo: "Préstamos",
+    prestamos: "Préstamos",
+  };
+  return labels[category] ?? category.charAt(0).toUpperCase() + category.slice(1);
+}
 
 function issuerVisual(issuer: string, brandColor?: string | null, textColor?: string | null) {
   if (brandColor) {
@@ -177,7 +206,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   const workspaceId = context.workspace.id;
   const monthBounds = monthBoundsInBogota();
 
-  const [accountsResult, rawCardsResult, savingsResult, transactionsResult, bankCreditsResult] = await Promise.all([
+  const [accountsResult, rawCardsResult, savingsResult, transactionsResult, bankCreditsResult, budgetResult] = await Promise.all([
     supabase.from("accounts").select("id, name, entity, type, balance, color, active, archived").eq("workspace_id", workspaceId).eq("active", true).eq("archived", false).order("created_at", { ascending: true }),
     supabase
       .from("credit_cards")
@@ -195,13 +224,21 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .from("transactions")
       .select("id, kind, amount, category, date")
       .eq("workspace_id", workspaceId)
-      .gte("date", `${monthBounds.start}T00:00:00-05:00`)
+      .gte("date", `${monthBounds.previousStart}T00:00:00-05:00`)
       .lt("date", `${monthBounds.nextMonth}T00:00:00-05:00`),
     supabase
       .from("bank_credits")
       .select("id, name, total_amount, current_balance, monthly_payment, interest_rate, total_installments, paid_installments, pay_due_date, notes, status, brand_color, text_color")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("monthly_budgets")
+      .select("limit_amount, month")
+      .eq("workspace_id", workspaceId)
+      .gte("month", monthBounds.start)
+      .lt("month", monthBounds.nextMonth)
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   let cardsResult: typeof rawCardsResult | any = rawCardsResult;
@@ -219,6 +256,9 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   if (cardsResult.error) throw new Error(`No se pudieron leer las tarjetas: ${cardsResult.error.message}`);
   if (savingsResult.error) throw new Error(`No se pudo leer el ahorro: ${savingsResult.error.message}`);
   if (transactionsResult.error) throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);
+  if (budgetResult.error && budgetResult.error.code !== "PGRST205") {
+    throw new Error(`No se pudo leer el presupuesto del mes: ${budgetResult.error.message}`);
+  }
   // If bankCredits fail, don't throw, just map to empty array as user may not have applied SQL migration yet.
 
   const allSavings: MoneySaving[] = (savingsResult.data ?? []).map((row) => {
@@ -285,23 +325,31 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
 
   const outgoingKinds = new Set(["expense", "debt_payment", "card_payment"]);
   const grouped = new Map<string, number>();
+  let previousTotal = 0;
 
   for (const row of transactionsResult.data ?? []) {
     if (!outgoingKinds.has(String(row.kind))) continue;
+    if (String(row.date) < monthBounds.start) {
+      previousTotal += toNumber(row.amount);
+      continue;
+    }
     const key = String(row.category ?? "general").toLowerCase();
     grouped.set(key, (grouped.get(key) ?? 0) + toNumber(row.amount));
   }
 
-  const breakdown: MoneySpendingSlice[] = Array.from(grouped.entries())
-    .map(([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-      color: SPENDING_COLOR_BY_CATEGORY[name] ?? "#C68A45",
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 4);
+  const spendingTotal = Array.from(grouped.values()).reduce((sum, value) => sum + value, 0);
+  const sortedCategories = Array.from(grouped.entries()).sort((a, b) => b[1] - a[1]);
+  const visibleCategories = sortedCategories.slice(0, 4);
+  const hiddenTotal = sortedCategories.slice(4).reduce((sum, [, value]) => sum + value, 0);
+  if (hiddenTotal > 0) visibleCategories.push(["otros", hiddenTotal]);
 
-  const spendingTotal = breakdown.reduce((sum, item) => sum + item.value, 0);
+  const breakdown: MoneySpendingSlice[] = visibleCategories.map(([name, value], index) => ({
+    name: spendingCategoryLabel(name),
+    value,
+    percentage: spendingTotal > 0 ? Math.round((value / spendingTotal) * 100) : 0,
+    color: name === "otros" ? "#7A7064" : SPENDING_COLOR_BY_CATEGORY[name] ?? SPENDING_FALLBACK_COLORS[index % SPENDING_FALLBACK_COLORS.length],
+  }));
+  const budget = budgetResult.data ? toNumber(budgetResult.data.limit_amount) : null;
 
   const bankCredits: BankCredit[] = (bankCreditsResult?.data ?? []).map((row) => ({
     id: String(row.id),
@@ -328,6 +376,11 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       total: spendingTotal,
       totalLabel: money(spendingTotal),
       breakdown,
+      monthLabel: monthBounds.monthLabel,
+      previousTotal,
+      changePercent: previousTotal > 0 ? Math.round(((spendingTotal - previousTotal) / previousTotal) * 100) : null,
+      budget,
+      budgetUsagePercent: budget && budget > 0 ? Math.round((spendingTotal / budget) * 100) : null,
     },
   };
 }

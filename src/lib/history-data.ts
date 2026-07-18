@@ -64,19 +64,31 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
   }
 
   const workspaceId = context.workspace.id;
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("id, concept, amount, date, category, unit, kind, status, source_type, account_id, created_at, accounts(name)")
-    .eq("workspace_id", workspaceId)
-    .neq("status", "cancelled")
-    .order("created_at", { ascending: false })
-    .limit(120);
+  const [transactionsResult, accountsResult] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("id, concept, amount, date, category, unit, kind, status, source_type, account_id, created_at, accounts(name)")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false })
+      .limit(120),
+    supabase
+      .from("accounts")
+      .select("id, name")
+      .eq("workspace_id", workspaceId)
+      .eq("active", true)
+      .order("name", { ascending: true }),
+  ]);
 
-  if (error) {
-    throw new Error(`No se pudieron leer los movimientos: ${error.message}`);
+  if (transactionsResult.error) {
+    throw new Error(`No se pudieron leer los movimientos: ${transactionsResult.error.message}`);
   }
 
-  const items: HistoryItem[] = ((data ?? []) as Array<{
+  if (accountsResult.error) {
+    throw new Error(`No se pudieron leer las cuentas: ${accountsResult.error.message}`);
+  }
+
+  const items: HistoryItem[] = ((transactionsResult.data ?? []) as Array<{
     id: string;
     concept: string;
     amount: number | string;
@@ -119,5 +131,11 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
     };
   });
 
-  return { items };
+  return {
+    items,
+    accountOptions: (accountsResult.data ?? []).map((account) => ({
+      id: String(account.id),
+      label: String(account.name),
+    })),
+  };
 }

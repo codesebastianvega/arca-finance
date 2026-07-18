@@ -20,4 +20,8 @@ export type HistoryItem = {
 
 export type HistoryViewModel = {
   items: HistoryItem[];
+  accountOptions: Array<{
+    id: string;
+    label: string;
+  }>;
 };
