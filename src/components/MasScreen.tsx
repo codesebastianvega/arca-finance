@@ -3,6 +3,7 @@ import { ChevronRight, LogOut } from 'lucide-react';
 import { Screen } from '../types';
 import { haptics } from '../lib/haptics';
 import { NAV_ITEMS } from '../features/app-shell/nav';
+import { PwaInstallCard } from '../features/pwa/pwa-install-card';
 
 interface MasScreenProps {
   onScreenChange: (screen: Screen) => void;
@@ -51,6 +52,8 @@ export default function MasScreen({ onScreenChange, totalBalance }: MasScreenPro
           <MenuRow key={i} icon={item.icon} label={item.label} onClick={() => handleMenuClick(item.id)} />
         ))}
       </div>
+
+      <PwaInstallCard />
 
       <div className="card-arca overflow-hidden divide-y divide-arca-border light:divide-arca-light-border">
         <MenuRow icon={LogOut} label="Salir" isDanger onClick={() => window.location.assign('/auth/sign-out')} />

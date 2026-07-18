@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Arca">
+  <rect width="512" height="512" fill="#090b0a"/>
+  <circle cx="256" cy="256" r="190" fill="#17130e" stroke="#4a3520" stroke-width="8"/>
+  <path d="M256 150c8 56 50 98 106 106-56 8-98 50-106 106-8-56-50-98-106-106 56-8 98-50 106-106Z" fill="#d89c56"/>
+  <path d="M340 156c3 22 20 39 42 42-22 3-39 20-42 42-3-22-20-39-42-42 22-3 39-20 42-42Z" fill="#e06b52"/>
+  <circle cx="171" cy="343" r="18" fill="#9caf76"/>
+</svg>
