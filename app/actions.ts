@@ -1318,6 +1318,37 @@ export async function createExpenseCategory(input: {
   return { ok: true, categoryId: data.id };
 }
 
+export async function updateExpenseCategory(input: {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  icon?: string | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const name = input.name.trim();
+  if (!name) throw new Error("El nombre de la categoría es requerido.");
+  if (input.parentId === input.id) throw new Error("Una categoría no puede depender de sí misma.");
+
+  const { error } = await admin
+    .from("expense_categories")
+    .update({
+      name,
+      parent_id: input.parentId || null,
+      icon: input.icon || null,
+    })
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) throw new Error(`No se pudo actualizar la categoría: ${error.message}`);
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
 export async function createIncomeSource(input: {
   name: string;
   businessUnitKey: string;
@@ -2734,6 +2765,30 @@ export async function deleteBusinessUnit(id: string) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
   if (!admin) throw new Error("Supabase admin client no disponible.");
+  const { data: unit, error: unitError } = await admin
+    .from("business_units")
+    .select("key")
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id)
+    .maybeSingle();
+
+  if (unitError || !unit) throw new Error("No se encontró la unidad de negocio.");
+
+  const [sources, transactions, events] = await Promise.all([
+    admin.from("income_sources").select("id", { count: "exact", head: true }).eq("workspace_id", context.workspace.id).eq("business_unit_key", unit.key),
+    admin.from("transactions").select("id", { count: "exact", head: true }).eq("workspace_id", context.workspace.id).eq("unit", unit.key),
+    admin.from("scheduled_events").select("id", { count: "exact", head: true }).eq("workspace_id", context.workspace.id).eq("business_unit_key", unit.key),
+  ]);
+
+  const dependencyError = sources.error ?? transactions.error ?? events.error;
+  if (dependencyError) {
+    throw new Error(`No se pudo validar el uso de esta unidad: ${dependencyError.message}`);
+  }
+
+  if ((sources.count ?? 0) + (transactions.count ?? 0) + (events.count ?? 0) > 0) {
+    throw new Error("Esta unidad ya tiene conceptos, movimientos o eventos asociados. Reasígnalos antes de eliminarla.");
+  }
+
   const { error } = await admin
     .from("business_units")
     .delete()

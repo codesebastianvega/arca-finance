@@ -21,6 +21,7 @@ import type { ObligationItem } from '@/src/lib/obligations-types';
 import type { TodayReceivable } from '@/src/lib/today-data';
 import { ObligationActionModal } from '@/src/features/obligations/components/obligation-action-modal';
 import { ReceivableActionModal } from '@/src/features/dashboard/components/receivable-action-modal';
+import { CalculationHelper } from '@/src/components/calculation-helper';
 
 const WEEK_DAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 type CalendarFilter = 'all' | 'overdue' | CalendarEventItem['kind'];
@@ -49,6 +50,11 @@ export default function CalendarScreen({
   const nextDisabled = currentIndex >= data.months.length - 1;
   const prevDisabled = currentIndex <= 0;
   const formatMoney = useMemo(() => moneyFormatter(currency), [currency]);
+  const isCurrentMonth = currentMonth.key === data.initialMonthKey;
+  const displayedBalance = isCurrentMonth ? currentMonth.summary.balanceToDate : currentMonth.summary.expectedBalance;
+  const isNegative = isCurrentMonth ? currentMonth.summary.health === 'negative' : displayedBalance < 0;
+  const needsAttention = isCurrentMonth && currentMonth.summary.health === 'attention';
+  const balanceTone = isNegative ? 'text-arca-alert' : needsAttention ? 'text-arca-accent' : 'text-arca-positive';
 
   useEffect(() => {
     setSelectedDay(null);
@@ -143,18 +149,28 @@ export default function CalendarScreen({
         <div className="absolute -right-14 -top-20 h-44 w-44 rounded-full bg-arca-accent/[0.08] blur-3xl" />
         <div className="relative flex items-center justify-between">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-arca-text-dim">Resultado previsto del mes</p>
-            <p className={`mt-1 text-3xl font-black tracking-[-0.05em] ${currentMonth.summary.expectedBalance < 0 ? 'text-arca-alert' : 'text-arca-text-primary'}`}>
-              {signedMoney(currentMonth.summary.expectedBalance, formatMoney)}
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-arca-text-dim">{isCurrentMonth ? 'Balance a hoy' : 'Flujo programado del mes'}</p>
+            <p className={`mt-1 text-3xl font-black tracking-[-0.05em] ${balanceTone}`}>
+              {signedMoney(displayedBalance, formatMoney)}
             </p>
+            {isCurrentMonth ? <p className="mt-1 max-w-[245px] text-[10px] leading-4 text-arca-text-secondary">{healthMessage(currentMonth.summary, formatMoney)}</p> : null}
           </div>
-          <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${currentMonth.summary.expectedBalance < 0 ? 'bg-arca-alert/10 text-arca-alert' : 'bg-arca-positive/10 text-arca-positive'}`}>
+          <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${isNegative ? 'bg-arca-alert/10 text-arca-alert' : needsAttention ? 'bg-arca-accent/10 text-arca-accent' : 'bg-arca-positive/10 text-arca-positive'}`}>
             <WalletCards size={21} />
           </span>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2.5">
-          <SummaryMetric icon={TrendingDown} label="Por pagar" value={formatMoney.format(currentMonth.summary.payments)} tone="alert" />
-          <SummaryMetric icon={TrendingUp} label="Por entrar" value={formatMoney.format(currentMonth.summary.income + currentMonth.summary.receivables)} tone="positive" />
+          {isCurrentMonth ? (
+            <>
+              <SummaryMetric icon={TrendingUp} label="Recibido a hoy" value={formatMoney.format(currentMonth.summary.receivedToDate)} tone="positive" />
+              <SummaryMetric icon={TrendingDown} label="Debías cubrir" value={formatMoney.format(currentMonth.summary.commitmentsDueToDate)} tone="alert" />
+            </>
+          ) : (
+            <>
+              <SummaryMetric icon={TrendingDown} label="Por pagar" value={formatMoney.format(currentMonth.summary.payments)} tone="alert" />
+              <SummaryMetric icon={TrendingUp} label="Por entrar" value={formatMoney.format(currentMonth.summary.income + currentMonth.summary.receivables)} tone="positive" />
+            </>
+          )}
         </div>
         {currentMonth.summary.overdueCount > 0 ? (
           <button type="button" onClick={() => { setSelectedDay(null); setFilter('overdue'); }} className="relative mt-3 flex w-full items-center justify-between rounded-2xl border border-arca-alert/20 bg-arca-alert/[0.06] px-4 py-3 text-left">
@@ -162,6 +178,15 @@ export default function CalendarScreen({
             <span className="text-xs font-black text-arca-text-primary">{formatMoney.format(currentMonth.summary.overdueAmount)}</span>
           </button>
         ) : null}
+        <div className="relative mt-4 border-t border-arca-border pt-3">
+          <CalculationHelper
+            title={isCurrentMonth ? 'Balance a hoy' : 'Flujo programado del mes'}
+            description={isCurrentMonth ? 'Comparamos lo que realmente ha entrado durante el mes con todo lo que ya pagaste y lo que debía estar cubierto hasta hoy.' : 'Comparamos los ingresos y cobros programados con los pagos pendientes del mes seleccionado.'}
+            formula={isCurrentMonth ? 'Ingresos recibidos − pagos realizados − obligaciones vencidas o que vencen hoy' : 'Ingresos esperados + cobros pendientes − pagos programados'}
+            includes={isCurrentMonth ? ['Ingresos registrados este mes', 'Pagos realizados este mes', 'Obligaciones vencidas o de hoy'] : ['Ingresos programados', 'Préstamos por cobrar', 'Pagos pendientes del mes']}
+            excludes={isCurrentMonth ? ['Pagos de fechas futuras', 'Transferencias entre tus cuentas', 'Ingresos todavía no recibidos'] : ['Saldo actual de tus cuentas', 'Movimientos ya confirmados', 'Otros meses']}
+          />
+        </div>
       </section>
 
       <section className="rounded-[26px] border border-arca-border bg-arca-surface-1 p-4">
@@ -277,6 +302,12 @@ function moneyFormatter(currency: string) {
 function signedMoney(value: number, formatter: Intl.NumberFormat) {
   if (!value) return formatter.format(0);
   return `${value > 0 ? '+' : '−'} ${formatter.format(Math.abs(value))}`;
+}
+
+function healthMessage(summary: CalendarMonth['summary'], formatter: Intl.NumberFormat) {
+  if (summary.health === 'negative') return `Te faltan ${formatter.format(Math.abs(summary.balanceToDate))} para cubrir lo que debía estar atendido hasta hoy.`;
+  if (summary.health === 'attention') return `Tienes cobertura, pero aún hay ${summary.overdueCount} ${summary.overdueCount === 1 ? 'compromiso vencido' : 'compromisos vencidos'} por confirmar.`;
+  return `Estás al día y tienes un margen positivo de ${formatter.format(summary.balanceToDate)}.`;
 }
 
 function actionLabel(event: CalendarEventItem) {

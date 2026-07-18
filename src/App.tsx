@@ -130,6 +130,7 @@ export default function App({
       />;
       case 'resumen': return <DecisionDashboard
         data={initialTodayData} 
+        onOpenNova={openNova}
         onOpenMovements={() => setCurrentScreen('movimientos')} 
         onOpenTransfer={() => setCurrentScreen('transferir')}
         onOpenObligations={(filter) => {

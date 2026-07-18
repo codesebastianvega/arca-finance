@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CalendarClock, Clock, AlertTriangle, Bell, Search, Send, Target, Receipt, TrendingUp, AlertCircle, ChevronRight, X } from "lucide-react";
+import { CheckCircle2, CalendarClock, Clock, AlertTriangle, Bell, Search, Send, Target, Receipt, TrendingUp, AlertCircle, ChevronRight, X, Sparkles } from "lucide-react";
 import type { TodayViewModel, TodayReceivable, TodayMonthlyBudgetItem } from "@/src/lib/today-data";
 import type { ObligationFilter } from "@/src/lib/obligations-types";
 import { haptics } from "@/src/lib/haptics";
@@ -10,6 +10,7 @@ import { confirmScheduledEventNow, cancelScheduledEvent, cancelIncomeTemplate } 
 import { ReceivableActionModal } from "./receivable-action-modal";
 import { ObligationActionModal } from "../../../features/obligations/components/obligation-action-modal";
 import type { ObligationItem } from "@/src/lib/obligations-types";
+import { CalculationHelper } from "@/src/components/calculation-helper";
 
 function formatCOP(amount: number | null | undefined): string {
   if (amount == null) return "$0";
@@ -32,7 +33,8 @@ export default function DecisionDashboard({
   onOpenObligations,
   onOpenRegister,
   onOpenBusiness,
-  onOpenMonthPlan
+  onOpenMonthPlan,
+  onOpenNova,
 }: { 
   data: TodayViewModel;
   onOpenMovements?: () => void;
@@ -41,6 +43,7 @@ export default function DecisionDashboard({
   onOpenRegister?: () => void;
   onOpenBusiness?: () => void;
   onOpenMonthPlan?: () => void;
+  onOpenNova: (prompt?: string) => void;
 }) {
   const { greeting, budget, metrics, cash, criticalPayments, receivables, upcomingIncomes, monthlyBudget } = data;
   const router = useRouter();
@@ -188,6 +191,7 @@ export default function DecisionDashboard({
                 <span className="text-arca-text-secondary">Pendientes</span>
                 <span className="font-semibold text-arca-text-dim">{formatCOP(monthlyBudget.pendingObligations)}</span>
               </div>
+              <span className="text-[8px] leading-3 text-arca-text-dim">{metrics.overdue} vencidos · {metrics.today + metrics.upcoming} por vencer</span>
             </div>
           </div>
 
@@ -216,6 +220,15 @@ export default function DecisionDashboard({
           )}
           <span className="relative z-10 mt-1 flex items-center justify-end gap-1 text-[9px] font-black uppercase tracking-wider text-arca-accent">Ver detalle <ChevronRight size={13} /></span>
         </button>
+        <div className="px-1">
+          <CalculationHelper
+            title="Saldo estimado al cierre"
+            description="Estimamos cuánto dinero disponible quedaría después de recibir los ingresos esperados y cubrir todas las obligaciones todavía pendientes del mes."
+            formula="Saldo disponible actual + ingresos esperados − obligaciones pendientes"
+            includes={["Saldo de cuentas activas", "Ingresos pendientes del mes", "Pagos vencidos y próximos"]}
+            excludes={["Ingresos ya recibidos", "Pagos ya realizados", "Ahorro protegido"]}
+          />
+        </div>
       </div>
 
       {/* TRES TARJETAS */}
@@ -285,6 +298,13 @@ export default function DecisionDashboard({
           </div>
         </div>
       </div>
+
+      <aside className="rounded-[22px] border border-arca-accent/25 bg-arca-accent/[0.06] p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent"><Sparkles size={18} /></span>
+          <div className="min-w-0 flex-1"><p className="text-[9px] font-black uppercase tracking-[0.16em] text-arca-accent">Nova · decisión de hoy</p><h2 className="mt-1 text-sm font-black text-arca-text-primary">Organiza lo importante conmigo</h2><p className="mt-1 text-[11px] leading-5 text-arca-text-secondary">Puedo priorizar tus {metrics.overdue} pagos vencidos y los {metrics.today + metrics.upcoming} que vienen, cuidando tu saldo disponible.</p><button type="button" onClick={() => onOpenNova(`Revisa mi situación de hoy. Tengo ${formatCOP(cash.safeToSpend)} disponibles, ${metrics.overdue} pagos vencidos, ${metrics.today + metrics.upcoming} pagos por vencer, ${formatCOP(monthlyBudget.expectedIncomes)} por ingresar y un saldo estimado al cierre de ${formatCOP(projectedClosingBalance)}. Ayúdame a priorizar acciones concretas.`)} className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-arca-accent px-4 text-[10px] font-black uppercase tracking-wider text-black"><Sparkles size={14} /> Revisar con Nova</button></div>
+        </div>
+      </aside>
   
         {/* PAGOS CRITICOS */}
         <div className="flex flex-col gap-3 mt-4">

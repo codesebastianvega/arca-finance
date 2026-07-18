@@ -12,6 +12,27 @@ import {
   isFinancialActionPart,
   type FinancialActionPart,
 } from './financial-action-card';
+import {
+  DEFAULT_NOVA_PREFERENCES,
+  NOVA_PREFERENCES_KEY,
+  normalizeNovaPreferences,
+} from '@/src/lib/nova-preferences';
+
+const novaChatTransport = new DefaultChatTransport({
+  api: '/api/chat',
+  body: () => {
+    try {
+      const stored = window.localStorage.getItem(NOVA_PREFERENCES_KEY);
+      return {
+        novaPreferences: stored
+          ? normalizeNovaPreferences(JSON.parse(stored))
+          : DEFAULT_NOVA_PREFERENCES,
+      };
+    } catch {
+      return { novaPreferences: DEFAULT_NOVA_PREFERENCES };
+    }
+  },
+});
 
 export default function AiChat({
   isOpen,
@@ -32,7 +53,7 @@ export default function AiChat({
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const { messages, sendMessage, status, addToolApprovalResponse } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    transport: novaChatTransport,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onError: (error) => {
       console.error('Chat error:', error);

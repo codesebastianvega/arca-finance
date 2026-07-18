@@ -30,6 +30,7 @@ import {
 } from "@/app/actions";
 import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel } from "@/src/lib/money-data";
 import { haptics } from "../../lib/haptics";
+import { CalculationHelper } from "@/src/components/calculation-helper";
 
 const ACCOUNT_ENTITIES = [
   { id: "nequi", name: "Nequi", color: "#8235E6", textColor: "#FFFFFF" },
@@ -299,10 +300,11 @@ export default function AccountsScreen({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-widest">Radiografía de gastos</p>
+              <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-widest">Gastos registrados este mes</p>
               <span className="text-[9px] font-bold uppercase tracking-wider text-arca-accent">{data.spending.monthLabel}</span>
             </div>
             <h4 className="mt-1 text-2xl font-black tracking-tight text-arca-text-primary light:text-arca-light-text-primary">{data.spending.totalLabel}</h4>
+            <p className="mt-1 text-[9px] text-arca-text-dim">Salidas reales del mes · no es tu saldo disponible</p>
           </div>
           {data.spending.changePercent == null ? (
             <span className="rounded-full border border-arca-border bg-arca-surface-2 px-2.5 py-1.5 text-[9px] font-bold text-arca-text-dim">Primer mes medido</span>
@@ -369,6 +371,16 @@ export default function AccountsScreen({
         </div>
 
       </section>
+
+      <div className="px-2">
+        <CalculationHelper
+          title="Gastos registrados este mes"
+          description="Suma todas las salidas reales que registraste durante el mes. Esta cifra explica en qué se fue el dinero, pero no representa cuánto tienes actualmente."
+          formula="Gastos + pagos de deudas + pagos de tarjetas del mes"
+          includes={["Compras y gastos", "Pagos de deudas", "Pagos de tarjetas"]}
+          excludes={["Transferencias entre cuentas", "Ingresos", "Saldo actual"]}
+        />
+      </div>
 
       {data.spending.breakdown[0] ? (
         <aside className="mx-2 flex items-start gap-2.5 border-l border-arca-accent/35 py-1 pl-3">

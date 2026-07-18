@@ -68,7 +68,7 @@ function buildMonth(year: number, month: number): CalendarMonth {
     firstWeekday: weekday,
     daysInMonth,
     events: [],
-    summary: { payments: 0, income: 0, receivables: 0, expectedBalance: 0, overdueCount: 0, overdueAmount: 0 },
+    summary: { payments: 0, income: 0, receivables: 0, expectedBalance: 0, overdueCount: 0, overdueAmount: 0, receivedToDate: 0, paidToDate: 0, pendingDueToDate: 0, commitmentsDueToDate: 0, balanceToDate: 0, health: "positive" },
   };
 }
 
@@ -113,7 +113,11 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
   const startWindow = monthStart(startCursor.year, startCursor.month);
   const endWindow = monthStart(endCursor.year, endCursor.month);
 
-  const [scheduledResult, receivablesResult] = await Promise.all([
+  const currentMonthStart = monthStart(year, month);
+  const nextMonthParts = addMonths(year, month, 1);
+  const currentMonthEnd = monthStart(nextMonthParts.year, nextMonthParts.month);
+
+  const [scheduledResult, receivablesResult, transactionsResult] = await Promise.all([
     supabase
       .from("scheduled_events")
       .select("id, title, amount, due_date, kind, status, priority, account_id, suggested_account_id, notes, template_id")
@@ -129,6 +133,13 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
       .gte("due_date", startWindow)
       .lt("due_date", endWindow)
       .order("due_date", { ascending: true }),
+    supabase
+      .from("transactions")
+      .select("id, amount, date, kind")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "cancelled")
+      .gte("date", `${currentMonthStart}T00:00:00-05:00`)
+      .lt("date", `${currentMonthEnd}T00:00:00-05:00`),
   ]);
 
   if (scheduledResult.error) {
@@ -136,6 +147,9 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
   }
   if (receivablesResult.error && receivablesResult.error.code !== "PGRST205") {
     throw new Error(`No se pudieron leer las cuentas por cobrar: ${receivablesResult.error.message}`);
+  }
+  if (transactionsResult.error) {
+    throw new Error(`No se pudieron calcular los movimientos de la agenda: ${transactionsResult.error.message}`);
   }
 
   const months = Array.from({ length: 6 }, (_, index) => {
@@ -214,7 +228,18 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
     const payments = monthItem.events.filter((event) => event.kind === "payment").reduce((sum, event) => sum + event.amount, 0);
     const income = monthItem.events.filter((event) => event.kind === "income").reduce((sum, event) => sum + event.amount, 0);
     const receivables = monthItem.events.filter((event) => event.kind === "receivable").reduce((sum, event) => sum + event.amount, 0);
-    const overdueEvents = monthItem.events.filter((event) => event.status === "overdue");
+    const overdueEvents = monthItem.events.filter((event) => event.kind === "payment" && event.status === "overdue");
+    const isCurrentMonth = monthItem.key === monthKey(year, month);
+    const currentTransactions = isCurrentMonth ? (transactionsResult.data ?? []).filter((row) => String(row.date).slice(0, 10) <= bogotaTodayString()) : [];
+    const outgoingKinds = new Set(["expense", "debt_payment", "card_payment", "saving"]);
+    const receivedToDate = currentTransactions.filter((row) => String(row.kind) === "income").reduce((sum, row) => sum + toNumber(row.amount), 0);
+    const paidToDate = currentTransactions.filter((row) => outgoingKinds.has(String(row.kind))).reduce((sum, row) => sum + toNumber(row.amount), 0);
+    const pendingDueToDate = isCurrentMonth
+      ? monthItem.events.filter((event) => event.kind === "payment" && event.dueDate <= bogotaTodayString()).reduce((sum, event) => sum + event.amount, 0)
+      : 0;
+    const commitmentsDueToDate = paidToDate + pendingDueToDate;
+    const balanceToDate = receivedToDate - commitmentsDueToDate;
+    const health = balanceToDate < 0 ? "negative" : overdueEvents.length > 0 ? "attention" : "positive";
     monthItem.summary = {
       payments,
       income,
@@ -222,6 +247,12 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
       expectedBalance: income + receivables - payments,
       overdueCount: overdueEvents.length,
       overdueAmount: overdueEvents.reduce((sum, event) => sum + event.amount, 0),
+      receivedToDate,
+      paidToDate,
+      pendingDueToDate,
+      commitmentsDueToDate,
+      balanceToDate,
+      health,
     };
   }
 

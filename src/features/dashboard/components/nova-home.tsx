@@ -48,9 +48,10 @@ export default function NovaHome({
 }: NovaHomeProps) {
   const [prompt, setPrompt] = useState("");
   const overduePayments = data.criticalPayments.filter((payment) => payment.status === "overdue");
-  const nextPayment = data.criticalPayments[0] ?? null;
+  const upcomingPayments = data.criticalPayments.filter((payment) => payment.status !== "overdue");
+  const nextPayment = upcomingPayments[0] ?? null;
   const overdueTotal = overduePayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const upcomingPaymentsTotal = data.criticalPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const upcomingPaymentsTotal = upcomingPayments.reduce((sum, payment) => sum + payment.amount, 0);
 
   const submitPrompt = () => {
     const value = prompt.trim();
@@ -126,7 +127,7 @@ export default function NovaHome({
                 {formatMoney(upcomingPaymentsTotal, currency)}
               </p>
               <p className="mt-0.5 text-[10px] text-arca-text-dim">
-                {data.criticalPayments.length} {data.criticalPayments.length === 1 ? "pago" : "pagos"}
+                {upcomingPayments.length} {upcomingPayments.length === 1 ? "pago" : "pagos"}
               </p>
             </div>
             <div className="rounded-2xl border border-arca-border bg-arca-surface-2/70 p-3.5">

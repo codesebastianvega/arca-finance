@@ -26,6 +26,12 @@ export type CalendarMonthSummary = {
   expectedBalance: number;
   overdueCount: number;
   overdueAmount: number;
+  receivedToDate: number;
+  paidToDate: number;
+  pendingDueToDate: number;
+  commitmentsDueToDate: number;
+  balanceToDate: number;
+  health: "positive" | "attention" | "negative";
 };
 
 export type CalendarMonth = {

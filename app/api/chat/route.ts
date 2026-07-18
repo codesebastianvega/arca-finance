@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { createSupabaseServerComponentClient } from '@/src/lib/supabase';
 import { getCurrentWorkspaceContext } from '@/src/lib/auth';
 import { createFinancialTools } from '@/src/lib/ai/financial-tools';
+import { normalizeNovaPreferences } from '@/src/lib/nova-preferences';
 
 export const maxDuration = 30;
 
@@ -25,7 +26,9 @@ function toNumber(value: unknown) {
 
 export async function POST(req: Request) {
   try {
-    const { messages }: { messages: UIMessage[] } = await req.json();
+    const body: { messages: UIMessage[]; novaPreferences?: unknown } = await req.json();
+    const { messages } = body;
+    const novaPreferences = normalizeNovaPreferences(body.novaPreferences);
     console.log("MENSAJES ENTRANTES:", JSON.stringify(messages, null, 2));
 
     const context = await getCurrentWorkspaceContext();
@@ -47,6 +50,17 @@ export async function POST(req: Request) {
     const modelMessages = await convertToModelMessages(messages);
     const financialTools = createFinancialTools(context);
 
+    const autonomyInstruction = novaPreferences.autonomy === 'guide'
+      ? 'Actúa como guía: explica la recomendación y deja que el usuario decida y solicite cada acción.'
+      : novaPreferences.autonomy === 'execute'
+        ? 'Sé proactiva: consulta automáticamente todo lo necesario y avanza con tareas seguras. Para cualquier escritura, prepara la acción y respeta siempre la aprobación de la interfaz.'
+        : 'Prepara la mejor acción completa y déjala lista para que el usuario la confirme.';
+    const toneInstruction = novaPreferences.tone === 'brief'
+      ? 'Responde de forma muy breve: primero la conclusión y solo los datos indispensables.'
+      : novaPreferences.tone === 'coach'
+        ? 'Responde como consejera: explica el porqué, señala el siguiente paso y mantén un tono cercano.'
+        : 'Responde con claridad: conclusión, contexto mínimo y siguiente acción.';
+
     const result = streamText({
       model: google('gemini-3.1-flash-lite'),
       system: `Eres Nova, el asistente financiero inteligente de Arca.
@@ -64,6 +78,10 @@ REGLAS DE TRABAJO:
 - Todas las escrituras requieren aprobación en la interfaz. Describe brevemente lo que propones y espera la decisión. Si el usuario rechaza una acción, no vuelvas a intentarla salvo que lo pida de nuevo.
 - Da consejos concretos basados en flujo de caja, vencimientos, tasas, presupuesto y prioridades. Aclara cuando una recomendación sea una estimación, no asesoría profesional.
 - Responde en español, de forma amistosa, corta y directa para una app móvil. Usa ${context.workspace.currencyCode} para los montos.
+- Preferencia de autonomía: ${autonomyInstruction}
+- Preferencia de comunicación: ${toneInstruction}
+- ${novaPreferences.dueReminders ? 'Menciona vencimientos relevantes de forma proactiva cuando afecten la decisión.' : 'No añadas alertas de vencimiento no solicitadas; respóndelas cuando el usuario pregunte.'}
+- ${novaPreferences.weeklySummary ? 'En revisiones generales, incluye las prioridades de los próximos siete días.' : 'En revisiones generales, evita el bloque semanal salvo que el usuario lo solicite.'}
 - Organiza respuestas largas con Markdown sencillo: títulos cortos, listas y negritas. Evita tablas en móvil y no abuses de encabezados.
 - Después de usar herramientas, SIEMPRE escribe una respuesta final de texto para el usuario.`,
       messages: modelMessages,
