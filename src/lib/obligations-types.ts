@@ -1,4 +1,4 @@
-export type ObligationFilter = "vencido" | "semana" | "mes" | "todo";
+export type ObligationFilter = "vencido" | "hoy" | "proximos" | "semana" | "mes" | "todo";
 
 export type ObligationItem = {
   id: string;
@@ -61,6 +61,14 @@ export function filterObligations(items: ObligationItem[], filter: ObligationFil
 
   if (filter === "vencido") {
     return items.filter((item) => item.status === "overdue");
+  }
+
+  if (filter === "hoy") {
+    return items.filter((item) => item.status === "today");
+  }
+
+  if (filter === "proximos") {
+    return items.filter((item) => item.status === "upcoming" && item.dueDate < month.nextMonth);
   }
 
   if (filter === "semana") {

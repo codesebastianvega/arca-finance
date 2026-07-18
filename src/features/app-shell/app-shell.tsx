@@ -30,6 +30,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   const [defaultSegment, setDefaultSegment] = useState('Movimiento');
   const [defaultGoalType, setDefaultGoalType] = useState<'goal' | 'pocket'>('goal');
   const [defaultType, setDefaultType] = useState<'gasto' | 'ingreso'>('gasto');
+  const [defaultDate, setDefaultDate] = useState('');
 
   useEffect(() => {
     const handleOpen = (e: Event) => {
@@ -37,9 +38,11 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       const segment = customEvent.detail?.segment || 'Grid';
       const goalType = customEvent.detail?.goalType || 'goal';
       const type = customEvent.detail?.type || 'gasto';
+      const date = customEvent.detail?.date || '';
       setDefaultSegment(segment);
       setDefaultGoalType(goalType);
       setDefaultType(type);
+      setDefaultDate(date);
       setIsRegisterOpen(true);
     };
     window.addEventListener('open-register', handleOpen);
@@ -76,7 +79,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       </main>
 
       {/* Floating Action Button for AI Chat - Mezcla de Opción 2 (Glassmorphism) y Opción 3 (Cyberpulse) */}
-      {currentScreen !== 'hoy' && (
+      {currentScreen !== 'hoy' && currentScreen !== 'transferir' && currentScreen !== 'dashboard' && currentScreen !== 'movimientos' && (
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => {
@@ -96,6 +99,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         onScreenChange={setCurrentScreen}
         onAddClick={() => {
           setDefaultSegment('Grid');
+          setDefaultDate('');
           setIsRegisterOpen(true);
         }}
       />
@@ -103,10 +107,12 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       {/* Register Bottom Sheet */}
       <BottomSheet isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} title="Nuevo Registro">
         <RegisterScreen
+          key={`${defaultSegment}-${defaultType}-${defaultDate}`}
           data={registerData}
           defaultSegment={defaultSegment}
           defaultGoalType={defaultGoalType}
           defaultType={defaultType}
+          defaultDate={defaultDate}
           onSuccess={() => {
             router.refresh();
             setIsRegisterOpen(false);

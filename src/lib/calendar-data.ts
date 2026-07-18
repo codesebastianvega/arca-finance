@@ -68,6 +68,7 @@ function buildMonth(year: number, month: number): CalendarMonth {
     firstWeekday: weekday,
     daysInMonth,
     events: [],
+    summary: { payments: 0, income: 0, receivables: 0, expectedBalance: 0, overdueCount: 0, overdueAmount: 0 },
   };
 }
 
@@ -115,7 +116,7 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
   const [scheduledResult, receivablesResult] = await Promise.all([
     supabase
       .from("scheduled_events")
-      .select("id, title, amount, due_date, kind, status")
+      .select("id, title, amount, due_date, kind, status, priority, account_id, suggested_account_id, notes, template_id")
       .eq("workspace_id", workspaceId)
       .gte("due_date", startWindow)
       .lt("due_date", endWindow)
@@ -123,7 +124,7 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
       .order("due_date", { ascending: true }),
     supabase
       .from("receivables")
-      .select("id, title, debtor_name, amount, due_date, status")
+      .select("id, title, debtor_name, amount, due_date, status, notes")
       .eq("workspace_id", workspaceId)
       .gte("due_date", startWindow)
       .lt("due_date", endWindow)
@@ -159,6 +160,11 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
       status,
       dateLabel: dateLabel(dueDate),
       secondaryLabel: kind === "income" ? incomeLabel(status) : paymentLabel(status),
+      accountId: row.account_id ? String(row.account_id) : null,
+      suggestedAccountId: row.suggested_account_id ? String(row.suggested_account_id) : null,
+      notes: row.notes ? String(row.notes) : null,
+      priority: (row.priority === "high" || row.priority === "low" ? row.priority : "medium") as "high" | "medium" | "low",
+      templateId: row.template_id ? String(row.template_id) : null,
     };
   });
 
@@ -169,6 +175,7 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
     amount: number | string;
     due_date: string | null;
     status: string | null;
+    notes: string | null;
   }>)
     .filter((row) => Boolean(row.due_date))
     .map((row) => {
@@ -182,9 +189,13 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
         day: Number(dueDate.slice(8, 10)),
         monthKey: dueDate.slice(0, 7),
         kind: "receivable",
-        status: row.status === "overdue" ? "overdue" : "pending",
+        status: classifyStatus(dueDate),
         dateLabel: dateLabel(dueDate),
         secondaryLabel: `Cobro a ${row.debtor_name}`,
+        accountId: null,
+        suggestedAccountId: null,
+        notes: row.notes ? String(row.notes) : null,
+        priority: "medium",
       };
     });
 
@@ -200,6 +211,18 @@ export async function loadCalendarViewModel(context: WorkspaceContext): Promise<
       if (a.dueDate === b.dueDate) return a.amount - b.amount;
       return a.dueDate.localeCompare(b.dueDate);
     });
+    const payments = monthItem.events.filter((event) => event.kind === "payment").reduce((sum, event) => sum + event.amount, 0);
+    const income = monthItem.events.filter((event) => event.kind === "income").reduce((sum, event) => sum + event.amount, 0);
+    const receivables = monthItem.events.filter((event) => event.kind === "receivable").reduce((sum, event) => sum + event.amount, 0);
+    const overdueEvents = monthItem.events.filter((event) => event.status === "overdue");
+    monthItem.summary = {
+      payments,
+      income,
+      receivables,
+      expectedBalance: income + receivables - payments,
+      overdueCount: overdueEvents.length,
+      overdueAmount: overdueEvents.reduce((sum, event) => sum + event.amount, 0),
+    };
   }
 
   return {

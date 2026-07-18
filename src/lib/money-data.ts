@@ -343,11 +343,21 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   const hiddenTotal = sortedCategories.slice(4).reduce((sum, [, value]) => sum + value, 0);
   if (hiddenTotal > 0) visibleCategories.push(["otros", hiddenTotal]);
 
-  const breakdown: MoneySpendingSlice[] = visibleCategories.map(([name, value], index) => ({
-    name: spendingCategoryLabel(name),
-    value,
-    percentage: spendingTotal > 0 ? Math.round((value / spendingTotal) * 100) : 0,
-    color: name === "otros" ? "#7A7064" : SPENDING_COLOR_BY_CATEGORY[name] ?? SPENDING_FALLBACK_COLORS[index % SPENDING_FALLBACK_COLORS.length],
+  const displayCategories = new Map<string, { value: number; color: string }>();
+  visibleCategories.forEach(([name, value], index) => {
+    const label = spendingCategoryLabel(name);
+    const existing = displayCategories.get(label);
+    displayCategories.set(label, {
+      value: (existing?.value ?? 0) + value,
+      color: existing?.color ?? (name === "otros" ? "#7A7064" : SPENDING_COLOR_BY_CATEGORY[name] ?? SPENDING_FALLBACK_COLORS[index % SPENDING_FALLBACK_COLORS.length]),
+    });
+  });
+
+  const breakdown: MoneySpendingSlice[] = Array.from(displayCategories.entries()).map(([name, entry]) => ({
+    name,
+    value: entry.value,
+    percentage: spendingTotal > 0 ? Math.round((entry.value / spendingTotal) * 100) : 0,
+    color: entry.color,
   }));
   const budget = budgetResult.data ? toNumber(budgetResult.data.limit_amount) : null;
 

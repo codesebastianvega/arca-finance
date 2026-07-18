@@ -425,6 +425,226 @@ export async function createAccount(input: {
   return { ok: true };
 }
 
+export type MonthlyPlanAllocationInput = {
+  name: string;
+  type: "expense" | "saving" | "debt" | "free";
+  percentage: number;
+  trackingCategory?: string | null;
+};
+
+export async function saveMonthlyPlan(input: {
+  month: string;
+  plannedIncome: number;
+  allocations: MonthlyPlanAllocationInput[];
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!/^\d{4}-\d{2}-01$/.test(input.month)) throw new Error("El mes del plan no es válido.");
+
+  const plannedIncome = Number(input.plannedIncome);
+  if (!Number.isFinite(plannedIncome) || plannedIncome <= 0) {
+    throw new Error("El ingreso base debe ser mayor que cero.");
+  }
+
+  const allocations = input.allocations.map((allocation, index) => ({
+    name: allocation.name.trim(),
+    allocation_type: allocation.type,
+    percentage: Number(allocation.percentage),
+    tracking_category: allocation.trackingCategory?.trim() || null,
+    sort_order: index,
+  }));
+
+  if (allocations.some((allocation) => !allocation.name)) throw new Error("Cada destino necesita un nombre.");
+  if (allocations.some((allocation) => !Number.isFinite(allocation.percentage) || allocation.percentage <= 0 || allocation.percentage > 100)) {
+    throw new Error("Cada porcentaje debe estar entre 0 y 100.");
+  }
+
+  const normalizedNames = allocations.map((allocation) => allocation.name.toLocaleLowerCase("es"));
+  if (new Set(normalizedNames).size !== normalizedNames.length) throw new Error("No puedes repetir el nombre de un destino.");
+
+  const assignedPercentage = allocations.reduce((sum, allocation) => sum + allocation.percentage, 0);
+  if (assignedPercentage > 100.001) throw new Error("La distribución no puede superar el 100%.");
+
+  const { data: plan, error: planError } = await admin
+    .from("monthly_plans")
+    .upsert({
+      workspace_id: context.workspace.id,
+      month: input.month,
+      planned_income: plannedIncome,
+      status: "active",
+    }, { onConflict: "workspace_id,month" })
+    .select("id")
+    .single();
+
+  if (planError || !plan) {
+    throw new Error(`No se pudo guardar el plan mensual: ${planError?.message ?? "sin respuesta"}`);
+  }
+
+  const { error: deleteError } = await admin
+    .from("monthly_plan_allocations")
+    .delete()
+    .eq("workspace_id", context.workspace.id)
+    .eq("plan_id", plan.id);
+
+  if (deleteError) throw new Error(`No se pudieron actualizar los destinos: ${deleteError.message}`);
+
+  if (allocations.length > 0) {
+    const { error: allocationError } = await admin.from("monthly_plan_allocations").insert(
+      allocations.map((allocation) => ({
+        ...allocation,
+        workspace_id: context.workspace.id,
+        plan_id: plan.id,
+      }))
+    );
+
+    if (allocationError) throw new Error(`No se pudieron guardar los destinos: ${allocationError.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function completeFirstRunSetup(input: {
+  accountName: string;
+  entity?: string | null;
+  accountType: string;
+  balance: number;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const accountName = input.accountName.trim();
+  const entity = input.entity?.trim() || null;
+  const accountType = input.accountType.trim();
+  const balance = Number(input.balance ?? 0);
+
+  if (!accountName) throw new Error("Dale un nombre a tu primera cuenta.");
+  if (!accountType) throw new Error("Selecciona el tipo de cuenta.");
+  if (!Number.isFinite(balance) || balance < 0) throw new Error("El saldo inicial debe ser válido.");
+
+  const existingUnit = await admin
+    .from("business_units")
+    .select("key")
+    .eq("workspace_id", context.workspace.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingUnit.error) {
+    throw new Error(`No se pudo comprobar tu espacio personal: ${existingUnit.error.message}`);
+  }
+
+  let personalUnitKey = existingUnit.data?.key ? String(existingUnit.data.key) : "";
+
+  if (!personalUnitKey) {
+    personalUnitKey = `personal-${context.workspace.id.slice(0, 8)}`;
+    const { error: unitError } = await admin.from("business_units").insert({
+      workspace_id: context.workspace.id,
+      name: "Personal",
+      key: personalUnitKey,
+      income: 0,
+      expense: 0,
+      pending: 0,
+    });
+
+    if (unitError) {
+      throw new Error(`No pudimos preparar tu espacio personal: ${unitError.message}`);
+    }
+  }
+
+  const existingAccount = await admin
+    .from("accounts")
+    .select("id")
+    .eq("workspace_id", context.workspace.id)
+    .eq("active", true)
+    .eq("archived", false)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingAccount.error) {
+    throw new Error(`No se pudo comprobar tu primera cuenta: ${existingAccount.error.message}`);
+  }
+
+  if (!existingAccount.data) {
+    const { data: account, error: accountError } = await admin
+      .from("accounts")
+      .insert({
+        workspace_id: context.workspace.id,
+        name: accountName,
+        entity,
+        type: accountType,
+        balance,
+        color: "#C68A45",
+        active: true,
+        archived: false,
+      })
+      .select("id")
+      .single();
+
+    if (accountError || !account) {
+      throw new Error(`No se pudo crear tu primera cuenta: ${accountError?.message ?? "sin respuesta"}`);
+    }
+
+    if (balance > 0) {
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: context.workspace.timezone || "America/Bogota",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+
+      const { error: transactionError } = await admin.from("transactions").insert({
+        workspace_id: context.workspace.id,
+        kind: "income",
+        status: "confirmed",
+        amount: balance,
+        concept: `Saldo inicial: ${accountName}`,
+        account_id: account.id,
+        category: "Saldo inicial",
+        unit: personalUnitKey,
+        date: `${today}T00:00:00-05:00`,
+        posted_at: new Date().toISOString(),
+        metadata: { is_initial_balance: true, source: "onboarding" },
+      });
+
+      if (transactionError) {
+        throw new Error(`La cuenta se creó, pero no pudimos registrar el saldo inicial: ${transactionError.message}`);
+      }
+    }
+  }
+
+  const defaultCategories = ["Vivienda", "Alimentación", "Transporte", "Salud", "Deudas", "Entretenimiento", "Otros"];
+  const { error: categoryError } = await admin.from("expense_categories").upsert(
+    defaultCategories.map((name) => ({
+      workspace_id: context.workspace.id,
+      name,
+      group_name: "personal",
+      active: true,
+    })),
+    { onConflict: "workspace_id,name", ignoreDuplicates: true }
+  );
+
+  if (categoryError) {
+    throw new Error(`No pudimos preparar tus categorías: ${categoryError.message}`);
+  }
+
+  const { error: onboardingError } = await admin
+    .from("workspaces")
+    .update({ onboarding_completed: true })
+    .eq("id", context.workspace.id);
+
+  if (onboardingError && !onboardingError.message.includes("onboarding_completed")) {
+    throw new Error(`No pudimos completar la configuración: ${onboardingError.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
 import type { TransactionItem } from "@/src/types";
 
 export async function createMovement(input: {

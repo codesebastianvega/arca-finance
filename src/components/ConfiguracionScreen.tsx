@@ -38,7 +38,7 @@ import {
   MoreHorizontal
 } from 'lucide-react';
 import { haptics } from '../lib/haptics';
-import type { ThemeId } from '../App';
+import type { AppUserSummary, ThemeId } from '../App';
 import type { RegisterViewModel } from '../lib/register-data';
 import { deleteBusinessUnit, deleteExpenseCategory, deleteIncomeSource } from '@/app/actions';
 
@@ -106,7 +106,7 @@ const THEMES: { id: ThemeId; name: string; description: string; colors: [string,
   },
 ];
 
-export default function ConfiguracionScreen({ onBack, theme, setTheme, data }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel }) {
+export default function ConfiguracionScreen({ onBack, theme, setTheme, data, user }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel; user: AppUserSummary }) {
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(true);
   const [isAnimatingLock, setIsAnimatingLock] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -196,17 +196,20 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data }: {
       >
         <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full blur-[50px] opacity-30" style={{ backgroundColor: currentTheme.accent }} />
         <div className="relative z-10 flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl border-2 border-arca-accent/30 p-0.5 shrink-0">
-            <div className="w-full h-full rounded-[14px] bg-arca-surface-2 overflow-hidden">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sebastian" alt="Profile" className="w-full h-full" />
-            </div>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-2 border-arca-accent/30 bg-arca-accent/10 text-xl font-black text-arca-accent">
+            {user.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "A"}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-bold text-arca-text-primary truncate">Sebastián Vega</h3>
-            <p className="text-[11px] text-arca-text-dim font-medium">sebas@arca.co</p>
+            <h3 className="text-lg font-bold text-arca-text-primary truncate">{user.fullName}</h3>
+            <p className="text-[11px] text-arca-text-dim font-medium truncate">{user.email}</p>
             <span className="inline-flex items-center gap-1 mt-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-arca-accent/15 text-arca-accent">
-              <Sparkles size={10} /> Miembro Premium
+              <Sparkles size={10} /> {user.planLabel}
             </span>
+            {typeof user.trialDaysRemaining === 'number' ? (
+              <p className="mt-1.5 text-[10px] font-semibold text-arca-text-dim">
+                {user.trialDaysRemaining > 0 ? `${user.trialDaysRemaining} días restantes de prueba` : 'La prueba ha finalizado'}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

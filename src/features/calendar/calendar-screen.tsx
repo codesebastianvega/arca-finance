@@ -2,38 +2,57 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowDownLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  ArrowDownLeft,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  Plus,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  WalletCards,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { haptics } from '@/src/lib/haptics';
-import type { CalendarMonth, CalendarViewModel } from '@/src/lib/calendar-types';
+import type { CalendarEventItem, CalendarMonth, CalendarViewModel } from '@/src/lib/calendar-types';
 import type { ObligationItem } from '@/src/lib/obligations-types';
 import type { TodayReceivable } from '@/src/lib/today-data';
 import { ObligationActionModal } from '@/src/features/obligations/components/obligation-action-modal';
 import { ReceivableActionModal } from '@/src/features/dashboard/components/receivable-action-modal';
 
 const WEEK_DAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+type CalendarFilter = 'all' | 'overdue' | CalendarEventItem['kind'];
 
 export default function CalendarScreen({
   onBack,
+  onOpenNova,
   data,
   accounts,
+  currency,
 }: {
   onBack: () => void;
+  onOpenNova: (prompt?: string) => void;
   data: CalendarViewModel;
   accounts: { id: string; label: string }[];
+  currency: string;
 }) {
   const initialIndex = Math.max(0, data.months.findIndex((month) => month.key === data.initialMonthKey));
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [filter, setFilter] = useState<CalendarFilter>('all');
   const [selectedEvent, setSelectedEvent] = useState<CalendarMonth['events'][number] | null>(null);
   const router = useRouter();
 
   const currentMonth = data.months[currentIndex];
   const nextDisabled = currentIndex >= data.months.length - 1;
   const prevDisabled = currentIndex <= 0;
+  const formatMoney = useMemo(() => moneyFormatter(currency), [currency]);
 
   useEffect(() => {
     setSelectedDay(null);
+    setFilter('all');
   }, [currentIndex]);
 
   const mappedObligation: ObligationItem | null =
@@ -45,14 +64,14 @@ export default function CalendarScreen({
           date: selectedEvent.dateLabel,
           amountLabel: selectedEvent.amountLabel,
           status: selectedEvent.status as ObligationItem['status'],
-          priority: "medium",
+          priority: selectedEvent.priority,
           groupedOccurrences: 1,
           kind: selectedEvent.kind === 'payment' ? 'expense' : 'income',
           dueDate: selectedEvent.dueDate,
-          accountId: null,
-          suggestedAccountId: null,
-          notes: null,
-          templateId: selectedEvent.templateId || "",
+          accountId: selectedEvent.accountId,
+          suggestedAccountId: selectedEvent.suggestedAccountId,
+          notes: selectedEvent.notes,
+          templateId: selectedEvent.templateId || '',
         }
       : null;
 
@@ -64,9 +83,9 @@ export default function CalendarScreen({
           amount: selectedEvent.amount,
           dueLabel: selectedEvent.dateLabel,
           dueDate: selectedEvent.dueDate,
-          debtorName: selectedEvent.title,
+          debtorName: selectedEvent.secondaryLabel.replace(/^Cobro a\s+/i, ''),
           status: selectedEvent.status as TodayReceivable['status'],
-          notes: null,
+          notes: selectedEvent.notes,
         }
       : null;
 
@@ -87,173 +106,208 @@ export default function CalendarScreen({
   }, [currentMonth]);
 
   const visibleEvents = useMemo(() => {
-    if (!selectedDay) return currentMonth.events;
-    return currentMonth.events.filter((event) => event.day === selectedDay);
-  }, [currentMonth.events, selectedDay]);
+    return currentMonth.events
+      .filter((event) => !selectedDay || event.day === selectedDay)
+      .filter((event) => filter === 'all' || (filter === 'overdue' ? event.status === 'overdue' : event.kind === filter))
+      .sort((a, b) => {
+        if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+        if (b.status === 'overdue' && a.status !== 'overdue') return 1;
+        return a.dueDate.localeCompare(b.dueDate);
+      });
+  }, [currentMonth.events, filter, selectedDay]);
+
+  const openNewEvent = () => {
+    const day = selectedDay ?? Math.min(new Date().getDate(), currentMonth.daysInMonth);
+    const date = `${currentMonth.key}-${String(day).padStart(2, '0')}`;
+    window.dispatchEvent(new CustomEvent('open-register', { detail: { segment: 'Obligacion', type: 'gasto', date } }));
+  };
+
+  const accountLabel = (event: CalendarEventItem) => {
+    const accountId = event.accountId ?? event.suggestedAccountId;
+    return accounts.find((account) => account.id === accountId)?.label ?? null;
+  };
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-center space-x-4">
-        <button onClick={onBack} className="text-arca-text-dim hover:text-arca-accent transition-colors">
+    <div className="space-y-5 pb-4">
+      <header className="flex items-center gap-4">
+        <button type="button" onClick={onBack} aria-label="Volver" className="text-arca-text-dim transition-colors hover:text-arca-accent">
           <ArrowDownLeft className="rotate-45" size={24} />
         </button>
-        <h2 className="text-lg font-bold text-arca-text-primary uppercase tracking-widest">Calendario</h2>
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-arca-accent">Tus próximos movimientos</p>
+          <h1 className="text-xl font-black tracking-[-0.03em] text-arca-text-primary">Agenda financiera</h1>
+        </div>
       </header>
 
-      <section className="card-arca p-5">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-sm font-bold text-arca-text-primary capitalize">{currentMonth.label}</h3>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => !prevDisabled && setCurrentIndex((value) => value - 1)}
-              disabled={prevDisabled}
-              className="p-2 text-arca-text-dim hover:text-arca-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <button
-              onClick={() => !nextDisabled && setCurrentIndex((value) => value + 1)}
-              disabled={nextDisabled}
-              className="p-2 text-arca-text-dim hover:text-arca-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronRight size={20} />
-            </button>
+      <section className="relative overflow-hidden rounded-[26px] border border-arca-border-strong bg-arca-surface-1 p-5">
+        <div className="absolute -right-14 -top-20 h-44 w-44 rounded-full bg-arca-accent/[0.08] blur-3xl" />
+        <div className="relative flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-arca-text-dim">Resultado previsto del mes</p>
+            <p className={`mt-1 text-3xl font-black tracking-[-0.05em] ${currentMonth.summary.expectedBalance < 0 ? 'text-arca-alert' : 'text-arca-text-primary'}`}>
+              {signedMoney(currentMonth.summary.expectedBalance, formatMoney)}
+            </p>
+          </div>
+          <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${currentMonth.summary.expectedBalance < 0 ? 'bg-arca-alert/10 text-arca-alert' : 'bg-arca-positive/10 text-arca-positive'}`}>
+            <WalletCards size={21} />
+          </span>
+        </div>
+        <div className="relative mt-5 grid grid-cols-2 gap-2.5">
+          <SummaryMetric icon={TrendingDown} label="Por pagar" value={formatMoney.format(currentMonth.summary.payments)} tone="alert" />
+          <SummaryMetric icon={TrendingUp} label="Por entrar" value={formatMoney.format(currentMonth.summary.income + currentMonth.summary.receivables)} tone="positive" />
+        </div>
+        {currentMonth.summary.overdueCount > 0 ? (
+          <button type="button" onClick={() => { setSelectedDay(null); setFilter('overdue'); }} className="relative mt-3 flex w-full items-center justify-between rounded-2xl border border-arca-alert/20 bg-arca-alert/[0.06] px-4 py-3 text-left">
+            <span className="flex items-center gap-2 text-xs font-bold text-arca-alert"><CircleAlert size={15} />{currentMonth.summary.overdueCount} vencidos</span>
+            <span className="text-xs font-black text-arca-text-primary">{formatMoney.format(currentMonth.summary.overdueAmount)}</span>
+          </button>
+        ) : null}
+      </section>
+
+      <section className="rounded-[26px] border border-arca-border bg-arca-surface-1 p-4">
+        <div className="mb-4 flex items-center justify-between pl-1">
+          <h2 className="text-sm font-black capitalize text-arca-text-primary">{currentMonth.label}</h2>
+          <div className="flex gap-1">
+            <MonthButton disabled={prevDisabled} label="Mes anterior" onClick={() => setCurrentIndex((value) => value - 1)}><ChevronLeft size={18} /></MonthButton>
+            <MonthButton disabled={nextDisabled} label="Mes siguiente" onClick={() => setCurrentIndex((value) => value + 1)}><ChevronRight size={18} /></MonthButton>
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
-          {WEEK_DAYS.map((day, i) => (
-            <div key={i} className="text-center text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mb-2">
-              {day}
-            </div>
-          ))}
+        <div className="grid grid-cols-7 gap-1.5">
+          {WEEK_DAYS.map((day, index) => <div key={`${day}-${index}`} className="mb-1 text-center text-[9px] font-black uppercase text-arca-text-dim">{day}</div>)}
           {gridDays.map((cell) => {
-            if (!cell.day) {
-              return <div key={cell.key} className="aspect-square" />;
-            }
-
+            if (!cell.day) return <div key={cell.key} className="aspect-square" />;
             const dayEvents = eventsByDay.get(cell.day) ?? [];
             const isToday = currentMonth.key === data.initialMonthKey && cell.day === Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
-            const tone =
-              dayEvents.some((event) => event.status === 'overdue')
-                ? 'bg-arca-alert'
-                : dayEvents.some((event) => event.kind === 'income' || event.kind === 'receivable')
-                  ? 'bg-arca-positive'
-                  : 'bg-arca-accent';
-
             return (
-              <motion.button
-                key={cell.key}
-                whileTap={{ scale: 0.96 }}
-                type="button"
-                onClick={() => setSelectedDay(cell.day)}
-                className={`aspect-square rounded-xl flex flex-col items-center justify-center relative border border-arca-border ${
-                  selectedDay === cell.day
-                    ? 'bg-arca-accent/15 text-arca-accent border-arca-accent/30'
-                    : isToday
-                      ? 'bg-arca-accent text-white shadow-lg shadow-arca-accent/20'
-                      : 'bg-arca-surface-2 text-arca-text-dim'
-                }`}
-              >
-                <span className="text-xs font-bold">{cell.day}</span>
-                {dayEvents.length > 0 && !isToday && <div className={`w-1.5 h-1.5 rounded-full absolute bottom-2 ${tone}`} />}
-                {dayEvents.length > 1 && !isToday && (
-                  <span className="absolute top-1 right-1 text-[8px] font-bold text-arca-text-dim">{dayEvents.length}</span>
-                )}
+              <motion.button key={cell.key} whileTap={{ scale: 0.95 }} type="button" onClick={() => setSelectedDay((value) => value === cell.day ? null : cell.day)} className={`relative flex aspect-square flex-col items-center justify-center rounded-xl border transition-colors ${selectedDay === cell.day ? 'border-arca-accent/50 bg-arca-accent/15 text-arca-accent' : isToday ? 'border-arca-accent bg-arca-accent text-black' : 'border-arca-border bg-arca-surface-2 text-arca-text-secondary'}`}>
+                <span className="text-xs font-black">{cell.day}</span>
+                {dayEvents.length ? <EventDots events={dayEvents} isToday={isToday && selectedDay !== cell.day} /> : null}
               </motion.button>
             );
           })}
         </div>
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-arca-border pt-3">
+          <Legend color="bg-arca-alert" label="Vencido" />
+          <Legend color="bg-arca-accent" label="Pago" />
+          <Legend color="bg-arca-positive" label="Ingreso" />
+          <Legend color="bg-cyan-500" label="Cobro" />
+        </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
-            {selectedDay ? `Agenda del ${selectedDay}` : 'Agenda del mes'}
-          </h3>
-          {selectedDay ? (
-            <button
-              type="button"
-              onClick={() => setSelectedDay(null)}
-              className="text-[10px] font-bold uppercase tracking-widest text-arca-accent"
-            >
-              Ver todo
+      <section className="space-y-3">
+        <div className="flex items-end justify-between px-1">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-arca-text-dim">{selectedDay ? `Día ${selectedDay}` : 'Prioridad del mes'}</p>
+            <h2 className="mt-0.5 text-base font-black text-arca-text-primary">{selectedDay ? 'Movimientos del día' : 'Lo que necesita atención'}</h2>
+          </div>
+          {selectedDay || filter !== 'all' ? <button type="button" onClick={() => { setSelectedDay(null); setFilter('all'); }} className="text-[10px] font-black uppercase tracking-wider text-arca-accent">Limpiar</button> : null}
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+          <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>Todo</FilterChip>
+          <FilterChip active={filter === 'overdue'} onClick={() => setFilter('overdue')}>Vencidos</FilterChip>
+          <FilterChip active={filter === 'payment'} onClick={() => setFilter('payment')}>Pagos</FilterChip>
+          <FilterChip active={filter === 'income'} onClick={() => setFilter('income')}>Ingresos</FilterChip>
+          <FilterChip active={filter === 'receivable'} onClick={() => setFilter('receivable')}>Cobros</FilterChip>
+        </div>
+
+        <div className="overflow-hidden rounded-[22px] border border-arca-border bg-arca-surface-1 divide-y divide-arca-border">
+          {visibleEvents.length ? visibleEvents.map((event) => (
+            <button key={`${event.kind}-${event.id}`} type="button" onClick={() => { haptics.medium(); setSelectedEvent(event); }} className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-arca-surface-2/70">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconTone(event)}`}><CalendarDays size={17} /></span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-arca-text-primary">{event.title}</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-semibold text-arca-text-dim">{event.dateLabel}{accountLabel(event) ? ` · ${accountLabel(event)}` : ''}</span>
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className={`block text-sm font-black ${amountTone(event)}`}>{event.amountLabel}</span>
+                <span className={`mt-1 inline-flex rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-wider ${badgeTone(event)}`}>{actionLabel(event)}</span>
+              </span>
             </button>
-          ) : null}
+          )) : <div className="px-5 py-8 text-center"><CalendarDays className="mx-auto text-arca-text-dim" size={24} /><p className="mt-2 text-xs font-semibold text-arca-text-secondary">No hay movimientos con este filtro.</p></div>}
         </div>
-        <div className="card-arca divide-y divide-arca-border overflow-hidden">
-          {visibleEvents.length > 0 ? (
-            visibleEvents.map((event) => (
-              <button
-                key={`${event.kind}-${event.id}`}
-                onClick={() => {
-                  haptics.medium();
-                  setSelectedEvent(event);
-                }}
-                className="w-full text-left flex items-center justify-between p-4 bg-arca-surface-1 hover:bg-arca-surface-2 transition-colors"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconTone(event)}`}>
-                    <CalendarIcon size={18} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-arca-text-primary">{event.title}</p>
-                    <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-tighter">
-                      {event.dateLabel} · {event.secondaryLabel}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-sm font-bold ${amountTone(event)}`}>{event.amountLabel}</p>
-                  <span className={`inline-flex mt-1 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${badgeTone(event)}`}>
-                    {labelForEvent(event)}
-                  </span>
-                </div>
-              </button>
-            ))
-          ) : (
-            <div className="p-4 text-xs text-arca-text-dim">No hay eventos programados para este mes.</div>
-          )}
-        </div>
+        <button type="button" onClick={openNewEvent} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-arca-accent/40 bg-arca-accent/[0.05] py-3.5 text-xs font-black text-arca-accent"><Plus size={16} /> Agregar compromiso</button>
       </section>
 
-      <ObligationActionModal
-        obligation={mappedObligation}
-        accounts={accounts}
-        onClose={() => setSelectedEvent(null)}
-        onRefresh={() => router.refresh()}
-      />
+      <aside className="rounded-[22px] border border-arca-border bg-arca-surface-1 p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent"><Sparkles size={17} /></span>
+          <div>
+            <p className="text-xs font-black text-arca-text-primary">Nova puede organizar esta agenda</p>
+            <p className="mt-1 text-[11px] leading-5 text-arca-text-secondary">Prioriza pagos, detecta semanas apretadas y te ayuda a decidir qué mover.</p>
+            <button type="button" onClick={() => onOpenNova(`Revisa mi agenda financiera de ${currentMonth.label}. Tengo ${currentMonth.summary.overdueCount} compromisos vencidos y quiero organizar los pagos, ingresos y cobros más importantes.`)} className="mt-3 text-[10px] font-black uppercase tracking-wider text-arca-accent">Organizar con Nova →</button>
+          </div>
+        </div>
+      </aside>
 
-      <ReceivableActionModal
-        receivable={mappedReceivable}
-        accounts={accounts}
-        onClose={() => setSelectedEvent(null)}
-        onRefresh={() => router.refresh()}
-      />
+      <ObligationActionModal obligation={mappedObligation} accounts={accounts} onClose={() => setSelectedEvent(null)} onRefresh={() => router.refresh()} />
+      <ReceivableActionModal receivable={mappedReceivable} accounts={accounts} onClose={() => setSelectedEvent(null)} onRefresh={() => router.refresh()} />
     </div>
   );
 }
 
-function labelForEvent(event: CalendarMonth['events'][number]) {
-  if (event.kind === 'income') return 'Ingreso';
-  if (event.kind === 'receivable') return 'Cobro';
-  return 'Pago';
+function SummaryMetric({ icon: Icon, label, value, tone }: { icon: typeof TrendingUp; label: string; value: string; tone: 'alert' | 'positive' }) {
+  return <div className="rounded-2xl border border-arca-border bg-arca-surface-2/70 p-3"><div className={`flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider ${tone === 'alert' ? 'text-arca-alert' : 'text-arca-positive'}`}><Icon size={12} />{label}</div><p className="mt-2 truncate text-sm font-black text-arca-text-primary">{value}</p></div>;
 }
 
-function iconTone(event: CalendarMonth['events'][number]) {
+function MonthButton({ children, disabled, label, onClick }: { children: React.ReactNode; disabled: boolean; label: string; onClick: () => void }) {
+  return <button type="button" disabled={disabled} aria-label={label} onClick={onClick} className="rounded-xl p-2 text-arca-text-dim transition-colors hover:bg-arca-surface-2 hover:text-arca-accent disabled:cursor-not-allowed disabled:opacity-25">{children}</button>;
+}
+
+function EventDots({ events, isToday }: { events: CalendarEventItem[]; isToday: boolean }) {
+  const colors = Array.from(new Set(events.map((event) => dotTone(event)))).slice(0, 3);
+  return <span className="absolute bottom-1.5 flex gap-0.5">{colors.map((color) => <span key={color} className={`h-1 w-1 rounded-full ${isToday ? 'bg-black/70' : color}`} />)}</span>;
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return <span className="flex items-center gap-1.5 text-[9px] font-semibold text-arca-text-dim"><span className={`h-1.5 w-1.5 rounded-full ${color}`} />{label}</span>;
+}
+
+function FilterChip({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className={`shrink-0 rounded-full border px-3 py-2 text-[9px] font-black uppercase tracking-wider transition-colors ${active ? 'border-arca-accent/40 bg-arca-accent/15 text-arca-accent' : 'border-arca-border bg-arca-surface-1 text-arca-text-dim'}`}>{children}</button>;
+}
+
+function moneyFormatter(currency: string) {
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'COP';
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: safeCurrency, maximumFractionDigits: 0 });
+}
+
+function signedMoney(value: number, formatter: Intl.NumberFormat) {
+  if (!value) return formatter.format(0);
+  return `${value > 0 ? '+' : '−'} ${formatter.format(Math.abs(value))}`;
+}
+
+function actionLabel(event: CalendarEventItem) {
+  if (event.kind === 'income') return 'Recibir';
+  if (event.kind === 'receivable') return 'Cobrar';
+  return 'Pagar';
+}
+
+function dotTone(event: CalendarEventItem) {
+  if (event.status === 'overdue') return 'bg-arca-alert';
+  if (event.kind === 'income') return 'bg-arca-positive';
+  if (event.kind === 'receivable') return 'bg-cyan-500';
+  return 'bg-arca-accent';
+}
+
+function iconTone(event: CalendarEventItem) {
   if (event.status === 'overdue') return 'bg-arca-alert/10 text-arca-alert';
-  if (event.kind === 'income' || event.kind === 'receivable') return 'bg-arca-positive/10 text-arca-positive';
+  if (event.kind === 'income') return 'bg-arca-positive/10 text-arca-positive';
+  if (event.kind === 'receivable') return 'bg-cyan-500/10 text-cyan-500';
   return 'bg-arca-accent/10 text-arca-accent';
 }
 
-function amountTone(event: CalendarMonth['events'][number]) {
+function amountTone(event: CalendarEventItem) {
   if (event.kind === 'income' || event.kind === 'receivable') return 'text-arca-positive';
   if (event.status === 'overdue') return 'text-arca-alert';
   return 'text-arca-text-primary';
 }
 
-function badgeTone(event: CalendarMonth['events'][number]) {
+function badgeTone(event: CalendarEventItem) {
   if (event.status === 'overdue') return 'bg-arca-alert/10 text-arca-alert';
-  if (event.kind === 'income' || event.kind === 'receivable') return 'bg-arca-positive/10 text-arca-positive';
+  if (event.kind === 'income') return 'bg-arca-positive/10 text-arca-positive';
+  if (event.kind === 'receivable') return 'bg-cyan-500/10 text-cyan-500';
   return 'bg-arca-accent/10 text-arca-accent';
 }

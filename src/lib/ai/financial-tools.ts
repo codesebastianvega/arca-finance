@@ -7,11 +7,13 @@ import { filterObligations } from "@/src/lib/obligations-types";
 import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
+import { loadMonthViewModel } from "@/src/lib/month-data";
 import {
   confirmScheduledEventNow,
   createExpectedIncome,
   createMovement,
   createScheduledObligation,
+  saveMonthlyPlan,
 } from "@/app/actions";
 
 type GenericRow = Record<string, unknown>;
@@ -339,6 +341,62 @@ export function createFinancialTools(context: WorkspaceContext) {
           receivables: receivables.slice(0, 20),
           transactions: transactions.slice(0, 20),
           matchCount: debts.length + obligations.length + receivables.length + transactions.length,
+        };
+      },
+    }),
+
+    get_monthly_plan: tool({
+      description:
+        "Consulta el plan porcentual del mes, el ingreso base, los destinos asignados y cuánto se ha ejecutado. Úsala antes de recomendar cambios en la distribución del dinero.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const plan = await loadMonthViewModel(context);
+        return {
+          month: plan.month,
+          monthLabel: plan.monthLabel,
+          currency: context.workspace.currencyCode,
+          plannedIncome: plan.plannedIncome,
+          receivedIncome: plan.receivedIncome,
+          expectedIncome: plan.expectedIncome,
+          commitments: plan.commitments,
+          assignedPercentage: plan.assignedPercentage,
+          unassignedPercentage: plan.unassignedPercentage,
+          allocations: plan.allocations,
+          availableCategories: plan.categoryOptions,
+        };
+      },
+    }),
+
+    save_monthly_plan: tool({
+      title: "Guardar plan mensual",
+      description:
+        "Guarda o reemplaza la distribución porcentual del mes. Úsala solo después de mostrar la propuesta completa y cuando el usuario pida crear, aplicar o reorganizar su plan.",
+      needsApproval: true,
+      inputSchema: z.object({
+        month: z.string().regex(/^\d{4}-\d{2}-01$/).optional().describe("Primer día del mes YYYY-MM-01; omitir para el mes actual."),
+        plannedIncome: z.number().positive().describe("Ingreso base sobre el que se calculan los porcentajes."),
+        allocations: z.array(z.object({
+          name: z.string().min(2).describe("Nombre visible del destino."),
+          type: z.enum(["expense", "saving", "debt", "free"]),
+          percentage: z.number().positive().max(100),
+          trackingCategory: z.string().optional().describe("Categoría real que medirá la ejecución; omitir para medir todo el tipo."),
+        })).min(1),
+      }),
+      execute: async (input) => {
+        const month = input.month ?? `${dateInBogota().slice(0, 7)}-01`;
+        const result = await saveMonthlyPlan({
+          month,
+          plannedIncome: input.plannedIncome,
+          allocations: input.allocations,
+        });
+        return {
+          success: result.ok,
+          action: "monthly_plan_saved",
+          month,
+          plannedIncome: input.plannedIncome,
+          assignedPercentage: input.allocations.reduce((sum, allocation) => sum + allocation.percentage, 0),
+          allocations: input.allocations,
+          currency: context.workspace.currencyCode,
         };
       },
     }),

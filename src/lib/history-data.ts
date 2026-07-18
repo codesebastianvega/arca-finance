@@ -37,6 +37,12 @@ function formatDate(raw: string) {
   }).format(new Date(raw));
 }
 
+function historyStartDate() {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
+  return `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}-01T00:00:00-05:00`;
+}
+
 function cleanLabel(value: string | null | undefined, fallback: string) {
   const text = String(value ?? "").trim();
   return text || fallback;
@@ -70,8 +76,10 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
       .select("id, concept, amount, date, category, unit, kind, status, source_type, account_id, created_at, accounts(name)")
       .eq("workspace_id", workspaceId)
       .neq("status", "cancelled")
+      .gte("date", historyStartDate())
+      .order("date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(120),
+      .limit(1000),
     supabase
       .from("accounts")
       .select("id, name")

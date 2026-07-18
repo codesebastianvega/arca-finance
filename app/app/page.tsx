@@ -10,6 +10,7 @@ import { loadProjectionViewModel } from "@/src/lib/projection-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadSubscriptionsViewModel } from "@/src/lib/subscriptions-data";
+import { loadAnalyticsViewModel } from "@/src/lib/analytics-data";
 
 export default async function AuthenticatedAppPage() {
   const context = await requireWorkspaceContext();
@@ -24,6 +25,7 @@ export default async function AuthenticatedAppPage() {
     initialHistoryData,
     initialRegisterData,
     initialSubscriptionsData,
+    initialAnalyticsData,
   ] = await Promise.all([
     loadTodayViewModel(context),
     loadMoneyViewModel(context),
@@ -35,7 +37,20 @@ export default async function AuthenticatedAppPage() {
     loadHistoryViewModel(context),
     loadRegisterViewModel(context),
     loadSubscriptionsViewModel(context),
+    loadAnalyticsViewModel(context),
   ]);
+
+  const trialEndsAt = context.subscription?.trialEndsAt;
+  const trialDaysRemaining = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : undefined;
+  const planLabel = context.subscription?.planCode === "business"
+    ? "Business"
+    : context.subscription?.planCode === "personal_pro"
+      ? context.subscription.status === "trialing"
+        ? "Prueba Personal Pro"
+        : "Personal Pro"
+      : "Plan gratuito";
 
   return (
     <App
@@ -50,6 +65,15 @@ export default async function AuthenticatedAppPage() {
       initialHistoryData={initialHistoryData}
       initialRegisterData={initialRegisterData}
       initialSubscriptionsData={initialSubscriptionsData}
+      initialAnalyticsData={initialAnalyticsData}
+      initialOnboardingRequired={initialRegisterData.accounts.length === 0}
+      userSummary={{
+        fullName: context.profile.fullName || context.profile.email?.split("@")[0] || "Usuario de Arca",
+        email: context.profile.email || "",
+        planLabel,
+        trialDaysRemaining,
+        isSuperAdmin: context.profile.isSuperAdmin,
+      }}
     />
   );
 }

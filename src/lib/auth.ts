@@ -184,10 +184,28 @@ export async function getCurrentWorkspaceContext() {
 
 export async function requireWorkspaceContext() {
   const user = await requireUser();
-  const context = await readWorkspaceContext(user.id);
+  let context = await readWorkspaceContext(user.id);
 
   if (!context) {
-    redirect("/sign-in?message=Completa%20tu%20acceso%20de%20nuevo");
+    try {
+      await bootstrapWorkspaceForUser({
+        userId: user.id,
+        email: user.email,
+        fullName:
+          typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name
+            : typeof user.user_metadata?.name === "string"
+              ? user.user_metadata.name
+              : undefined,
+      });
+      context = await readWorkspaceContext(user.id);
+    } catch (error) {
+      console.error("No se pudo reparar el acceso al workspace:", error);
+    }
+  }
+
+  if (!context) {
+    redirect("/sign-in?error=bootstrap");
   }
 
   return context;
@@ -215,7 +233,6 @@ export async function bootstrapWorkspaceForUser(params: { userId: string; email?
       id: params.userId,
       email: params.email ?? null,
       full_name: params.fullName ?? null,
-      is_superadmin: false,
     },
     { onConflict: "id" }
   );
@@ -231,46 +248,88 @@ export async function bootstrapWorkspaceForUser(params: { userId: string; email?
     .limit(1)
     .maybeSingle();
 
-  if (existingMembership.data?.workspace_id) {
-    return String(existingMembership.data.workspace_id);
+  if (existingMembership.error) {
+    throw new Error(`No se pudo validar la membresia: ${existingMembership.error.message}`);
   }
 
-  const { data: workspace, error: workspaceError } = await admin
-    .from("workspaces")
-    .insert({
-      owner_user_id: params.userId,
-      slug,
-      name: workspaceName,
-      currency_code: "COP",
-      timezone: "America/Bogota",
-      status: "active",
-    })
+  const hasExistingMembership = Boolean(existingMembership.data?.workspace_id);
+  let workspaceId = existingMembership.data?.workspace_id ? String(existingMembership.data.workspace_id) : "";
+
+  if (!workspaceId) {
+    const ownedWorkspace = await admin
+      .from("workspaces")
+      .select("id")
+      .eq("owner_user_id", params.userId)
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (ownedWorkspace.error) {
+      throw new Error(`No se pudo buscar el workspace: ${ownedWorkspace.error.message}`);
+    }
+
+    workspaceId = ownedWorkspace.data?.id ? String(ownedWorkspace.data.id) : "";
+  }
+
+  if (!workspaceId) {
+    const { data: workspace, error: workspaceError } = await admin
+      .from("workspaces")
+      .insert({
+        owner_user_id: params.userId,
+        slug,
+        name: workspaceName,
+        currency_code: "COP",
+        timezone: "America/Bogota",
+        status: "active",
+      })
+      .select("id")
+      .single();
+
+    if (workspaceError || !workspace) {
+      throw new Error(`No se pudo crear el workspace: ${workspaceError?.message ?? "sin respuesta"}`);
+    }
+
+    workspaceId = String(workspace.id);
+  }
+
+  if (!hasExistingMembership) {
+    const { error: membershipError } = await admin.from("workspace_members").upsert(
+      {
+        workspace_id: workspaceId,
+        user_id: params.userId,
+        role: "owner",
+      },
+      { onConflict: "workspace_id,user_id" }
+    );
+
+    if (membershipError) {
+      throw new Error(`No se pudo crear la membresia: ${membershipError.message}`);
+    }
+  }
+
+  const existingSubscription = await admin
+    .from("workspace_subscriptions")
     .select("id")
-    .single();
+    .eq("workspace_id", workspaceId)
+    .limit(1)
+    .maybeSingle();
 
-  if (workspaceError || !workspace) {
-    throw new Error(`No se pudo crear el workspace: ${workspaceError?.message ?? "sin respuesta"}`);
+  if (existingSubscription.error) {
+    throw new Error(`No se pudo validar la suscripcion: ${existingSubscription.error.message}`);
   }
 
-  const workspaceId = String(workspace.id);
+  if (!existingSubscription.data) {
+    const { error: subscriptionError } = await admin.from("workspace_subscriptions").insert({
+      workspace_id: workspaceId,
+      plan_code: "personal_pro",
+      status: "trialing",
+      provider: "manual",
+      trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    });
 
-  const { error: membershipError } = await admin.from("workspace_members").insert({
-    workspace_id: workspaceId,
-    user_id: params.userId,
-    role: "owner",
-  });
-
-  if (membershipError) {
-    throw new Error(`No se pudo crear la membresia: ${membershipError.message}`);
+    if (subscriptionError) {
+      throw new Error(`No se pudo crear la suscripcion: ${subscriptionError.message}`);
+    }
   }
-
-  await admin.from("workspace_subscriptions").insert({
-    workspace_id: workspaceId,
-    plan_code: "personal_pro",
-    status: "trialing",
-    provider: "manual",
-    trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-  });
 
   return workspaceId;
 }

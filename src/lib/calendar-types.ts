@@ -13,6 +13,19 @@ export type CalendarEventItem = {
   status: "overdue" | "today" | "upcoming" | "pending";
   dateLabel: string;
   secondaryLabel: string;
+  accountId: string | null;
+  suggestedAccountId: string | null;
+  notes: string | null;
+  priority: "high" | "medium" | "low";
+};
+
+export type CalendarMonthSummary = {
+  payments: number;
+  income: number;
+  receivables: number;
+  expectedBalance: number;
+  overdueCount: number;
+  overdueAmount: number;
 };
 
 export type CalendarMonth = {
@@ -23,6 +36,7 @@ export type CalendarMonth = {
   firstWeekday: number;
   daysInMonth: number;
   events: CalendarEventItem[];
+  summary: CalendarMonthSummary;
 };
 
 export type CalendarViewModel = {

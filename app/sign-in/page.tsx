@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { CalendarClock, ChartNoAxesCombined, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
 import { GoogleAuthButton } from "@/src/components/google-auth-button";
-import { getCurrentWorkspaceContext, getCurrentUser } from "@/src/lib/auth";
+import { bootstrapWorkspaceForUser, getCurrentWorkspaceContext, getCurrentUser } from "@/src/lib/auth";
 
 export default async function SignInPage({
   searchParams,
@@ -17,7 +17,27 @@ export default async function SignInPage({
 
   const user = await getCurrentUser();
 
-  if (user) {
+  async function repairAccess() {
+    "use server";
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser) redirect("/sign-in?error=access");
+
+    try {
+      await bootstrapWorkspaceForUser({
+        userId: currentUser.id,
+        email: currentUser.email,
+        fullName:
+          typeof currentUser.user_metadata?.full_name === "string"
+            ? currentUser.user_metadata.full_name
+            : typeof currentUser.user_metadata?.name === "string"
+              ? currentUser.user_metadata.name
+              : undefined,
+      });
+    } catch {
+      redirect("/sign-in?error=bootstrap");
+    }
+
     redirect("/app");
   }
 
@@ -87,7 +107,16 @@ export default async function SignInPage({
           ) : null}
 
           <div className="mt-5 sm:mt-6">
-            <GoogleAuthButton next="/app" />
+            {user ? (
+              <form action={repairAccess}>
+                <button className="flex h-14 w-full items-center justify-between rounded-2xl bg-arca-text-primary px-5 text-sm font-black text-arca-base transition-transform active:scale-[0.99]" type="submit">
+                  Completar configuración
+                  <span aria-hidden="true">→</span>
+                </button>
+              </form>
+            ) : (
+              <GoogleAuthButton next="/app" />
+            )}
           </div>
 
           <div className="mt-4 flex items-start gap-2.5 border-t border-arca-border pt-4 text-[11px] leading-5 text-arca-text-dim sm:mt-5 sm:pt-5 sm:text-xs">

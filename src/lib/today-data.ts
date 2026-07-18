@@ -8,7 +8,15 @@ export type TodayBudget = {
   hasBudget: boolean;
 };
 
-export type TodayMetricKey = "onTime" | "advanced" | "late";
+export type TodayMetricKey = "today" | "upcoming" | "overdue";
+
+export type TodayMonthlyBudgetItem = {
+  id: string;
+  title: string;
+  amount: number;
+  date: string;
+  dateLabel: string;
+};
 
 export type TodayCriticalPayment = {
   id: string;
@@ -68,6 +76,10 @@ export type TodayViewModel = {
     receivedIncomes: number;
     pendingObligations: number;
     paidObligations: number;
+    receivedItems: TodayMonthlyBudgetItem[];
+    expectedItems: TodayMonthlyBudgetItem[];
+    paidItems: TodayMonthlyBudgetItem[];
+    pendingItems: TodayMonthlyBudgetItem[];
   };
   accountOptions: Array<{
     id: string;
@@ -178,16 +190,17 @@ function statusForCritical(event: ScheduledEventRow): "overdue" | "today" | "upc
   return "upcoming";
 }
 
-function isConfirmedStatus(status: string | null | undefined) {
-  return status === "confirmed" || status === "confirmado" || status === "paid";
+function isClosedStatus(status: string | null | undefined) {
+  const normalized = String(status ?? "").toLowerCase();
+  return ["confirmed", "confirmado", "paid", "cancelled", "canceled", "cancelado"].includes(normalized);
 }
 
-function timingBucket(value: string | null | undefined): TodayMetricKey | null {
-  if (!value) return null;
-  if (value === "on_time" || value === "a_tiempo") return "onTime";
-  if (value === "early" || value === "anticipado") return "advanced";
-  if (value === "late" || value === "atrasado") return "late";
-  return null;
+function monthItemDateLabel(rawDate: string) {
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${rawDate.slice(0, 10)}T12:00:00-05:00`));
 }
 
 export async function loadTodayViewModel(context: WorkspaceContext): Promise<TodayViewModel> {
@@ -211,8 +224,9 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
       .order("due_date", { ascending: true }),
     supabase
       .from("transactions")
-      .select("id, kind, amount, date")
+      .select("id, concept, kind, amount, date")
       .eq("workspace_id", workspaceId)
+      .neq("status", "cancelled")
       .gte("date", `${monthBounds.start}T00:00:00-05:00`)
       .lt("date", `${monthBounds.nextMonth}T00:00:00-05:00`),
     supabase
@@ -245,7 +259,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
   const totalAvailableBalance = (accountsResult.data ?? []).reduce((sum, row) => sum + numberValue(row.balance), 0);
   const protectedSavings = (savingsResult.data ?? []).reduce((sum, row) => sum + numberValue(row.current), 0);
 
-  const scheduledEvents = ((scheduledResult.data ?? []) as ScheduledEventRow[]).filter((row) => !isConfirmedStatus(row.status));
+  const scheduledEvents = ((scheduledResult.data ?? []) as ScheduledEventRow[]).filter((row) => !isClosedStatus(row.status));
   const criticalPayments = scheduledEvents
     .filter((row) => row.kind !== "income")
     .filter((row) => {
@@ -278,17 +292,15 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
   const safeToSpend = Math.max(0, rawSafeToSpend);
   const shortfallAgainstProtected = 0;
 
-  const metricsBase: Record<TodayMetricKey, number> = { onTime: 0, advanced: 0, late: 0 };
-  for (const row of (scheduledResult.data ?? []) as ScheduledEventRow[]) {
-    if (isConfirmedStatus(row.status)) {
-      const bucket = timingBucket(row.timing_status);
-      if (bucket) metricsBase[bucket] += 1;
-      continue;
-    }
-
+  const metricsBase: Record<TodayMetricKey, number> = { today: 0, upcoming: 0, overdue: 0 };
+  for (const row of scheduledEvents.filter((event) => event.kind !== "income")) {
     const due = new Date(`${row.due_date}T00:00:00-05:00`);
     if (due.getTime() < today.getTime()) {
-      metricsBase.late += 1;
+      metricsBase.overdue += 1;
+    } else if (due.getTime() === today.getTime()) {
+      metricsBase.today += 1;
+    } else if (row.due_date < monthBounds.nextMonth) {
+      metricsBase.upcoming += 1;
     }
   }
 
@@ -310,7 +322,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
 
   const upcomingIncomes: TodayUpcomingIncome[] = ((scheduledResult.data ?? []) as ScheduledEventRow[])
     .filter((row) => row.kind === "income")
-    .filter((row) => !isConfirmedStatus(row.status))
+    .filter((row) => !isClosedStatus(row.status))
     .map((row) => ({
       id: row.id,
       templateId: row.template_id,
@@ -320,29 +332,38 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
       dueLabel: nextIncomeLabel(row.due_date),
     }));
 
-  const expectedIncomes = upcomingIncomes
-    .filter((row) => row.dueDate < monthBounds.nextMonth)
-    .reduce((sum, row) => sum + row.amount, 0);
+  const expectedItems: TodayMonthlyBudgetItem[] = upcomingIncomes
+    .filter((row) => row.dueDate >= monthBounds.start && row.dueDate < monthBounds.nextMonth)
+    .map((row) => ({ id: row.id, title: row.title, amount: row.amount, date: row.dueDate, dateLabel: dueLabelFromDate(row.dueDate) }));
 
-  const pendingObligations = ((scheduledResult.data ?? []) as ScheduledEventRow[])
+  const pendingItems: TodayMonthlyBudgetItem[] = scheduledEvents
     .filter((row) => row.kind !== "income")
-    .filter((row) => !isConfirmedStatus(row.status))
     .filter((row) => row.due_date < monthBounds.nextMonth)
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+    .map((row) => ({ id: row.id, title: row.title, amount: numberValue(row.amount), date: row.due_date, dateLabel: dueLabelFromDate(row.due_date) }));
 
-  const receivedIncomes = ((transactionsResult.data ?? []) as Array<{ kind: string; amount: number }>)
+  const monthlyTransactions = (transactionsResult.data ?? []) as Array<{ id: string; concept: string | null; kind: string; amount: number; date: string }>;
+  const receivedItems: TodayMonthlyBudgetItem[] = monthlyTransactions
     .filter((row) => row.kind === "income")
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+    .map((row) => ({ id: row.id, title: row.concept || "Ingreso", amount: numberValue(row.amount), date: row.date, dateLabel: monthItemDateLabel(row.date) }));
 
-  const paidObligations = ((transactionsResult.data ?? []) as Array<{ kind: string; amount: number }>)
-    .filter((row) => row.kind !== "income" && row.kind !== "transfer_in")
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+  const paidItems: TodayMonthlyBudgetItem[] = monthlyTransactions
+    .filter((row) => outgoingKinds.has(row.kind))
+    .map((row) => ({ id: row.id, title: row.concept || "Pago", amount: numberValue(row.amount), date: row.date, dateLabel: monthItemDateLabel(row.date) }));
+
+  const expectedIncomes = expectedItems.reduce((sum, row) => sum + row.amount, 0);
+  const pendingObligations = pendingItems.reduce((sum, row) => sum + row.amount, 0);
+  const receivedIncomes = receivedItems.reduce((sum, row) => sum + row.amount, 0);
+  const paidObligations = paidItems.reduce((sum, row) => sum + row.amount, 0);
 
   const monthlyBudget = {
     expectedIncomes,
     receivedIncomes,
     pendingObligations,
     paidObligations,
+    receivedItems,
+    expectedItems,
+    paidItems,
+    pendingItems,
   };
 
   const todayDate = startOfTodayInBogota();

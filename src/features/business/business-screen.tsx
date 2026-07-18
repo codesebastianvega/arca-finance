@@ -1,15 +1,16 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowDownLeft, Briefcase, CalendarClock, Clock, Edit2, Plus, TrendingUp, Users, Wallet, X, ChevronRight, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, CalendarClock, ChevronRight, Clock, Edit2, Plus, Sparkles, TrendingUp, Users } from 'lucide-react';
 import {
   createBusinessUnit,
   createIncomeSource,
   updateBusinessUnit,
   updateIncomeSource,
 } from '@/app/actions';
-import type { BusinessActiveItem, BusinessSource, BusinessTopItem, BusinessUnitSummary, BusinessViewModel } from '@/src/lib/business-types';
+import type { BusinessActiveItem, BusinessSource, BusinessUnitSummary, BusinessViewModel } from '@/src/lib/business-types';
 import { haptics } from '@/src/lib/haptics';
 
 type EditorMode =
@@ -18,15 +19,25 @@ type EditorMode =
 
 export default function BusinessScreen({
   onBack,
+  onOpenReceivables,
+  onOpenNova,
   data,
+  currency,
 }: {
   onBack: () => void;
+  onOpenReceivables: () => void;
+  onOpenNova: (prompt?: string) => void;
   data: BusinessViewModel;
+  currency: string;
 }) {
+  const router = useRouter();
   const [editor, setEditor] = useState<EditorMode | null>(null);
   const [selectedDetailUnit, setSelectedDetailUnit] = useState<BusinessUnitSummary | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const formatMoney = useMemo(() => moneyFormatter(currency), [currency]);
+  const maxUnitResult = Math.max(...data.units.map((unit) => Math.max(unit.net, 0)), 1);
+  const overdueItems = data.activeItems.filter((item) => item.status === 'overdue');
 
   const unitOptions = useMemo(
     () => data.units.map((unit) => ({ key: unit.key, name: unit.name })),
@@ -106,6 +117,7 @@ export default function BusinessScreen({
 
         haptics.success();
         closeEditor();
+        router.refresh();
         // If we updated a unit we are viewing, refresh it in state
         if (selectedDetailUnit && editor.type === 'unit' && editor.id === selectedDetailUnit.id) {
           setSelectedDetailUnit(null); // Simple reload trigger
@@ -118,32 +130,47 @@ export default function BusinessScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-center space-x-4">
-        <button onClick={onBack} className="text-arca-text-dim hover:text-arca-accent transition-colors">
-          <ArrowDownLeft className="rotate-45" size={24} />
+    <div className="space-y-5 pb-4">
+      <header className="flex items-center gap-4">
+        <button type="button" onClick={onBack} aria-label="Volver" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-arca-border bg-arca-surface-1 text-arca-text-secondary">
+          <ArrowLeft size={20} />
         </button>
-        <h2 className="text-lg font-bold text-arca-text-primary uppercase tracking-widest">Unidades de Negocio</h2>
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-arca-accent">Unidades y proyectos</p>
+          <h1 className="text-xl font-black tracking-[-0.03em] text-arca-text-primary">Tus negocios</h1>
+        </div>
       </header>
 
-      <section className="grid grid-cols-2 gap-4">
-        <SummaryCard label="Por cobrar total" value={data.totals.expectedIncomeLabel} helper={`${data.activeItems.length} cobros abiertos`} tone="positive" />
-        <SummaryCard label="Caja consolidada" value={data.totals.netLabel} helper="Resultado real del mes" tone={data.totals.net >= 0 ? 'neutral' : 'alert'} />
+      <section className="relative overflow-hidden rounded-[26px] border border-arca-border-strong bg-arca-surface-1 p-5">
+        <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-arca-positive/10 blur-3xl" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-arca-text-dim">Resultado operativo del mes</p>
+              <p className={`mt-2 text-3xl font-black tracking-[-0.05em] ${data.totals.net >= 0 ? 'text-arca-text-primary' : 'text-arca-alert'}`}>
+                {formatMoney.format(data.totals.net)}
+              </p>
+              <p className="mt-2 text-[10px] leading-4 text-arca-text-secondary">Ingresos cobrados menos gastos reales de tus unidades.</p>
+            </div>
+            <span className={`rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider ${data.totals.net >= 0 ? 'bg-arca-positive/10 text-arca-positive' : 'bg-arca-alert/10 text-arca-alert'}`}>
+              {data.totals.net >= 0 ? 'Positivo' : 'Negativo'}
+            </span>
+          </div>
+          <div className="mt-5 grid grid-cols-3 divide-x divide-arca-border border-t border-arca-border pt-4">
+            <PortfolioMetric label="Cobrado" value={formatMoney.format(data.totals.realIncome)} tone="positive" />
+            <PortfolioMetric label="Gastos" value={formatMoney.format(data.totals.realExpense)} tone="alert" align="center" />
+            <PortfolioMetric label="Por cobrar" value={formatMoney.format(data.totals.expectedIncome)} tone="accent" align="right" />
+          </div>
+        </div>
       </section>
 
-      {/* Unidades de Negocio list */}
-      <section className="card-arca p-5 space-y-4">
+      <section className="space-y-4">
         <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-3 text-arca-accent">
-              <Users size={20} />
-              <h4 className="text-sm font-bold uppercase tracking-widest">Tus Proyectos</h4>
-            </div>
-            <p className="text-[10px] text-arca-text-dim leading-relaxed pr-6">
-              Líneas de actividad, proyectos o áreas principales de tu negocio.
-            </p>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-text-primary">Portafolio</p>
+            <p className="mt-1 text-[10px] text-arca-text-secondary">Qué está produciendo cada unidad este mes.</p>
           </div>
-          <button onClick={openNewUnit} className="w-9 h-9 rounded-xl bg-arca-accent/10 text-arca-accent flex items-center justify-center shrink-0">
+          <button type="button" onClick={openNewUnit} aria-label="Crear unidad de negocio" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent">
             <Plus size={16} />
           </button>
         </div>
@@ -156,17 +183,33 @@ export default function BusinessScreen({
                   haptics.light();
                   setSelectedDetailUnit(unit);
                 }}
-                className="w-full rounded-2xl border border-arca-border bg-arca-surface-2 px-4 py-4 text-left hover:border-arca-accent/40 transition-colors"
+                className="w-full rounded-[22px] border border-arca-border bg-arca-surface-1 p-4 text-left transition-colors hover:border-arca-accent/40"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-arca-text-primary">{unit.name}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wider text-arca-text-dim">ID frente: {unit.key}</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-black text-arca-text-primary">{unit.name}</p>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${unit.realIncome > 0 || unit.realExpense > 0 ? 'bg-arca-positive' : 'bg-arca-text-dim'}`} />
+                    </div>
+                    <p className="mt-1 text-[9px] uppercase tracking-wider text-arca-text-dim">
+                      {unit.realIncome > 0 || unit.realExpense > 0 ? 'Con actividad este mes' : 'Sin actividad este mes'}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-arca-accent">{unit.netLabel}</span>
+                  <div className="flex shrink-0 items-center gap-2 text-right">
+                    <div>
+                      <p className={`text-sm font-black ${unit.net >= 0 ? 'text-arca-text-primary' : 'text-arca-alert'}`}>{formatMoney.format(unit.net)}</p>
+                      <p className="mt-1 text-[8px] uppercase tracking-wider text-arca-text-dim">Resultado</p>
+                    </div>
                     <ChevronRight size={16} className="text-arca-text-dim shrink-0" />
                   </div>
+                </div>
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-arca-surface-2">
+                  <div className={`h-full rounded-full ${unit.net >= 0 ? 'bg-arca-positive' : 'bg-arca-alert'}`} style={{ width: `${Math.max(unit.net > 0 ? (unit.net / maxUnitResult) * 100 : unit.realExpense > 0 ? 8 : 0, 0)}%` }} />
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <UnitMetric label="Cobrado" value={formatMoney.format(unit.realIncome)} tone="positive" />
+                  <UnitMetric label="Gastos" value={formatMoney.format(unit.realExpense)} tone="neutral" />
+                  <UnitMetric label="Pendiente" value={formatMoney.format(unit.expectedIncome)} tone="accent" align="right" />
                 </div>
               </button>
             ))
@@ -176,38 +219,43 @@ export default function BusinessScreen({
         </div>
       </section>
 
-      {/* Facturas activas generales */}
-      <div className="space-y-4">
-        <h3 className="text-xs font-bold text-arca-text-dim uppercase tracking-widest px-1">Ingresos esperados (Facturas)</h3>
+      <section className="space-y-3">
+        <div className="flex items-end justify-between gap-4 px-1">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-text-primary">Próximos cobros</p>
+            <p className={`mt-1 text-[10px] ${overdueItems.length ? 'text-arca-alert' : 'text-arca-text-secondary'}`}>
+              {overdueItems.length ? `${overdueItems.length} ${overdueItems.length === 1 ? 'cobro vencido' : 'cobros vencidos'}` : 'Todo al día'}
+            </p>
+          </div>
+          {data.activeItems.length ? (
+            <button type="button" onClick={onOpenReceivables} className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-arca-accent">
+              Ver todos <ChevronRight size={13} />
+            </button>
+          ) : null}
+        </div>
         {data.activeItems.length > 0 ? (
-          data.activeItems.map((item) => <InvoiceRow key={item.id} item={item} />)
+          data.activeItems.slice(0, 3).map((item) => <InvoiceRow key={item.id} item={item} formatMoney={formatMoney.format} />)
         ) : (
           <div className="card-arca p-4 text-xs text-arca-text-dim text-center">No hay cobros pendientes abiertos para este mes.</div>
         )}
-      </div>
-
-      {/* Top frentes / Rendimiento */}
-      <section className="card-arca p-5 space-y-4">
-        <div className="flex items-center space-x-3 text-arca-accent">
-          <TrendingUp size={20} />
-          <h4 className="text-sm font-bold uppercase tracking-widest">Rendimiento Real del Mes</h4>
-        </div>
-        <div className="space-y-3">
-          {data.topItems.length > 0 ? (
-            data.topItems.map((item) => (
-              <div key={item.id} className="flex justify-between items-center text-xs">
-                <div>
-                  <span className="text-arca-text-secondary">{item.name}</span>
-                  <p className="mt-1 text-[10px] uppercase tracking-wider text-arca-text-dim">{item.helper}</p>
-                </div>
-                <span className="font-bold text-arca-text-primary">{item.totalLabel}</span>
-              </div>
-            ))
-          ) : (
-            <p className="text-xs text-arca-text-dim text-center py-2">Aún no hay frentes con ingresos reales registrados.</p>
-          )}
-        </div>
       </section>
+
+      <aside className="rounded-[22px] border border-arca-accent/20 bg-arca-accent/[0.05] p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent"><Sparkles size={18} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">Nova analiza tu portafolio</p>
+            <p className="mt-1 text-xs leading-5 text-arca-text-secondary">Puedo comparar rentabilidad, detectar cobros atrasados y mostrarte qué unidad necesita atención.</p>
+            <button
+              type="button"
+              onClick={() => onOpenNova(`Analiza mis unidades de negocio. Este mes he cobrado ${formatMoney.format(data.totals.realIncome)}, tengo gastos por ${formatMoney.format(data.totals.realExpense)} y ${formatMoney.format(data.totals.expectedIncome)} por cobrar. Compara la rentabilidad de cada unidad, revisa los cobros vencidos y dime qué debería atender primero.`)}
+              className="mt-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-arca-accent"
+            >
+              Analizar con Nova <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      </aside>
 
       {/* Detail Modal for Selected Unit */}
       <AnimatePresence>
@@ -253,9 +301,9 @@ export default function BusinessScreen({
                 <div className="space-y-3">
                   <h4 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Flujo este mes</h4>
                   <div className="grid grid-cols-3 gap-3">
-                    <MiniMetric icon={<TrendingUp size={14} className="text-arca-positive" />} label="Real" value={selectedDetailUnit.realIncomeLabel} />
-                    <MiniMetric icon={<CalendarClock size={14} className="text-arca-accent" />} label="Esperado" value={selectedDetailUnit.expectedIncomeLabel} />
-                    <MiniMetric icon={<Briefcase size={14} className="text-arca-alert" />} label="Gasto" value={selectedDetailUnit.realExpenseLabel} />
+                    <MiniMetric icon={<TrendingUp size={14} className="text-arca-positive" />} label="Cobrado" value={formatMoney.format(selectedDetailUnit.realIncome)} />
+                    <MiniMetric icon={<CalendarClock size={14} className="text-arca-accent" />} label="Por cobrar" value={formatMoney.format(selectedDetailUnit.expectedIncome)} />
+                    <MiniMetric icon={<Briefcase size={14} className="text-arca-alert" />} label="Gasto" value={formatMoney.format(selectedDetailUnit.realExpense)} />
                   </div>
                 </div>
 
@@ -324,7 +372,7 @@ export default function BusinessScreen({
                                 </p>
                               </div>
                             </div>
-                            <span className="text-xs font-bold text-arca-positive">{item.amountLabel}</span>
+                            <span className="text-xs font-bold text-arca-positive">{formatMoney.format(item.amount)}</span>
                           </div>
                         ))
                     ) : (
@@ -436,45 +484,55 @@ export default function BusinessScreen({
   );
 }
 
-function SummaryCard({
+function PortfolioMetric({
   label,
   value,
-  helper,
   tone,
+  align = 'left',
 }: {
   label: string;
   value: string;
-  helper: string;
-  tone: 'positive' | 'neutral' | 'alert';
+  tone: 'positive' | 'accent' | 'alert';
+  align?: 'left' | 'center' | 'right';
 }) {
-  const valueClass = tone === 'positive' ? 'text-arca-positive' : tone === 'alert' ? 'text-arca-alert' : 'text-arca-text-primary';
+  const valueClass = tone === 'positive' ? 'text-arca-positive' : tone === 'alert' ? 'text-arca-alert' : 'text-arca-accent';
+  const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : '';
 
   return (
-    <div className="card-arca p-4 bg-arca-surface-2">
-      <p className="text-[9px] font-bold text-arca-text-dim uppercase tracking-widest mb-1">{label}</p>
-      <p className={`text-xl font-bold ${valueClass}`}>{value}</p>
-      <p className="text-[9px] text-arca-text-dim mt-1 uppercase">{helper}</p>
+    <div className={`min-w-0 px-2 first:pl-0 last:pr-0 ${alignClass}`}>
+      <p className="text-[8px] font-black uppercase tracking-wider text-arca-text-dim">{label}</p>
+      <p className={`mt-1 truncate text-xs font-black ${valueClass}`}>{value}</p>
     </div>
   );
 }
 
-function InvoiceRow({ item }: { item: BusinessActiveItem }) {
+function UnitMetric({ label, value, tone, align = 'left' }: { label: string; value: string; tone: 'positive' | 'accent' | 'neutral'; align?: 'left' | 'right' }) {
+  const toneClass = tone === 'positive' ? 'text-arca-positive' : tone === 'accent' ? 'text-arca-accent' : 'text-arca-text-secondary';
+  return (
+    <div className={align === 'right' ? 'min-w-0 text-right' : 'min-w-0'}>
+      <p className="text-[8px] font-bold uppercase tracking-wider text-arca-text-dim">{label}</p>
+      <p className={`mt-1 truncate text-[10px] font-black ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function InvoiceRow({ item, formatMoney }: { item: BusinessActiveItem; formatMoney: (value: number) => string }) {
   const overdue = item.status === 'overdue';
 
   return (
-    <motion.div whileTap={{ scale: 0.98 }} className="card-arca p-4 flex justify-between items-center">
-      <div className="flex items-center space-x-3">
+    <motion.div whileTap={{ scale: 0.98 }} className={`flex items-center justify-between rounded-[20px] border bg-arca-surface-1 p-4 ${overdue ? 'border-arca-alert/25' : 'border-arca-border'}`}>
+      <div className="flex min-w-0 items-center space-x-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${overdue ? 'bg-arca-alert/10' : 'bg-arca-positive/10'}`}>
           <Clock size={16} className={overdue ? 'text-arca-alert' : 'text-arca-positive'} />
         </div>
-        <div>
-          <p className="text-sm font-semibold text-arca-text-primary">{item.title}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-arca-text-primary">{item.title}</p>
           <p className={`text-[10px] font-bold uppercase tracking-wider ${overdue ? 'text-arca-alert' : 'text-arca-text-dim'}`}>
             {item.unitName} · {item.dueLabel}
           </p>
         </div>
       </div>
-      <p className="text-sm font-bold text-arca-positive">{item.amountLabel}</p>
+      <p className="ml-3 shrink-0 text-sm font-bold text-arca-positive">{formatMoney(item.amount)}</p>
     </motion.div>
   );
 }
@@ -484,7 +542,7 @@ function MiniMetric({
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
 }) {
@@ -497,4 +555,12 @@ function MiniMetric({
       <p className="mt-2 text-sm font-bold text-arca-text-primary">{value}</p>
     </div>
   );
+}
+
+function moneyFormatter(currency: string) {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: /^[A-Z]{3}$/.test(currency) ? currency : 'COP',
+    maximumFractionDigits: 0,
+  });
 }

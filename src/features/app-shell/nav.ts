@@ -29,14 +29,14 @@ export const NAV_ITEMS: NavItem[] = [
   // Primary (Bottom Tab Bar)
   { id: 'hoy', label: 'Hoy', icon: Home, category: 'primary' },
   { id: 'dinero_cuentas', label: 'Dinero', icon: Wallet, category: 'primary' },
-  { id: 'obligaciones', label: 'Obligaciones', icon: ReceiptText, category: 'primary' },
+  { id: 'calendario', label: 'Agenda', icon: Calendar, category: 'primary' },
   { id: 'mas', label: 'Más', icon: MoreHorizontal, category: 'primary' },
 
   // Secondary (Mas Menu)
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'secondary' },
-  { id: 'planeacion_mes', label: 'Planeación Mes', icon: Target, category: 'secondary' },
+  { id: 'dashboard', label: 'Historial financiero', icon: LayoutDashboard, category: 'secondary' },
+  { id: 'planeacion_mes', label: 'Plan del mes', icon: Target, category: 'secondary' },
   { id: 'planeacion_proyeccion', label: 'Proyección Futura', icon: TrendingUp, category: 'secondary' },
-  { id: 'calendario', label: 'Calendario', icon: Calendar, category: 'secondary' },
+  { id: 'obligaciones', label: 'Pagos y deudas', icon: ReceiptText, category: 'secondary' },
   { id: 'negocios', label: 'Negocios', icon: Briefcase, category: 'secondary' },
   { id: 'movimientos', label: 'Movimientos', icon: History, category: 'secondary' },
   { id: 'transferir', label: 'Transferir', icon: Send, category: 'secondary' },

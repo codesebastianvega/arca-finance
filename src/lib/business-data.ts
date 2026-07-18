@@ -201,7 +201,7 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
 
     if (kind === "income") {
       unit.realIncome += amount;
-    } else if (["expense", "debt_payment", "card_payment", "saving", "saving_contribution", "transfer_out"].includes(kind)) {
+    } else if (kind === "expense") {
       unit.realExpense += amount;
     }
   }

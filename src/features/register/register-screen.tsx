@@ -186,7 +186,7 @@ const REGISTER_GROUPS = [
   },
 ];
 
-export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento', defaultGoalType = 'goal', defaultType = 'gasto' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string; defaultGoalType?: 'goal' | 'pocket'; defaultType?: 'gasto' | 'ingreso' }) {
+export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movimiento', defaultGoalType = 'goal', defaultType = 'gasto', defaultDate = '' }: { data: RegisterViewModel; onSuccess?: () => void; defaultSegment?: string; defaultGoalType?: 'goal' | 'pocket'; defaultType?: 'gasto' | 'ingreso'; defaultDate?: string }) {
   const router = useRouter();
   const [isQuickCreatePending, startQuickCreate] = useTransition();
   const [activeSegment, setActiveSegment] = useState(defaultSegment);
@@ -199,7 +199,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [description, setDescription] = useState('');
   const [movementAccountId, setMovementAccountId] = useState('');
   const [movementUnit, setMovementUnit] = useState('');
-  const [movementDate, setMovementDate] = useState('');
+  const [movementDate, setMovementDate] = useState(defaultDate);
   const [movementIncomeSourceId, setMovementIncomeSourceId] = useState('');
   const [incomeStatus, setIncomeStatus] = useState<'received' | 'expected'>('received');
   const [recurrenceMode, setRecurrenceMode] = useState<'once' | 'monthly'>('once');
@@ -255,7 +255,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [loanAccountId, setLoanAccountId] = useState('');
   const [loanNotes, setLoanNotes] = useState('');
   const [returnDate, setReturnDate] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(defaultDate);
   
   // Bank Credit States
   const [bcName, setBcName] = useState('');

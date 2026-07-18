@@ -1,77 +1,132 @@
-import { motion } from 'motion/react';
-import { ChevronRight, LogOut } from 'lucide-react';
-import { Screen } from '../types';
-import { haptics } from '../lib/haptics';
-import { NAV_ITEMS } from '../features/app-shell/nav';
-import { PwaInstallCard } from '../features/pwa/pwa-install-card';
+import { motion } from "motion/react";
+import { ChevronRight, LogOut, ShieldAlert, Sparkles, type LucideIcon } from "lucide-react";
+import type { Screen } from "../types";
+import { haptics } from "../lib/haptics";
+import { getNavItem, type NavItem } from "../features/app-shell/nav";
+import { PwaInstallCard } from "../features/pwa/pwa-install-card";
 
 interface MasScreenProps {
   onScreenChange: (screen: Screen) => void;
   totalBalance: number;
+  currency: string;
+  isSuperAdmin: boolean;
 }
 
-function money(value: number) {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
+type MenuSection = {
+  title: string;
+  subtitle: string;
+  items: Screen[];
+};
+
+const MENU_SECTIONS: MenuSection[] = [
+  {
+    title: "Planifica",
+    subtitle: "Anticipa decisiones y compromisos",
+    items: ["planeacion_mes", "calendario", "planeacion_proyeccion"],
+  },
+  {
+    title: "Organiza",
+    subtitle: "Administra lo que se repite y se mueve",
+    items: ["obligaciones", "suscripciones", "transferir", "negocios"],
+  },
+  {
+    title: "Revisa",
+    subtitle: "Entiende tu historia financiera",
+    items: ["dashboard", "movimientos"],
+  },
+  {
+    title: "Tu Arca",
+    subtitle: "Personaliza y protege tu espacio",
+    items: ["configuracion"],
+  },
+];
+
+function money(value: number, currency: string) {
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : "COP";
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: safeCurrency,
     maximumFractionDigits: 0,
-  })
-    .format(value)
-    .replace(/\s?COP$/, '')
-    .trim();
+  }).format(value);
 }
 
-export default function MasScreen({ onScreenChange, totalBalance }: MasScreenProps) {
+function resolveItems(ids: Screen[]) {
+  return ids.map((id) => getNavItem(id)).filter((item): item is NavItem => Boolean(item));
+}
+
+export default function MasScreen({ onScreenChange, totalBalance, currency, isSuperAdmin }: MasScreenProps) {
   const handleMenuClick = (screen: Screen) => {
     haptics.medium();
     onScreenChange(screen);
   };
 
-  const menuItems = NAV_ITEMS.filter((item) => item.category === 'secondary' || item.category === 'system');
-
   return (
-    <div className="space-y-6 relative">
-      <section className="card-arca p-5 space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">Resumen general</h3>
-          <div className="rounded-full bg-arca-accent/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-arca-accent">
-            COP
+    <div className="relative space-y-6 pb-5">
+      <header>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-arca-accent">Tu espacio</p>
+        <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-arca-text-primary">Más herramientas</h1>
+        <p className="mt-2 text-xs leading-5 text-arca-text-secondary">Planifica, organiza y revisa tus finanzas desde un solo lugar.</p>
+      </header>
+
+      <section className="relative overflow-hidden rounded-[26px] border border-arca-border-strong bg-arca-surface-1 p-5">
+        <div className="absolute -right-12 -top-16 h-36 w-36 rounded-full bg-arca-accent/[0.08] blur-3xl" />
+        <div className="relative flex items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-arca-accent">
+              <Sparkles size={14} />
+              <p className="text-[9px] font-black uppercase tracking-[0.16em]">Vista rápida</p>
+            </div>
+            <p className="mt-3 text-xs font-semibold text-arca-text-secondary">Balance total visible</p>
+            <p className="mt-1 text-2xl font-black tracking-[-0.04em] text-arca-text-primary">{money(totalBalance, currency)}</p>
           </div>
-        </div>
-        <div className="flex justify-between items-baseline gap-4">
-          <p className="text-xs text-arca-text-dim">Balance total visible</p>
-          <div className="text-right">
-            <p className="text-lg font-bold text-arca-text-primary light:text-arca-light-text-primary">{money(totalBalance)}</p>
-            <p className="text-[9px] text-arca-text-dim uppercase tracking-tighter">Lo que ya tienes en cuentas reales</p>
-          </div>
+          <span className="rounded-full border border-arca-border bg-arca-surface-2 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-arca-text-dim">{currency}</span>
         </div>
       </section>
 
-      <div className="card-arca overflow-hidden divide-y divide-arca-border light:divide-arca-light-border">
-        {menuItems.map((item, i) => (
-          <MenuRow key={i} icon={item.icon} label={item.label} onClick={() => handleMenuClick(item.id)} />
-        ))}
+      {MENU_SECTIONS.map((section) => (
+        <section key={section.title}>
+          <div className="mb-3 px-1">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-text-primary">{section.title}</h2>
+            <p className="mt-1 text-[10px] text-arca-text-dim">{section.subtitle}</p>
+          </div>
+          <div className="overflow-hidden rounded-[22px] border border-arca-border bg-arca-surface-1 divide-y divide-arca-border light:divide-arca-light-border">
+            {resolveItems(section.items).map((item) => (
+              <MenuRow key={item.id} icon={item.icon} label={item.label} onClick={() => handleMenuClick(item.id)} />
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {isSuperAdmin ? (
+        <section>
+          <div className="mb-3 px-1">
+            <h2 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-arca-alert"><ShieldAlert size={13} /> Administración</h2>
+            <p className="mt-1 text-[10px] text-arca-text-dim">Acceso exclusivo del propietario de Arca</p>
+          </div>
+          <div className="overflow-hidden rounded-[22px] border border-arca-alert/20 bg-arca-alert/[0.04]">
+            <MenuRow icon={ShieldAlert} label="SuperAdmin" highlight="danger" onClick={() => handleMenuClick("superadmin")} />
+          </div>
+        </section>
+      ) : null}
+
+      <div className="overflow-hidden rounded-[22px] border border-arca-border bg-arca-surface-1">
+        <MenuRow icon={LogOut} label="Salir" highlight="danger" showChevron={false} onClick={() => window.location.assign("/auth/sign-out")} />
       </div>
 
       <PwaInstallCard />
-
-      <div className="card-arca overflow-hidden divide-y divide-arca-border light:divide-arca-light-border">
-        <MenuRow icon={LogOut} label="Salir" isDanger onClick={() => window.location.assign('/auth/sign-out')} />
-      </div>
     </div>
   );
 }
 
-function MenuRow({ icon: Icon, label, isDanger, isHighlight, onClick }: any) {
+function MenuRow({ icon: Icon, label, highlight = "default", showChevron = true, onClick }: { icon: LucideIcon; label: string; highlight?: "default" | "danger"; showChevron?: boolean; onClick: () => void }) {
+  const danger = highlight === "danger";
   return (
-    <motion.button whileTap={{ scale: 0.98 }} onClick={onClick} className="w-full flex items-center justify-between px-5 py-4">
-      <div className="flex items-center space-x-4">
-        <Icon size={20} className={isDanger ? 'text-arca-alert' : isHighlight ? 'text-arca-accent' : 'text-arca-text-secondary light:text-arca-light-text-secondary'} />
-        <span className={`text-sm font-semibold ${isDanger ? 'text-arca-alert' : 'text-arca-text-primary light:text-arca-light-text-primary'}`}>
-          {label}
-        </span>
-      </div>
-      {!isDanger && <ChevronRight size={18} className="text-arca-text-dim" />}
+    <motion.button type="button" whileTap={{ scale: 0.985 }} onClick={onClick} className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-arca-surface-2/70">
+      <span className="flex items-center gap-4">
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${danger ? "bg-arca-alert/10 text-arca-alert" : "bg-arca-accent/[0.08] text-arca-accent"}`}><Icon size={18} /></span>
+        <span className={`text-sm font-bold ${danger ? "text-arca-alert" : "text-arca-text-primary"}`}>{label}</span>
+      </span>
+      {showChevron ? <ChevronRight size={17} className="text-arca-text-dim" /> : null}
     </motion.button>
   );
 }

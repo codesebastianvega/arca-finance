@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
-import { Home, Wallet, ReceiptText, MoreHorizontal, Plus, CalendarDays } from 'lucide-react';
+import { Plus, type LucideIcon } from 'lucide-react';
 import { Screen } from '../types';
 import { haptics } from '../lib/haptics';
+import { NAV_ITEMS } from '../features/app-shell/nav';
 
 interface BottomTabNavigationProps {
   currentScreen: Screen;
@@ -15,12 +16,7 @@ export default function BottomTabNavigation({
   onAddClick 
 }: BottomTabNavigationProps) {
   
-  const navItems: { label: string; icon: any; id: Screen }[] = [
-    { label: 'Inicio', icon: Home, id: 'hoy' },
-    { label: 'Dinero', icon: Wallet, id: 'dinero_cuentas' },
-    { label: 'Agenda', icon: CalendarDays, id: 'obligaciones' },
-    { label: 'Más', icon: MoreHorizontal, id: 'mas' },
-  ];
+  const navItems = NAV_ITEMS.filter((item) => item.category === 'primary');
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-arca-surface-1 light:bg-arca-light-surface-1 border-t border-arca-border light:border-arca-light-border pb-safe">
@@ -41,7 +37,7 @@ export default function BottomTabNavigation({
         {/* Right items */}
         {navItems.slice(2).map((item) => {
           const isMasActive = item.id === 'mas' && ![
-            'hoy', 'dinero_cuentas', 'dinero_tarjetas', 'dinero_ahorro', 'obligaciones'
+            'hoy', 'dinero_cuentas', 'dinero_tarjetas', 'dinero_ahorro', 'calendario'
           ].includes(currentScreen);
 
           return (
@@ -74,16 +70,20 @@ export default function BottomTabNavigation({
   );
 }
 
-function TabItem({ item, isActive, onClick }: any) {
+function TabItem({ item, isActive, onClick }: { item: { id: Screen; label: string; icon: LucideIcon }; isActive: boolean; onClick: () => void }) {
+  const Icon = item.icon;
   return (
     <button 
+      type="button"
+      aria-label={`Ir a ${item.label}`}
+      aria-current={isActive ? 'page' : undefined}
       onClick={() => {
         haptics.light();
         onClick();
       }}
       className="flex flex-col items-center justify-center flex-1 space-y-1"
     >
-      <item.icon 
+      <Icon
         size={22} 
         className={isActive 
           ? "text-arca-accent light:text-arca-light-accent" 

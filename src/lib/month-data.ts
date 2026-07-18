@@ -1,22 +1,38 @@
 import type { WorkspaceContext } from "@/src/lib/auth-types";
-import type { MonthBudgetProgress, MonthViewModel } from "@/src/lib/month-types";
+import type { MonthViewModel, MonthlyAllocationType, MonthlyPlanAllocation } from "@/src/lib/month-types";
 import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 
-function money(value: number) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  })
-    .format(value)
-    .replace(/\s?COP$/, "")
-    .trim();
-}
+type DashboardSummaryRpc = {
+  freeCash?: number | string | null;
+  monthlyCommitments?: number | string | null;
+  monthlyExpenses?: number | string | null;
+};
+
+type TransactionRow = {
+  amount: number | string | null;
+  category: string | null;
+  kind: string;
+  metadata?: { is_initial_balance?: boolean } | null;
+};
+
+type AllocationRow = {
+  id: string;
+  name: string;
+  allocation_type: MonthlyAllocationType;
+  percentage: number | string;
+  tracking_category: string | null;
+  sort_order: number;
+};
+
+type MonthlyPlanRow = {
+  id: string;
+  planned_income: number | string;
+  monthly_plan_allocations: AllocationRow[] | null;
+};
 
 function toNumber(value: unknown) {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") return Number(value) || 0;
-  return 0;
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function monthBoundsInBogota() {
@@ -25,135 +41,135 @@ function monthBoundsInBogota() {
     year: "numeric",
     month: "2-digit",
   });
-  const [yearStr, monthStr] = formatter.format(new Date()).split("-");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const start = `${yearStr}-${monthStr}-01`;
-  const nextMonth =
-    month === 12 ? `${year + 1}-01-01` : `${yearStr}-${String(month + 1).padStart(2, "0")}-01`;
-  return { start, nextMonth };
+  const [year, month] = formatter.format(new Date()).split("-");
+  const monthNumber = Number(month);
+  const nextMonth = monthNumber === 12 ? `${Number(year) + 1}-01-01` : `${year}-${String(monthNumber + 1).padStart(2, "0")}-01`;
+  const start = `${year}-${month}-01`;
+  const labelDate = new Date(`${start}T12:00:00-05:00`);
+  const monthLabel = new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric", timeZone: "America/Bogota" }).format(labelDate);
+  return { start, nextMonth, monthLabel: monthLabel.replace(/^./, (letter) => letter.toUpperCase()) };
 }
 
-function categoryColor(current: number, limit: number): MonthBudgetProgress["color"] {
-  if (current > limit) return "arca-alert";
-  if (limit > 0 && current / limit >= 0.8) return "arca-accent";
-  return "arca-positive";
+function isMissingPlanningTable(error: { code?: string; message?: string } | null) {
+  return error?.code === "PGRST205" || Boolean(error?.message?.includes("monthly_plans"));
 }
 
-type DashboardSummaryRpc = {
-  freeCash?: number | string | null;
-  monthlyCommitments?: number | string | null;
-  monthlyExpenses?: number | string | null;
-  protectedSavings?: number | string | null;
-};
+function actualForAllocation(allocation: AllocationRow, transactions: TransactionRow[]) {
+  const category = allocation.tracking_category?.trim().toLocaleLowerCase("es") || null;
+  const matchesCategory = (row: TransactionRow) => !category || String(row.category ?? "").trim().toLocaleLowerCase("es") === category;
+
+  return transactions.reduce((sum, row) => {
+    if (!matchesCategory(row)) return sum;
+    if (allocation.allocation_type === "expense" && row.kind === "expense") return sum + toNumber(row.amount);
+    if (allocation.allocation_type === "debt" && (row.kind === "debt_payment" || row.kind === "card_payment")) return sum + toNumber(row.amount);
+    if (allocation.allocation_type === "saving" && (row.kind === "saving" || row.kind === "saving_contribution")) return sum + toNumber(row.amount);
+    return sum;
+  }, 0);
+}
+
+function allocationStatus(target: number, actual: number): MonthlyPlanAllocation["status"] {
+  if (target <= 0) return "neutral";
+  const utilization = actual / target;
+  if (utilization > 1) return "exceeded";
+  if (utilization >= 0.8) return "warning";
+  return "healthy";
+}
 
 export async function loadMonthViewModel(context: WorkspaceContext): Promise<MonthViewModel> {
   const supabase = await createSupabaseServerComponentClient();
+  if (!supabase) throw new Error("Supabase no está configurado.");
 
-  if (!supabase) {
-    throw new Error("Supabase no esta configurado.");
-  }
-
-  // Force token refresh in-memory so that RPC calls use a valid token
   await supabase.auth.getUser();
-
   const rpcClient = supabase as typeof supabase & {
-    rpc: (
-      fn: string,
-      args?: Record<string, unknown>,
-    ) => PromiseLike<{ data: DashboardSummaryRpc | null; error: { message: string } | null }>;
+    rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<{ data: DashboardSummaryRpc | null; error: { message: string } | null }>;
   };
-
   const workspaceId = context.workspace.id;
-  const { start, nextMonth } = monthBoundsInBogota();
+  const { start, nextMonth, monthLabel } = monthBoundsInBogota();
 
-  const [dashboardResult, transactionsResult, budgetsResult, savingsResult] = await Promise.all([
+  const [dashboardResult, transactionsResult, scheduledResult, categoriesResult, planResult] = await Promise.all([
     rpcClient.rpc("get_dashboard_summary", { p_workspace_id: workspaceId }),
     supabase
       .from("transactions")
-      .select("amount, category, kind, date, status")
+      .select("amount, category, kind, metadata")
       .eq("workspace_id", workspaceId)
       .gte("date", `${start}T00:00:00-05:00`)
       .lt("date", `${nextMonth}T00:00:00-05:00`)
-      .neq("status", "cancelled"),
+      .in("status", ["confirmed", "confirmado", "paid", "recovered"]),
     supabase
-      .from("category_budgets")
-      .select("category_name, limit_amount")
-      .eq("workspace_id", workspaceId),
-    supabase.from("savings_goals").select("current").eq("workspace_id", workspaceId).eq("archived", false),
+      .from("scheduled_events")
+      .select("amount, kind, status")
+      .eq("workspace_id", workspaceId)
+      .gte("due_date", start)
+      .lt("due_date", nextMonth),
+    supabase
+      .from("expense_categories")
+      .select("name")
+      .eq("workspace_id", workspaceId)
+      .eq("active", true)
+      .order("name", { ascending: true }),
+    supabase
+      .from("monthly_plans")
+      .select("id, planned_income, monthly_plan_allocations(id, name, allocation_type, percentage, tracking_category, sort_order)")
+      .eq("workspace_id", workspaceId)
+      .eq("month", start)
+      .maybeSingle(),
   ]);
 
-  if (dashboardResult.error) {
-    console.error(`No se pudo leer el resumen del mes: ${dashboardResult.error.message}`);
-    // No lanzamos error para no romper la pantalla por fallos de RLS en revalidatePath
-  }
-  if (transactionsResult.error) {
-    throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);
-  }
-  if (budgetsResult.error) {
-    throw new Error(`No se pudo leer el presupuesto por categorías: ${budgetsResult.error.message}`);
-  }
-  if (savingsResult.error) {
-    throw new Error(`No se pudo leer el ahorro actual: ${savingsResult.error.message}`);
-  }
+  if (transactionsResult.error) throw new Error(`No se pudieron leer los movimientos del mes: ${transactionsResult.error.message}`);
+  if (scheduledResult.error) throw new Error(`No se pudieron leer los compromisos del mes: ${scheduledResult.error.message}`);
+  if (categoriesResult.error) throw new Error(`No se pudieron leer las categorías: ${categoriesResult.error.message}`);
+  if (planResult.error && !isMissingPlanningTable(planResult.error)) throw new Error(`No se pudo leer el plan mensual: ${planResult.error.message}`);
+  if (dashboardResult.error) console.error(`No se pudo leer el resumen del mes: ${dashboardResult.error.message}`);
 
+  const transactions = ((transactionsResult.data ?? []) as TransactionRow[]).filter((row) => !row.metadata?.is_initial_balance);
+  const receivedIncome = transactions.filter((row) => row.kind === "income").reduce((sum, row) => sum + toNumber(row.amount), 0);
+  const confirmedStatuses = new Set(["confirmed", "confirmado", "paid", "recovered", "cancelled", "canceled"]);
+  const expectedIncome = (scheduledResult.data ?? [])
+    .filter((row) => row.kind === "income" && !confirmedStatuses.has(String(row.status)))
+    .reduce((sum, row) => sum + toNumber(row.amount), 0);
   const summary = dashboardResult.data ?? {};
+  const commitments = toNumber(summary.monthlyCommitments) || toNumber(summary.monthlyExpenses);
   const safeToSpend = toNumber(summary.freeCash);
-  const expectedMonthlyExpenses =
-    toNumber(summary.monthlyCommitments) > 0 ? toNumber(summary.monthlyCommitments) : toNumber(summary.monthlyExpenses);
-  const protectedSavings =
-    toNumber(summary.protectedSavings) > 0
-      ? toNumber(summary.protectedSavings)
-      : (savingsResult.data ?? []).reduce((sum, row) => sum + toNumber(row.current), 0);
+  const planData = planResult.error ? null : planResult.data as unknown as MonthlyPlanRow | null;
+  const plannedIncome = planData ? toNumber(planData.planned_income) : Math.max(receivedIncome + expectedIncome, safeToSpend + commitments);
+  const rawAllocations = planData
+    ? ((Array.isArray(planData.monthly_plan_allocations) ? planData.monthly_plan_allocations : []) as AllocationRow[]).sort((a, b) => a.sort_order - b.sort_order)
+    : [];
 
-  const outgoingKinds = new Set(["expense", "debt_payment", "card_payment", "saving", "saving_contribution", "transfer_out"]);
-  const grouped = new Map<string, number>();
-
-  for (const row of transactionsResult.data ?? []) {
-    if (!outgoingKinds.has(String(row.kind))) continue;
-    const category = String(row.category ?? "General");
-    grouped.set(category, (grouped.get(category) ?? 0) + toNumber(row.amount));
-  }
-
-  const categoryLimits = new Map<string, number>();
-  for (const row of budgetsResult.data ?? []) {
-    categoryLimits.set(String(row.category_name), toNumber(row.limit_amount));
-  }
-
-  const budgetProgress: MonthBudgetProgress[] = Array.from(categoryLimits.entries())
-    .map(([label, limit]) => {
-      const current = grouped.get(label) ?? 0;
-      return {
-        label,
-        current,
-        limit,
-        color: categoryColor(current, limit),
-      };
-    })
-    .sort((a, b) => b.limit - a.limit); // Ordenar por límite mayor a menor
-
-  // Añadir categorías que tienen gastos pero no límite (si es que queremos mostrarlas)
-  for (const [label, current] of grouped.entries()) {
-    if (!categoryLimits.has(label)) {
-      budgetProgress.push({
-        label,
-        current,
-        limit: 0,
-        color: categoryColor(current, 0),
-      });
-    }
-  }
-
-  const coverageMonths = expectedMonthlyExpenses > 0 ? protectedSavings / expectedMonthlyExpenses : 0;
-  const coverageProgress = Math.min(100, Math.round((coverageMonths / 6) * 100));
+  const allocations: MonthlyPlanAllocation[] = rawAllocations.map((allocation) => {
+    const percentage = toNumber(allocation.percentage);
+    const targetAmount = plannedIncome * (percentage / 100);
+    const actualAmount = actualForAllocation(allocation, transactions);
+    return {
+      id: String(allocation.id),
+      name: String(allocation.name),
+      type: allocation.allocation_type,
+      percentage,
+      targetAmount,
+      actualAmount,
+      remainingAmount: targetAmount - actualAmount,
+      utilization: targetAmount > 0 ? Math.round((actualAmount / targetAmount) * 100) : 0,
+      trackingCategory: allocation.tracking_category ? String(allocation.tracking_category) : null,
+      status: allocationStatus(targetAmount, actualAmount),
+    };
+  });
+  const assignedPercentage = allocations.reduce((sum, allocation) => sum + allocation.percentage, 0);
+  const assignedAmount = plannedIncome * (assignedPercentage / 100);
 
   return {
+    month: start,
+    monthLabel,
+    plannedIncome,
+    receivedIncome,
+    expectedIncome,
+    commitments,
     safeToSpend,
-    safeToSpendLabel: money(safeToSpend),
-    budgetProgress,
-    coverageMonths,
-    coverageProgress,
-    expectedMonthlyExpenses,
-    expectedMonthlyExpensesLabel: money(expectedMonthlyExpenses),
+    assignedPercentage,
+    assignedAmount,
+    unassignedPercentage: Math.max(0, 100 - assignedPercentage),
+    unassignedAmount: Math.max(0, plannedIncome - assignedAmount),
+    allocations,
+    categoryOptions: (categoriesResult.data ?? []).map((row) => String(row.name)),
+    planAvailable: !planResult.error,
   };
 }

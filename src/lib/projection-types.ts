@@ -1,16 +1,25 @@
-export type ProjectionChartPoint = {
+export type ProjectionHistoryPoint = {
+  key: string;
   label: string;
-  actual?: number;
-  projected?: number;
+  value: number;
+};
+
+export type ProjectionMonth = {
+  key: string;
+  label: string;
+  expectedIncome: number;
+  expectedExpenses: number;
+  debtPayments: number;
+  cardPayments: number;
+  plannedSavings: number;
+  storedClosingBalance: number | null;
+  source: "planned" | "automatic";
 };
 
 export type ProjectionViewModel = {
-  chart: ProjectionChartPoint[];
-  currentPositionLabel: string;
-  baseScenarioLabel: string;
-  savingsTargetLabel: string;
-  savingsGapLabel: string;
-  savingsProgress: number;
-  monthsProjected: number;
-  narrative: string;
+  historical: ProjectionHistoryPoint[];
+  months: ProjectionMonth[];
+  currentPosition: number;
+  savingsTarget: number;
+  currentSavings: number;
 };
