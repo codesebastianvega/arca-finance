@@ -89,7 +89,7 @@ export async function loadProjectionViewModel(context: WorkspaceContext): Promis
   ]);
 
   if (dashboardResult.error) {
-    throw new Error(`No se pudo leer el resumen de proyeccion: ${dashboardResult.error.message}`);
+    console.error(`No se pudo leer el resumen de proyeccion: ${dashboardResult.error.message}`);
   }
   if (projectionsResult.error) {
     throw new Error(`No se pudieron leer las proyecciones mensuales: ${projectionsResult.error.message}`);

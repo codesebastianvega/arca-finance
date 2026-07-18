@@ -39,6 +39,7 @@ export default async function AuthenticatedAppPage() {
 
   return (
     <App
+      currencyCode={context.workspace.currencyCode?.trim().toUpperCase() || "COP"}
       initialTodayData={initialTodayData}
       initialMoneyData={initialMoneyData}
       initialObligationsData={initialObligationsData}
