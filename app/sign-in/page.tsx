@@ -115,7 +115,7 @@ export default async function SignInPage({
                 </button>
               </form>
             ) : (
-              <GoogleAuthButton next="/app" />
+              <GoogleAuthButton />
             )}
           </div>
 

@@ -15,7 +15,7 @@ function GoogleMark() {
   );
 }
 
-export function GoogleAuthButton({ next = "/app" }: { next?: string }) {
+export function GoogleAuthButton() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export function GoogleAuthButton({ next = "/app" }: { next?: string }) {
     const hostname = window.location.hostname;
     const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
     const baseOrigin = isLocalhost ? "http://localhost:3000" : window.location.origin;
-    const redirectTo = `${baseOrigin}/auth/callback?next=${encodeURIComponent(next)}`;
+    const redirectTo = `${baseOrigin}/auth/callback`;
     const { data, error: authError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
