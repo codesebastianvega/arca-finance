@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Screen } from './types';
 import type { BusinessViewModel } from './lib/business-types';
 import type { CalendarViewModel } from './lib/calendar-types';
@@ -50,6 +50,18 @@ export type AppUserSummary = {
   canUseNova: boolean;
 };
 
+const APP_SCREENS: Screen[] = [
+  'hoy', 'resumen', 'dashboard', 'dinero_cuentas', 'dinero_tarjetas', 'dinero_ahorro',
+  'obligaciones', 'calendario', 'planeacion_mes', 'planeacion_proyeccion', 'negocios',
+  'movimientos', 'configuracion', 'registrar', 'transferir', 'mas', 'superadmin', 'suscripciones',
+];
+
+const ARCA_SCREEN_HISTORY_KEY = 'arcaScreen';
+
+function isAppScreen(value: unknown): value is Screen {
+  return typeof value === 'string' && APP_SCREENS.includes(value as Screen);
+}
+
 export default function App({
   currencyCode,
   initialTodayData,
@@ -87,18 +99,52 @@ export default function App({
   initialOnboardingRequired: boolean;
   userSummary: AppUserSummary;
 }) {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('hoy');
+  const [currentScreen, setCurrentScreenState] = useState<Screen>('hoy');
+  const currentScreenRef = useRef<Screen>('hoy');
   const [obligationsInitialMode, setObligationsInitialMode] = useState<'gastos' | 'ingresos'>('gastos');
   const [obligationsInitialFilter, setObligationsInitialFilter] = useState<ObligationFilter>('todo');
   const [showOnboarding, setShowOnboarding] = useState(initialOnboardingRequired);
   const [registerParams, setRegisterParams] = useState<{defaultSegment?: string, defaultType?: 'gasto' | 'ingreso'}>({});
   
-  const handleSetCurrentScreen = (screen: Screen) => {
+  const applyScreen = useCallback((screen: Screen) => {
     if (screen !== 'registrar') setRegisterParams({});
     if (screen === 'obligaciones') setObligationsInitialMode('gastos');
     if (screen === 'obligaciones') setObligationsInitialFilter('todo');
-    setCurrentScreen(screen);
-  };
+    currentScreenRef.current = screen;
+    setCurrentScreenState(screen);
+  }, []);
+
+  const setCurrentScreen = useCallback((screen: Screen) => {
+    if (screen === currentScreenRef.current) return;
+    window.history.pushState(
+      { ...window.history.state, [ARCA_SCREEN_HISTORY_KEY]: screen },
+      '',
+      window.location.href,
+    );
+    applyScreen(screen);
+  }, [applyScreen]);
+
+  const handleSetCurrentScreen = setCurrentScreen;
+
+  useEffect(() => {
+    const historyScreen = window.history.state?.[ARCA_SCREEN_HISTORY_KEY];
+    const initialScreen = isAppScreen(historyScreen) ? historyScreen : 'hoy';
+
+    window.history.replaceState(
+      { ...window.history.state, [ARCA_SCREEN_HISTORY_KEY]: initialScreen },
+      '',
+      window.location.href,
+    );
+    applyScreen(initialScreen);
+
+    const handlePopState = (event: PopStateEvent) => {
+      const previousScreen = event.state?.[ARCA_SCREEN_HISTORY_KEY];
+      applyScreen(isAppScreen(previousScreen) ? previousScreen : 'hoy');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [applyScreen]);
 
   const [theme, setTheme] = useState<ThemeId>(() => {
     if (typeof window !== 'undefined') {
