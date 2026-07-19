@@ -12,11 +12,11 @@ export const metadata: Metadata = {
   applicationName: "Arca",
   icons: {
     icon: [
-      { url: "/icons/arca-192.png?v=4", type: "image/png", sizes: "192x192" },
-      { url: "/icons/arca-512.png?v=4", type: "image/png", sizes: "512x512" },
+      { url: "/icons/arca-vault-192.png?v=5", type: "image/png", sizes: "192x192" },
+      { url: "/icons/arca-vault-512.png?v=5", type: "image/png", sizes: "512x512" },
     ],
-    shortcut: "/icons/arca-192.png?v=4",
-    apple: [{ url: "/icons/arca-apple-180.png?v=4", sizes: "180x180", type: "image/png" }],
+    shortcut: "/favicon.ico?v=5",
+    apple: [{ url: "/icons/arca-vault-apple-180.png?v=5", sizes: "180x180", type: "image/png" }],
   },
   appleWebApp: {
     capable: true,

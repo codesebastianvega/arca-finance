@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
+import { ArcaSplash } from "./arca-splash";
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -131,6 +132,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
 
   return (
     <PwaContext.Provider value={value}>
+      <ArcaSplash />
       {children}
       {updateAvailable ? (
         <div className="fixed inset-x-4 top-4 z-[500] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-arca-accent/30 bg-arca-surface-1/95 p-3 shadow-2xl backdrop-blur-xl pt-safe">

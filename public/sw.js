@@ -1,9 +1,9 @@
-const STATIC_CACHE = "arca-static-v3";
+const STATIC_CACHE = "arca-static-v4";
 const PRECACHE_URLS = [
   "/offline",
-  "/icons/arca-192.png?v=4",
-  "/icons/arca-512.png?v=4",
-  "/icons/arca-maskable-512.png?v=4",
+  "/icons/arca-vault-192.png?v=5",
+  "/icons/arca-vault-512.png?v=5",
+  "/icons/arca-vault-maskable-512.png?v=5",
 ];
 
 self.addEventListener("install", (event) => {
@@ -80,8 +80,8 @@ self.addEventListener("push", (event) => {
   }
   event.waitUntil(self.registration.showNotification(payload.title || "Arca te recuerda", {
     body: payload.body || "Revisa tus próximos compromisos.",
-    icon: "/icons/arca-192.png?v=4",
-    badge: "/icons/arca-maskable-512.png?v=4",
+    icon: "/icons/arca-vault-192.png?v=5",
+    badge: "/icons/arca-vault-maskable-512.png?v=5",
     tag: payload.tag || "arca-financial-reminder",
     data: { url: payload.url || "/app" },
     vibrate: [120, 60, 120],
