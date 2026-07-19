@@ -2,13 +2,28 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, Crown, Landmark, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Banknote,
+  Check,
+  CircleDollarSign,
+  Crown,
+  Landmark,
+  PiggyBank,
+  ReceiptText,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  WalletCards,
+} from "lucide-react";
 import { completeFirstRunSetup } from "@/app/actions";
 import { selectInitialSubscriptionPlan } from "@/app/billing-actions";
 import type { BillingPlan } from "@/src/lib/billing";
 import type { AdminPlanCode } from "@/src/lib/superadmin-types";
 
-type OnboardingStep = "welcome" | "account" | "plans";
+type OnboardingStep = "welcome" | "goal" | "accountType" | "accountDetails" | "balance" | "review" | "plans" | "done";
+type OnboardingGoal = "clarity" | "expenses" | "debt" | "savings";
 
 type NewUserOnboardingProps = {
   firstName: string;
@@ -17,48 +32,89 @@ type NewUserOnboardingProps = {
   onComplete: () => void;
 };
 
-const STEP_NUMBER: Record<OnboardingStep, number> = { welcome: 1, account: 2, plans: 3 };
+const STEPS: OnboardingStep[] = ["welcome", "goal", "accountType", "accountDetails", "balance", "review", "plans", "done"];
+
+const GOALS: Array<{ value: OnboardingGoal; title: string; description: string; icon: typeof Target }> = [
+  { value: "clarity", title: "Entender mi dinero", description: "Saber cuánto tengo y qué viene después.", icon: Target },
+  { value: "expenses", title: "Controlar mis gastos", description: "Descubrir en qué se está yendo mi dinero.", icon: ReceiptText },
+  { value: "debt", title: "Organizar mis deudas", description: "Priorizar pagos y dejar de atrasarme.", icon: CircleDollarSign },
+  { value: "savings", title: "Empezar a ahorrar", description: "Separar dinero y avanzar hacia una meta.", icon: PiggyBank },
+];
+
+const ACCOUNT_TYPES = [
+  { value: "Ahorros", title: "Cuenta bancaria", description: "Ahorros o corriente", icon: Landmark },
+  { value: "Billetera digital", title: "Billetera digital", description: "Nequi, Daviplata u otra", icon: WalletCards },
+  { value: "Efectivo", title: "Efectivo", description: "Dinero que tienes a mano", icon: Banknote },
+] as const;
 
 function money(value: number) {
   if (value === 0) return "Gratis";
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
 }
 
+function balanceLabel(value: string, currency: string) {
+  const amount = Number(value || 0);
+  return `${currency} ${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(amount)}`;
+}
+
 export default function NewUserOnboarding({ firstName, currency, plans, onComplete }: NewUserOnboardingProps) {
   const router = useRouter();
   const [step, setStep] = useState<OnboardingStep>("welcome");
+  const [goal, setGoal] = useState<OnboardingGoal | null>(null);
   const [accountName, setAccountName] = useState("Cuenta principal");
   const [entity, setEntity] = useState("");
-  const [accountType, setAccountType] = useState("Ahorros");
+  const [accountType, setAccountType] = useState("");
   const [balance, setBalance] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<AdminPlanCode | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<AdminPlanCode | null>(() => {
+    const recommended = plans.find((plan) => plan.active && plan.code === "personal_pro");
+    return recommended?.code ?? plans.find((plan) => plan.active)?.code ?? null;
+  });
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  const stepIndex = STEPS.indexOf(step);
+  const progress = ((stepIndex + 1) / STEPS.length) * 100;
+  const activePlans = plans.filter((plan) => plan.active);
+  const selectedGoal = GOALS.find((item) => item.value === goal);
+  const selectedPlanDetails = activePlans.find((plan) => plan.code === selectedPlan);
+
+  const goTo = (nextStep: OnboardingStep) => {
+    setError("");
+    setStep(nextStep);
+  };
+
+  const goBack = () => {
+    if (stepIndex > 0) goTo(STEPS[stepIndex - 1]);
+  };
+
   const submitAccount = () => {
     setError("");
-    const parsedBalance = Number(balance.replace(/[^0-9]/g, ""));
+    const parsedBalance = Number(balance || 0);
     startTransition(async () => {
       try {
-        await completeFirstRunSetup({ accountName, entity, accountType, balance: Number.isFinite(parsedBalance) ? parsedBalance : 0 });
+        await completeFirstRunSetup({
+          accountName,
+          entity,
+          accountType,
+          balance: Number.isFinite(parsedBalance) ? parsedBalance : 0,
+        });
         setStep("plans");
       } catch (submitError) {
-        setError(submitError instanceof Error ? submitError.message : "No pudimos completar la configuración.");
+        setError(submitError instanceof Error ? submitError.message : "No pudimos preparar tu cuenta.");
       }
     });
   };
 
-  const finishWithPlan = (planCode: AdminPlanCode) => {
+  const finishWithPlan = () => {
+    if (!selectedPlan) return;
     setError("");
-    setSelectedPlan(planCode);
     startTransition(async () => {
       try {
-        await selectInitialSubscriptionPlan({ planCode });
+        await selectInitialSubscriptionPlan({ planCode: selectedPlan, onboardingGoal: goal ?? undefined });
         router.refresh();
-        onComplete();
+        setStep("done");
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : "No pudimos guardar tu plan.");
-        setSelectedPlan(null);
       }
     });
   };
@@ -70,71 +126,151 @@ export default function NewUserOnboarding({ firstName, currency, plans, onComple
         <div className="absolute -bottom-32 right-[-6rem] h-80 w-80 rounded-full bg-arca-positive/[0.06] blur-[110px]" />
       </div>
 
-      <main className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-5 py-6 sm:justify-center sm:py-10">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-arca-accent/30 bg-arca-accent/10 text-arca-accent"><Sparkles size={19} /></span>
-            <div><p className="font-black tracking-[-0.03em]">ARCA<span className="text-arca-accent">.</span></p><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-arca-text-dim">Con Nova</p></div>
+      <main className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-5 pb-6 pt-safe">
+        <header className="pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-arca-accent/30 bg-arca-accent/10 text-arca-accent"><Sparkles size={19} /></span>
+              <div><p className="font-black tracking-[-0.03em]">ARCA<span className="text-arca-accent">.</span></p><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-arca-text-dim">Tu punto de partida</p></div>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-arca-text-dim">{stepIndex + 1} de {STEPS.length}</span>
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-arca-text-dim">Paso {STEP_NUMBER[step]} de 3</span>
+          <div className="mt-4 h-1 overflow-hidden rounded-full bg-arca-surface-2">
+            <div className="h-full rounded-full bg-arca-accent transition-[width] duration-300" style={{ width: `${progress}%` }} />
+          </div>
         </header>
 
+        {step !== "welcome" && step !== "plans" && step !== "done" ? (
+          <button type="button" onClick={goBack} disabled={isPending} className="mt-6 flex w-fit items-center gap-1.5 text-xs font-bold text-arca-text-dim disabled:opacity-40">
+            <ArrowLeft size={15} /> Volver
+          </button>
+        ) : null}
+
         {step === "welcome" ? (
-          <section className="flex flex-1 flex-col justify-center py-12">
-            <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-[20px] bg-arca-accent text-[#15110c] shadow-[0_18px_40px_-20px_rgba(198,138,69,0.9)]"><Sparkles size={26} /></span>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu espacio financiero empieza aquí</p>
-            <h1 className="mt-3 text-[2.55rem] font-black leading-[0.98] tracking-[-0.055em]">Hola, {firstName}. Vamos a preparar Arca para ti.</h1>
-            <p className="mt-5 text-sm leading-6 text-arca-text-secondary">En tres pasos tendrás tu primera cuenta, un resumen inicial y sabrás exactamente qué incluye cada nivel de Arca.</p>
-            <div className="mt-8 space-y-3">
-              {[
-                { icon: WalletCards, text: "Registra dónde está tu dinero hoy" },
-                { icon: ShieldCheck, text: "Tus datos vivirán en un espacio privado" },
-                { icon: Crown, text: "Elige entre Gratis, Personal o Negocios" },
-              ].map(({ icon: Icon, text }) => <div className="flex items-center gap-3 rounded-2xl border border-arca-border bg-arca-surface-1/75 p-4" key={text}><Icon className="shrink-0 text-arca-accent" size={18} /><p className="text-xs font-semibold leading-5 text-arca-text-secondary">{text}</p></div>)}
+          <section className="flex flex-1 flex-col justify-center py-10">
+            <span className="mb-6 flex h-16 w-16 items-center justify-center rounded-[22px] bg-arca-accent text-[#15110c] shadow-[0_18px_40px_-20px_rgba(198,138,69,0.9)]"><Sparkles size={29} /></span>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Bienvenido a Arca</p>
+            <h1 className="mt-3 text-[2.65rem] font-black leading-[0.98] tracking-[-0.055em]">Hola, {firstName}. Empecemos por lo importante.</h1>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-arca-text-secondary">Te haré unas preguntas cortas para mostrarte una vista útil desde el primer día.</p>
+            <div className="mt-7 flex items-start gap-3 rounded-2xl border border-arca-border bg-arca-surface-1/75 p-4">
+              <ShieldCheck className="mt-0.5 shrink-0 text-arca-positive" size={18} />
+              <p className="text-xs leading-5 text-arca-text-secondary">Tus respuestas quedan en tu espacio privado. Podrás cambiarlas después.</p>
             </div>
-            <button type="button" onClick={() => setStep("account")} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c]">Empezar configuración <ArrowRight size={18} /></button>
+            <button type="button" onClick={() => goTo("goal")} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c]">Empezar <ArrowRight size={18} /></button>
           </section>
         ) : null}
 
-        {step === "account" ? (
-          <section className="flex flex-1 flex-col justify-center py-10">
-            <button type="button" onClick={() => setStep("welcome")} className="mb-7 w-fit text-xs font-bold text-arca-text-dim">← Volver</button>
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-[20px] bg-arca-accent/10 text-arca-accent"><Landmark size={26} /></div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu punto de partida</p>
-            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Dónde tienes tu dinero disponible?</h1>
-            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Puedes agregar las demás cuentas y productos más adelante.</p>
-            <div className="mt-7 space-y-4">
-              <label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Nombre de la cuenta</span><input value={accountName} onChange={(event) => setAccountName(event.target.value)} className="h-13 w-full rounded-2xl border border-arca-border bg-arca-surface-1 px-4 text-sm font-semibold outline-none focus:border-arca-accent" placeholder="Ej. Cuenta principal" /></label>
-              <label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Banco o entidad <span className="normal-case tracking-normal">(opcional)</span></span><input value={entity} onChange={(event) => setEntity(event.target.value)} className="h-13 w-full rounded-2xl border border-arca-border bg-arca-surface-1 px-4 text-sm font-semibold outline-none focus:border-arca-accent" placeholder="Ej. Bancolombia, Nu, efectivo" /></label>
-              <div className="grid grid-cols-[0.9fr_1.1fr] gap-3">
-                <label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Tipo</span><select value={accountType} onChange={(event) => setAccountType(event.target.value)} className="h-13 w-full rounded-2xl border border-arca-border bg-arca-surface-1 px-3 text-sm font-semibold outline-none focus:border-arca-accent"><option>Ahorros</option><option>Corriente</option><option>Efectivo</option><option>Billetera digital</option></select></label>
-                <label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Saldo actual</span><div className="flex h-13 items-center rounded-2xl border border-arca-border bg-arca-surface-1 px-4 focus-within:border-arca-accent"><span className="mr-2 text-xs font-black text-arca-accent">{currency}</span><input inputMode="numeric" value={balance} onChange={(event) => setBalance(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none" placeholder="0" /></div></label>
-              </div>
+        {step === "goal" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Primero tú</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Qué quieres mejorar primero?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Elige una. Arca se organizará alrededor de esa prioridad.</p>
+            <div className="mt-7 space-y-3">
+              {GOALS.map(({ value, title, description, icon: Icon }) => (
+                <button key={value} type="button" aria-pressed={goal === value} onClick={() => setGoal(value)} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${goal === value ? "border-arca-accent bg-arca-accent/[0.09]" : "border-arca-border bg-arca-surface-1"}`}>
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${goal === value ? "bg-arca-accent text-black" : "bg-arca-surface-2 text-arca-accent"}`}><Icon size={20} /></span>
+                  <span className="min-w-0 flex-1"><strong className="block text-sm">{title}</strong><span className="mt-1 block text-[11px] leading-4 text-arca-text-secondary">{description}</span></span>
+                  {goal === value ? <Check className="shrink-0 text-arca-accent" size={18} /> : null}
+                </button>
+              ))}
             </div>
+            <button type="button" disabled={!goal} onClick={() => goTo("accountType")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+          </section>
+        ) : null}
+
+        {step === "accountType" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu dinero hoy</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Dónde tienes la mayor parte de tu dinero?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Empezaremos con un solo lugar. Podrás agregar los demás después.</p>
+            <div className="mt-7 space-y-3">
+              {ACCOUNT_TYPES.map(({ value, title, description, icon: Icon }) => (
+                <button key={value} type="button" aria-pressed={accountType === value} onClick={() => setAccountType(value)} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${accountType === value ? "border-arca-accent bg-arca-accent/[0.09]" : "border-arca-border bg-arca-surface-1"}`}>
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${accountType === value ? "bg-arca-accent text-black" : "bg-arca-surface-2 text-arca-accent"}`}><Icon size={20} /></span>
+                  <span className="flex-1"><strong className="block text-sm">{title}</strong><span className="mt-1 block text-[11px] text-arca-text-secondary">{description}</span></span>
+                  {accountType === value ? <Check className="text-arca-accent" size={18} /> : null}
+                </button>
+              ))}
+            </div>
+            <button type="button" disabled={!accountType} onClick={() => goTo("accountDetails")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+          </section>
+        ) : null}
+
+        {step === "accountDetails" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Identifiquemos la cuenta</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Cómo quieres reconocerla?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Usa un nombre que entiendas fácilmente cuando revises tus movimientos.</p>
+            <div className="mt-8 space-y-5">
+              <label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Nombre de la cuenta</span><input autoFocus value={accountName} onChange={(event) => setAccountName(event.target.value)} className="h-14 w-full rounded-2xl border border-arca-border bg-arca-surface-1 px-4 text-base font-semibold outline-none focus:border-arca-accent" placeholder="Ej. Cuenta principal" /></label>
+              <label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Banco o entidad <span className="normal-case tracking-normal">(opcional)</span></span><input value={entity} onChange={(event) => setEntity(event.target.value)} className="h-14 w-full rounded-2xl border border-arca-border bg-arca-surface-1 px-4 text-base font-semibold outline-none focus:border-arca-accent" placeholder={accountType === "Efectivo" ? "Ej. Billetera" : "Ej. Bancolombia, Nu, Nequi"} /></label>
+            </div>
+            <button type="button" disabled={!accountName.trim()} onClick={() => goTo("balance")} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+          </section>
+        ) : null}
+
+        {step === "balance" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Punto de partida</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Cuánto dinero tienes allí hoy?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">No es un ingreso. Es el saldo desde el que Arca empezará a calcular.</p>
+            <label className="mt-9 block">
+              <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Saldo actual</span>
+              <div className="flex h-20 items-center rounded-[22px] border border-arca-border bg-arca-surface-1 px-5 focus-within:border-arca-accent">
+                <span className="mr-3 text-sm font-black text-arca-accent">{currency}</span>
+                <input autoFocus inputMode="numeric" value={balance ? new Intl.NumberFormat("es-CO").format(Number(balance)) : ""} onChange={(event) => setBalance(event.target.value.replace(/[^0-9]/g, ""))} className="min-w-0 flex-1 bg-transparent text-3xl font-black tracking-[-0.04em] outline-none" placeholder="0" />
+              </div>
+            </label>
+            <button type="button" onClick={() => goTo("review")} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c]">Revisar <ArrowRight size={18} /></button>
+            <button type="button" onClick={() => { setBalance(""); goTo("review"); }} className="mt-3 h-10 text-xs font-bold text-arca-text-dim">Aún no conozco el saldo</button>
+          </section>
+        ) : null}
+
+        {step === "review" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Todo claro</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">Este será tu punto de partida.</h1>
+            <div className="mt-7 rounded-[24px] border border-arca-border-strong bg-arca-surface-1 p-5">
+              <div className="flex items-center gap-3 border-b border-arca-border pb-4"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent"><Landmark size={20} /></span><div><p className="text-sm font-black">{accountName}</p><p className="mt-1 text-[10px] text-arca-text-secondary">{entity || accountType}</p></div></div>
+              <div className="pt-5"><p className="text-[9px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Saldo inicial</p><p className="mt-1 text-3xl font-black tracking-[-0.04em]">{balanceLabel(balance, currency)}</p></div>
+            </div>
+            {selectedGoal ? <p className="mt-5 text-center text-xs leading-5 text-arca-text-secondary">Tu prioridad: <strong className="text-arca-text-primary">{selectedGoal.title}</strong></p> : null}
             {error ? <p role="alert" className="mt-4 rounded-2xl border border-arca-alert/30 bg-arca-alert/10 px-4 py-3 text-xs leading-5 text-arca-alert">{error}</p> : null}
-            <button type="button" onClick={submitAccount} disabled={isPending || !accountName.trim()} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-50">{isPending ? "Preparando tu espacio…" : "Continuar y elegir plan"}{!isPending ? <ArrowRight size={18} /> : null}</button>
-            <p className="mt-3 text-center text-[10px] leading-4 text-arca-text-dim">Este saldo será tu punto de partida, no un ingreso del mes.</p>
+            <button type="button" onClick={submitAccount} disabled={isPending} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-50">{isPending ? "Preparando tu espacio…" : "Crear mi espacio"}{!isPending ? <ArrowRight size={18} /> : null}</button>
           </section>
         ) : null}
 
         {step === "plans" ? (
-          <section className="py-9">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu cuenta ya está lista</p>
-            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">Elige cómo quieres empezar.</h1>
-            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Gratis cubre lo esencial. Personal y Negocios incluyen 14 días de prueba, sin pago automático.</p>
-            <div className="mt-7 space-y-4">
-              {plans.filter((plan) => plan.active).map((plan) => {
+          <section className="flex flex-1 flex-col justify-center py-7">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Elige tu experiencia</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Cómo quieres empezar?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Puedes cambiar de plan después. Las pruebas no generan cobros automáticos.</p>
+            <div className="mt-6 space-y-3">
+              {activePlans.map((plan) => {
+                const selected = selectedPlan === plan.code;
                 const recommended = plan.code === "personal_pro";
-                return <article key={plan.code} className={`relative rounded-[24px] border p-5 ${recommended ? "border-arca-accent bg-arca-accent/[0.06]" : "border-arca-border bg-arca-surface-1"}`}>
-                  {recommended ? <span className="absolute -top-2.5 right-4 rounded-full bg-arca-accent px-3 py-1 text-[8px] font-black uppercase tracking-wider text-black">Recomendado</span> : null}
-                  <div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-black">{plan.name}</h2><p className="mt-1 text-[11px] leading-4 text-arca-text-secondary">{plan.description}</p></div><div className="shrink-0 text-right"><p className="text-base font-black text-arca-accent">{money(plan.monthlyPriceCop)}</p>{plan.monthlyPriceCop > 0 ? <p className="text-[8px] uppercase text-arca-text-dim">al mes</p> : null}</div></div>
-                  <div className="mt-4 grid gap-2">{plan.features.slice(0, 4).map((feature) => <p key={feature} className="flex items-center gap-2 text-[10px] font-semibold text-arca-text-secondary"><Check size={13} className="shrink-0 text-arca-success" />{feature}</p>)}</div>
-                  <button type="button" disabled={isPending} onClick={() => finishWithPlan(plan.code)} className={`mt-5 h-11 w-full rounded-xl text-xs font-black disabled:opacity-50 ${recommended ? "bg-arca-accent text-black" : "border border-arca-border-strong bg-arca-surface-2 text-arca-text-primary"}`}>{isPending && selectedPlan === plan.code ? "Activando…" : plan.code === "free" ? "Continuar gratis" : "Probar 14 días"}</button>
-                </article>;
+                return (
+                  <button key={plan.code} type="button" aria-pressed={selected} onClick={() => setSelectedPlan(plan.code)} className={`relative w-full rounded-2xl border p-4 text-left transition ${selected ? "border-arca-accent bg-arca-accent/[0.09]" : "border-arca-border bg-arca-surface-1"}`}>
+                    <div className="flex items-start justify-between gap-3"><div><span className="flex items-center gap-2"><strong className="text-sm">{plan.name}</strong>{recommended ? <span className="rounded-full bg-arca-accent/15 px-2 py-1 text-[7px] font-black uppercase tracking-wider text-arca-accent">Recomendado</span> : null}</span><span className="mt-1 block text-[10px] leading-4 text-arca-text-secondary">{plan.description}</span></div><div className="shrink-0 text-right"><strong className="text-sm text-arca-accent">{money(plan.monthlyPriceCop)}</strong>{plan.monthlyPriceCop > 0 ? <span className="block text-[7px] uppercase text-arca-text-dim">al mes</span> : null}</div></div>
+                    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">{plan.features.slice(0, 3).map((feature) => <span key={feature} className="flex items-center gap-1 text-[9px] text-arca-text-secondary"><Check size={11} className="text-arca-positive" />{feature}</span>)}</div>
+                  </button>
+                );
               })}
             </div>
             {error ? <p role="alert" className="mt-4 rounded-2xl border border-arca-alert/30 bg-arca-alert/10 px-4 py-3 text-xs leading-5 text-arca-alert">{error}</p> : null}
-            <p className="mt-5 text-center text-[9px] leading-4 text-arca-text-dim">Podrás cambiar de plan después desde Configuración. Las pruebas no generan cobros automáticos.</p>
+            <button type="button" disabled={!selectedPlan || isPending} onClick={finishWithPlan} className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">{isPending ? "Activando…" : selectedPlan === "free" ? "Continuar gratis" : "Probar 14 días"}<ArrowRight size={18} /></button>
+          </section>
+        ) : null}
+
+        {step === "done" ? (
+          <section className="flex flex-1 flex-col justify-center py-10 text-center">
+            <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-[26px] bg-arca-positive/15 text-arca-positive"><Check size={38} strokeWidth={2.4} /></span>
+            <p className="mt-7 text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu espacio está listo</p>
+            <h1 className="mx-auto mt-3 max-w-sm text-[2.4rem] font-black leading-[1] tracking-[-0.055em]">Ya tienes un punto de partida real.</h1>
+            <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-arca-text-secondary">Arca mostrará tu saldo y te indicará cuál es la siguiente información más útil para completar.</p>
+            <div className="mt-7 rounded-2xl border border-arca-border bg-arca-surface-1 p-4 text-left"><p className="text-[9px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Configuración inicial</p><div className="mt-3 flex items-center justify-between"><div><p className="text-sm font-black">{accountName}</p><p className="mt-1 text-[10px] text-arca-text-secondary">{selectedPlanDetails?.name ?? "Arca"}</p></div><p className="text-base font-black text-arca-positive">{balanceLabel(balance, currency)}</p></div></div>
+            <button type="button" onClick={onComplete} className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c]">Ver mi resumen de hoy <ArrowRight size={18} /></button>
+            <p className="mt-4 text-[10px] leading-4 text-arca-text-dim">Después podrás agregar ingresos, pagos y otras cuentas.</p>
           </section>
         ) : null}
       </main>

@@ -67,7 +67,10 @@ export async function requestSubscriptionPayment(input: { planCode: Exclude<Admi
   return { invoiceId, amountCop: invoiceAmountCop };
 }
 
-export async function selectInitialSubscriptionPlan(input: { planCode: AdminPlanCode }) {
+export async function selectInitialSubscriptionPlan(input: {
+  planCode: AdminPlanCode;
+  onboardingGoal?: 'clarity' | 'expenses' | 'debt' | 'savings';
+}) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
   if (!admin) throw new Error('No se pudo seleccionar el plan.');
@@ -90,7 +93,11 @@ export async function selectInitialSubscriptionPlan(input: { planCode: AdminPlan
     starts_at: now.toISOString(),
     ends_at: null,
     trial_ends_at: input.planCode === 'free' ? null : trialEndsAt,
-    metadata: { ...existingMetadata, onboarding_plan_selected: true },
+    metadata: {
+      ...existingMetadata,
+      onboarding_plan_selected: true,
+      ...(input.onboardingGoal ? { onboarding_goal: input.onboardingGoal } : {}),
+    },
     updated_at: now.toISOString(),
   };
   const result = existing.data
