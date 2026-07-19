@@ -174,6 +174,13 @@ create table if not exists public.expense_categories (
 
 alter table public.expense_categories add column if not exists parent_id uuid references public.expense_categories(id);
 
+-- Older installations created a global unique constraint on `name`, which
+-- prevents a second workspace from using common categories such as Vivienda.
+alter table public.expense_categories
+  drop constraint if exists expense_categories_name_key;
+
+drop index if exists public.expense_categories_name_key;
+
 create unique index if not exists expense_categories_workspace_name_unique
   on public.expense_categories(workspace_id, name);
 
