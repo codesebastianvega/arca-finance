@@ -87,19 +87,19 @@ Para cerrar una tarea debe quedar:
 
 **Falta:** administrar préstamos entre personas, ahorros y otros datos estructurales desde Configuración.
 
-### 8. 🟡 Corregir completamente el botón Atrás en Configuración
+### 8. 🟠 Corregir completamente el botón Atrás en Configuración
 
-**Ya existe:** historial interno de pantallas, manejo de `popstate` y soporte general para el botón físico del celular.
+**Hecho localmente:** Configuración vuelve exactamente una entrada del historial. Si fue la primera pantalla interna, regresa a Menú mediante reemplazo de estado, sin crear el ciclo Configuración → Menú → Configuración. La navegación también limpia marcadores residuales de overlays.
 
 **Referencia:** commit `15e7289` (`feat: add mobile refresh and back navigation`).
 
-**Falta:** probar y corregir específicamente el recorrido Configuración → Menú para que retroceda exactamente una pantalla y no repita pasos.
+**Falta:** validación física en Android/PWA del botón de cabecera y del botón Atrás del dispositivo.
 
-### 9. 🟡 Agregar más temas y elegirlos desde el onboarding
+### 9. 🟠 Agregar más temas y elegirlos desde el onboarding
 
-**Ya existe:** selector de los temas actuales desde Configuración.
+**Implementado:** los temas viven en una fuente compartida para Configuración y onboarding. Se conservaron Bronce, Neón, Océano y Claro, y se añadieron Bosque y Reserva.
 
-**Falta:** diseñar temas adicionales y añadir un paso visual de selección dentro del onboarding.
+**Experiencia:** el onboarding ahora incluye un paso visual con vista previa, aplica el tema al instante y conserva la preferencia para el resto de la app.
 
 ### 10. 🟡 Agregar accesos rápidos para pagos e ingresos futuros
 

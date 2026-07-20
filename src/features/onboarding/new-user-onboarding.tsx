@@ -11,6 +11,7 @@ import {
   CircleDollarSign,
   Crown,
   Landmark,
+  Palette,
   PiggyBank,
   ReceiptText,
   ShieldCheck,
@@ -23,8 +24,9 @@ import { completeFirstRunSetup } from "@/app/actions";
 import { selectInitialSubscriptionPlan } from "@/app/billing-actions";
 import type { BillingPlan } from "@/src/lib/billing";
 import type { AdminPlanCode } from "@/src/lib/superadmin-types";
+import { THEME_OPTIONS, type ThemeId } from "@/src/lib/themes";
 
-type OnboardingStep = "welcome" | "goal" | "usage" | "accountType" | "accountDetails" | "balance" | "review" | "plans" | "done";
+type OnboardingStep = "welcome" | "goal" | "theme" | "usage" | "accountType" | "accountDetails" | "balance" | "review" | "plans" | "done";
 type OnboardingGoal = "clarity" | "expenses" | "debt" | "savings";
 type UsageMode = "personal" | "projects";
 
@@ -32,10 +34,12 @@ type NewUserOnboardingProps = {
   firstName: string;
   currency: string;
   plans: BillingPlan[];
+  theme: ThemeId;
+  setTheme: (theme: ThemeId) => void;
   onComplete: () => void;
 };
 
-const STEPS: OnboardingStep[] = ["welcome", "goal", "usage", "accountType", "accountDetails", "balance", "review", "plans", "done"];
+const STEPS: OnboardingStep[] = ["welcome", "goal", "theme", "usage", "accountType", "accountDetails", "balance", "review", "plans", "done"];
 
 const GOALS: Array<{ value: OnboardingGoal; title: string; description: string; icon: typeof Target }> = [
   { value: "clarity", title: "Entender mi dinero", description: "Saber cuánto tengo y qué viene después.", icon: Target },
@@ -60,7 +64,7 @@ function balanceLabel(value: string, currency: string) {
   return `${currency} ${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(amount)}`;
 }
 
-export default function NewUserOnboarding({ firstName, currency, plans, onComplete }: NewUserOnboardingProps) {
+export default function NewUserOnboarding({ firstName, currency, plans, theme, setTheme, onComplete }: NewUserOnboardingProps) {
   const router = useRouter();
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [goal, setGoal] = useState<OnboardingGoal | null>(null);
@@ -180,7 +184,44 @@ export default function NewUserOnboarding({ firstName, currency, plans, onComple
                 </button>
               ))}
             </div>
-            <button type="button" disabled={!goal} onClick={() => goTo("usage")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+            <button type="button" disabled={!goal} onClick={() => goTo("theme")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+          </section>
+        ) : null}
+
+        {step === "theme" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Hazla tuya</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Cómo quieres ver tu dinero?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Elige el estilo que te resulte más cómodo. Verás el cambio al instante y podrás cambiarlo después.</p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              {THEME_OPTIONS.map((option) => {
+                const selected = option.id === theme;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setTheme(option.id)}
+                    className={`relative overflow-hidden rounded-[20px] border p-3 text-left transition ${selected ? "border-arca-accent shadow-[0_12px_32px_-18px_var(--theme-accent)]" : "border-arca-border bg-arca-surface-1"}`}
+                  >
+                    <span className="block h-24 overflow-hidden rounded-xl" style={{ backgroundColor: option.colors[0] }}>
+                      <span className="mx-2 mt-2 block h-2 rounded-full" style={{ backgroundColor: option.colors[1] }} />
+                      <span className="mx-2 mt-3 block h-2 w-3/5 rounded-full opacity-60" style={{ backgroundColor: option.colors[3] }} />
+                      <span className="mx-2 mt-5 block h-5 rounded-md opacity-90" style={{ backgroundColor: option.colors[2] }} />
+                    </span>
+                    <span className="mt-3 flex items-start justify-between gap-2">
+                      <span><strong className="block text-xs text-arca-text-primary">{option.name}</strong><span className="mt-1 block text-[9px] text-arca-text-dim">{option.description}</span></span>
+                      {selected ? <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-arca-accent text-black"><Check size={12} /></span> : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex items-center gap-2 rounded-2xl border border-arca-border bg-arca-surface-1/70 px-4 py-3">
+              <Palette size={16} className="shrink-0 text-arca-accent" />
+              <p className="text-[10px] leading-4 text-arca-text-secondary">Seleccionaste <strong className="text-arca-text-primary">{THEME_OPTIONS.find((option) => option.id === theme)?.name}</strong>.</p>
+            </div>
+            <button type="button" onClick={() => goTo("usage")} className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c]">Usar este tema <ArrowRight size={18} /></button>
           </section>
         ) : null}
 

@@ -46,7 +46,8 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { haptics } from '../lib/haptics';
-import type { AppUserSummary, ThemeId } from '../App';
+import type { AppUserSummary } from '../App';
+import { THEME_OPTIONS, type ThemeId } from '../lib/themes';
 import type { RegisterOption, RegisterViewModel } from '../lib/register-data';
 import {
   archiveAccount,
@@ -109,37 +110,6 @@ function iconForCategory(label: string, iconName?: string | null) {
   if (normalized.includes('servicio') || normalized.includes('luz') || normalized.includes('agua') || normalized.includes('internet')) return Zap;
   return MoreHorizontal;
 }
-
-const THEMES: { id: ThemeId; name: string; description: string; colors: [string, string, string, string]; accent: string }[] = [
-  { 
-    id: 'arca-dark', 
-    name: 'Bronce', 
-    description: 'Clásico y elegante', 
-    colors: ['#0A0805', '#1E1610', '#C68A45', '#F3ECDC'],
-    accent: '#C68A45',
-  },
-  { 
-    id: 'neon-night', 
-    name: 'Neon', 
-    description: 'Cyberpunk premium', 
-    colors: ['#07080E', '#141624', '#6C5CE7', '#E4E8F7'],
-    accent: '#6C5CE7',
-  },
-  { 
-    id: 'glass-ocean', 
-    name: 'Océano', 
-    description: 'Cristal marino', 
-    colors: ['#050A0F', '#0F1E2E', '#0EA5E9', '#E0F0FF'],
-    accent: '#0EA5E9',
-  },
-  { 
-    id: 'arca-light', 
-    name: 'Claro', 
-    description: 'Modo día', 
-    colors: ['#F8F2E4', '#FFFDF8', '#A9713C', '#2A2117'],
-    accent: '#A9713C',
-  },
-];
 
 type ManagerView = 'accounts' | 'cards' | 'credits' | 'units' | 'income' | 'categories' | null;
 type EditorState = {
@@ -376,7 +346,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     });
   };
 
-  const currentTheme = THEMES.find(t => t.id === theme) ?? THEMES[0];
+  const currentTheme = THEME_OPTIONS.find(t => t.id === theme) ?? THEME_OPTIONS[0];
   const selectedPaymentPlan = plans.find((plan) => plan.code === selectedPlanCode) ?? plans.find((plan) => plan.code === 'personal_pro');
   const openPaymentProof = async () => {
     if (!selectedPaymentPlan || selectedPaymentPlan.code === 'free') return;
@@ -549,8 +519,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
 
       <section className="space-y-3">
         <SectionHeading icon={Palette} eyebrow="Apariencia" title="Tema visual" />
-        <div className="grid grid-cols-4 gap-2">
-          {THEMES.map((t) => {
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => {
             const isActive = t.id === theme;
             return (
               <motion.button

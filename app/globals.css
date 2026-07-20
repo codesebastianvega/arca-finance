@@ -168,8 +168,44 @@ body {
   --theme-glow-spread: 70px;
 }
 
+/* THEME 4 · FOREST LEDGER (Verde sereno) */
+[data-theme="forest-ledger"] {
+  --theme-base: #07100C;
+  --theme-surface-1: #0D1812;
+  --theme-surface-2: #122019;
+  --theme-border: #21352A;
+  --theme-border-strong: #34513E;
+  --theme-text-primary: #EEF6EC;
+  --theme-text-secondary: #A8BBA8;
+  --theme-text-dim: #6D846F;
+  --theme-accent: #82A96B;
+  --theme-accent-hover: #96BC7E;
+  --theme-positive: #65C28B;
+  --theme-alert: #DB755C;
+  --theme-glow-opacity: 0.22;
+  --theme-glow-spread: 55px;
+}
+
+/* THEME 5 · BURGUNDY VAULT (Vino sofisticado) */
+[data-theme="burgundy-vault"] {
+  --theme-base: #11080B;
+  --theme-surface-1: #1A0D11;
+  --theme-surface-2: #241217;
+  --theme-border: #3C222A;
+  --theme-border-strong: #58313C;
+  --theme-text-primary: #F8EEF0;
+  --theme-text-secondary: #C4A5AD;
+  --theme-text-dim: #896771;
+  --theme-accent: #C36B7D;
+  --theme-accent-hover: #D47F90;
+  --theme-positive: #8DBA83;
+  --theme-alert: #E16D57;
+  --theme-glow-opacity: 0.25;
+  --theme-glow-spread: 58px;
+}
+
 /* ─────────────────────────────────────────────
-   THEME 4 · ARCA LIGHT (Clásico claro)
+   THEME 6 · ARCA LIGHT (Clásico claro)
    ───────────────────────────────────────────── */
 [data-theme="arca-light"] {
   --theme-base: #F8F2E4;

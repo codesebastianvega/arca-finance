@@ -37,8 +37,9 @@ import SubscriptionsScreen from './features/more/subscriptions-screen';
 import NewUserOnboarding from './features/onboarding/new-user-onboarding';
 import PlanLockedScreen from './components/PlanLockedScreen';
 import { canAccessScreen, requiredPlanForScreen } from './lib/plan-entitlements';
+import { isThemeId, type ThemeId } from './lib/themes';
 
-export type ThemeId = 'arca-dark' | 'neon-night' | 'glass-ocean' | 'arca-light';
+export type { ThemeId } from './lib/themes';
 export type AppUserSummary = {
   fullName: string;
   email: string;
@@ -59,6 +60,7 @@ const APP_SCREENS: Screen[] = [
 ];
 
 const ARCA_SCREEN_HISTORY_KEY = 'arcaScreen';
+const ARCA_SCREEN_HISTORY_DEPTH_KEY = 'arcaScreenDepth';
 
 function isAppScreen(value: unknown): value is Screen {
   return typeof value === 'string' && APP_SCREENS.includes(value as Screen);
@@ -118,12 +120,40 @@ export default function App({
 
   const setCurrentScreen = useCallback((screen: Screen) => {
     if (screen === currentScreenRef.current) return;
+    const currentDepth = Number(window.history.state?.[ARCA_SCREEN_HISTORY_DEPTH_KEY]);
+    const nextState = { ...(window.history.state ?? {}) };
+    delete nextState.arcaOverlay;
     window.history.pushState(
-      { ...window.history.state, [ARCA_SCREEN_HISTORY_KEY]: screen },
+      {
+        ...nextState,
+        [ARCA_SCREEN_HISTORY_KEY]: screen,
+        [ARCA_SCREEN_HISTORY_DEPTH_KEY]: Number.isInteger(currentDepth) && currentDepth >= 0 ? currentDepth + 1 : 1,
+      },
       '',
       window.location.href,
     );
     applyScreen(screen);
+  }, [applyScreen]);
+
+  const goBackOneScreen = useCallback((fallback: Screen) => {
+    const currentDepth = Number(window.history.state?.[ARCA_SCREEN_HISTORY_DEPTH_KEY]);
+    if (Number.isInteger(currentDepth) && currentDepth > 0) {
+      window.history.back();
+      return;
+    }
+
+    const fallbackState = { ...(window.history.state ?? {}) };
+    delete fallbackState.arcaOverlay;
+    window.history.replaceState(
+      {
+        ...fallbackState,
+        [ARCA_SCREEN_HISTORY_KEY]: fallback,
+        [ARCA_SCREEN_HISTORY_DEPTH_KEY]: 0,
+      },
+      '',
+      window.location.href,
+    );
+    applyScreen(fallback);
   }, [applyScreen]);
 
   const handleSetCurrentScreen = setCurrentScreen;
@@ -131,9 +161,16 @@ export default function App({
   useEffect(() => {
     const historyScreen = window.history.state?.[ARCA_SCREEN_HISTORY_KEY];
     const initialScreen = isAppScreen(historyScreen) ? historyScreen : 'hoy';
+    const historyDepth = Number(window.history.state?.[ARCA_SCREEN_HISTORY_DEPTH_KEY]);
+    const initialState = { ...(window.history.state ?? {}) };
+    delete initialState.arcaOverlay;
 
     window.history.replaceState(
-      { ...window.history.state, [ARCA_SCREEN_HISTORY_KEY]: initialScreen },
+      {
+        ...initialState,
+        [ARCA_SCREEN_HISTORY_KEY]: initialScreen,
+        [ARCA_SCREEN_HISTORY_DEPTH_KEY]: Number.isInteger(historyDepth) && historyDepth >= 0 ? historyDepth : 0,
+      },
       '',
       window.location.href,
     );
@@ -150,7 +187,8 @@ export default function App({
 
   const [theme, setTheme] = useState<ThemeId>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('arca-theme') as ThemeId) || 'arca-dark';
+      const storedTheme = localStorage.getItem('arca-theme');
+      return isThemeId(storedTheme) ? storedTheme : 'arca-dark';
     }
     return 'arca-dark';
   });
@@ -186,6 +224,7 @@ export default function App({
 
   const renderScreen = () => {
     const backToMas = () => setCurrentScreen('mas');
+    const backFromSettings = () => goBackOneScreen('mas');
     const openNova = (prompt?: string) => {
       window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt } }));
     };
@@ -246,7 +285,7 @@ export default function App({
         />
       );
       case 'movimientos': return <HistoryScreen onBack={backToMas} onOpenNova={openNova} data={initialHistoryData} currency={currencyCode} />;
-      case 'configuracion': return <ConfiguracionScreen onBack={backToMas} theme={theme} setTheme={setTheme} data={initialRegisterData} user={userSummary} plans={initialBillingPlans} />;
+      case 'configuracion': return <ConfiguracionScreen onBack={backFromSettings} theme={theme} setTheme={setTheme} data={initialRegisterData} user={userSummary} plans={initialBillingPlans} />;
       case 'calendario': return <CalendarScreen onBack={backToMas} onOpenNova={openNova} data={initialCalendarData} accounts={initialTodayData.accountOptions} currency={currencyCode} />;
       case 'transferir': return (
         <TransferScreen
@@ -295,6 +334,8 @@ export default function App({
           firstName={userSummary.fullName.split(/\s+/)[0] || "hola"}
           currency={currencyCode}
           plans={initialBillingPlans}
+          theme={theme}
+          setTheme={setTheme}
           onComplete={() => setShowOnboarding(false)}
         />
       ) : null}
