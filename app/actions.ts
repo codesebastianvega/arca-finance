@@ -3613,3 +3613,73 @@ export async function createPayableLoan(input: {
   revalidatePath("/app");
   return { ok: true };
 }
+export async function updateLoanDetails(input: { id: string; type: 'receivable' | 'payable'; concept: string; notes?: string }) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  if (input.type === 'receivable') {
+    const { error } = await admin
+      .from("receivables")
+      .update({
+        title: input.concept,
+        notes: input.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.id)
+      .eq("workspace_id", context.workspace.id);
+
+    if (error) throw new Error(`No se pudo actualizar el préstamo: ${error.message}`);
+  } else {
+    const { error } = await admin
+      .from("scheduled_events")
+      .update({
+        title: input.concept,
+        notes: input.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.id)
+      .eq("workspace_id", context.workspace.id);
+
+    if (error) throw new Error(`No se pudo actualizar el préstamo: ${error.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function archiveLoan(input: { id: string; type: 'receivable' | 'payable' }) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  if (input.type === 'receivable') {
+    const { error } = await admin
+      .from("receivables")
+      .update({
+        status: "archived",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.id)
+      .eq("workspace_id", context.workspace.id);
+
+    if (error) throw new Error(`No se pudo archivar el préstamo: ${error.message}`);
+  } else {
+    const { error } = await admin
+      .from("scheduled_events")
+      .update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.id)
+      .eq("workspace_id", context.workspace.id);
+
+    if (error) throw new Error(`No se pudo archivar el préstamo: ${error.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}

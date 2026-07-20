@@ -51,6 +51,21 @@ export type RegisterViewModel = {
     unitKey: string;
     defaultAccountId: string | null;
   }>;
+  savingsGoals: Array<{
+    id: string;
+    name: string;
+    current: number;
+    target: number | null;
+    dueDate: string | null;
+    goalType: string;
+  }>;
+  loans: Array<{
+    id: string;
+    type: 'payable' | 'receivable';
+    concept: string;
+    amount: number;
+    notes: string;
+  }>;
 };
 
 type IncomeSourceRow = {
@@ -145,7 +160,7 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
   const sourcesPromise = loadIncomeSourcesForRegister(workspaceId, supabase);
   const unitsPromise = loadBusinessUnitsForRegister(workspaceId, supabase);
 
-  const [accountsResult, creditsResult, cardsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
+  const [accountsResult, creditsResult, cardsResult, categoriesResult, savingsResult, receivablesResult, payablesResult, unitsResult, sourcesResult] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, name, entity, type, balance, color")
@@ -171,6 +186,23 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("savings_goals")
+      .select("id, name, current, target, due_date, goal_type")
+      .eq("workspace_id", workspaceId)
+      .eq("archived", false)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("receivables")
+      .select("id, title, amount, notes, debtor_name")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["pending"]),
+    supabase
+      .from("scheduled_events")
+      .select("id, title, amount, notes")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "scheduled")
+      .or("linked_entity_type.eq.payable_loan,title.ilike.Pagar Préstamo%"),
     unitsPromise,
     sourcesPromise,
   ]);
@@ -186,6 +218,15 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
   }
   if (categoriesResult.error) {
     throw new Error(`No se pudieron leer las categorias para registrar: ${categoriesResult.error.message}`);
+  }
+  if (savingsResult.error) {
+    throw new Error(`No se pudieron leer los ahorros: ${savingsResult.error.message}`);
+  }
+  if (receivablesResult.error) {
+    throw new Error(`No se pudieron leer los préstamos dados: ${receivablesResult.error.message}`);
+  }
+  if (payablesResult.error) {
+    throw new Error(`No se pudieron leer los préstamos recibidos: ${payablesResult.error.message}`);
   }
   if (unitsResult.error) {
     throw new Error(`No se pudieron leer los proyectos para registrar: ${unitsResult.error.message}`);
@@ -250,5 +291,29 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       unitKey: String(row.business_unit_key),
       defaultAccountId: row.default_account_id ? String(row.default_account_id) : null,
     })),
+    savingsGoals: (savingsResult.data ?? []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      current: Number(row.current ?? 0),
+      target: row.target ? Number(row.target) : null,
+      dueDate: row.due_date ? String(row.due_date) : null,
+      goalType: String(row.goal_type ?? 'goal'),
+    })),
+    loans: [
+      ...(receivablesResult.data ?? []).map((row) => ({
+        id: String(row.id),
+        type: 'receivable' as const,
+        concept: String(row.title ?? row.debtor_name ?? 'Préstamo'),
+        amount: Number(row.amount ?? 0),
+        notes: String(row.notes ?? ''),
+      })),
+      ...(payablesResult.data ?? []).map((row) => ({
+        id: String(row.id),
+        type: 'payable' as const,
+        concept: String(row.title ?? 'Préstamo recibido'),
+        amount: Number(row.amount ?? 0),
+        notes: String(row.notes ?? ''),
+      })),
+    ],
   };
 }
