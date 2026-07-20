@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, type HTMLMotionProps } from 'motion/react';
+import { motion, AnimatePresence, type HTMLMotionProps } from 'motion/react';
 import { LucideIcon } from 'lucide-react';
 
 // --- BUTTON ---
@@ -126,3 +126,76 @@ export const EmptyState = ({ title, message, icon: Icon, action }: { title: stri
     {action && <div className="pt-2">{action}</div>}
   </div>
 );
+
+// --- CONFIRM DIALOG ---
+export interface ConfirmDialogProps {
+  isOpen: boolean;
+  title: string;
+  description?: string;
+  summaryData?: Array<{ label: string; value: React.ReactNode }>;
+  onCancel: () => void;
+  onConfirm: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  confirmVariant?: 'primary' | 'danger';
+}
+
+export const ConfirmDialog = ({
+  isOpen,
+  title,
+  description,
+  summaryData,
+  onCancel,
+  onConfirm,
+  confirmText = 'Confirmar',
+  cancelText = 'Cancelar',
+  confirmVariant = 'primary'
+}: ConfirmDialogProps) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="confirm-dialog-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={onCancel}
+        >
+          <motion.div
+            key="confirm-dialog-modal"
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            className="w-full max-w-sm overflow-hidden rounded-3xl border border-arca-border bg-arca-bg p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-black text-arca-text-primary">{title}</h3>
+            {description && <p className="mt-2 text-xs text-arca-text-dim">{description}</p>}
+            
+            {summaryData && summaryData.length > 0 && (
+              <div className="mt-4 rounded-xl border border-arca-border bg-arca-surface-1 p-3 divide-y divide-arca-border">
+                {summaryData.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-2 first:pt-0 last:pb-0 gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-arca-text-dim">{item.label}</span>
+                    <span className="text-xs font-bold text-arca-text-primary text-right">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="mt-6 flex gap-2">
+              <Button variant="secondary" size="md" fullWidth onClick={onCancel}>
+                {cancelText}
+              </Button>
+              <Button variant={confirmVariant} size="md" fullWidth onClick={onConfirm}>
+                {confirmText}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+

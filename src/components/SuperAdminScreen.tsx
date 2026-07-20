@@ -22,6 +22,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
+import { ConfirmDialog } from './ui-kit';
 import {
   adminChangePlan,
   adminSetSubscriptionStatus,
@@ -139,7 +140,7 @@ export default function SuperAdminScreen({ onBack, data }: { onBack: () => void;
             client={selectedClient}
             pending={false}
             onClose={() => setSelectedClientId(null)}
-            onRun={(operation) => handleRun(operation, 'Cliente actualizado correctamente')}
+            onRun={(operation, msg) => handleRun(operation, msg || 'Cliente actualizado correctamente')}
           />
         )}
       </AnimatePresence>
@@ -304,16 +305,68 @@ function ClientRow({ client, onClick }: { client: SuperAdminClient; onClick: () 
   );
 }
 
-function ClientAdminSheet({ client, pending, onClose, onRun }: { client: SuperAdminClient; pending: boolean; onClose: () => void; onRun: (operation: Promise<unknown>) => void }) {
+function ClientAdminSheet({ client, pending, onClose, onRun }: { client: SuperAdminClient; pending: boolean; onClose: () => void; onRun: (operation: Promise<unknown>, successMessage?: string) => void }) {
   const [plan, setPlan] = useState<AdminPlanCode>(client.planCode);
   const [vipEnabled, setVipEnabled] = useState(client.vipFullAccess);
   const [vipReason, setVipReason] = useState(client.vipReason ?? '');
   const [vipExpiresAt, setVipExpiresAt] = useState(client.vipExpiresAt?.slice(0, 10) ?? '');
   const [note, setNote] = useState('');
+  
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description?: string;
+    summaryData?: Array<{ label: string; value: React.ReactNode }>;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', onConfirm: () => {} });
 
   const confirmStatus = (status: AdminSubscriptionStatus, question: string) => {
-    if (!window.confirm(question)) return;
-    onRun(adminSetSubscriptionStatus({ workspaceId: client.workspaceId, status, note }));
+    setConfirmState({
+      isOpen: true,
+      title: 'Cambiar estado de suscripción',
+      description: question,
+      summaryData: [
+        { label: 'Usuario', value: client.fullName },
+        { label: 'Estado nuevo', value: STATUS_LABELS[status] }
+      ],
+      onConfirm: () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        onRun(adminSetSubscriptionStatus({ workspaceId: client.workspaceId, status, note }), `Suscripción de ${client.fullName} marcada como ${STATUS_LABELS[status]}`);
+      }
+    });
+  };
+
+  const confirmPlanChange = () => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Cambiar Plan Comercial',
+      summaryData: [
+        { label: 'Usuario', value: client.fullName },
+        { label: 'Plan Actual', value: PLAN_LABELS[client.planCode] },
+        { label: 'Nuevo Plan', value: PLAN_LABELS[plan] }
+      ],
+      onConfirm: () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        onRun(adminChangePlan({ workspaceId: client.workspaceId, planCode: plan, note }), `Plan de ${client.fullName} actualizado a ${PLAN_LABELS[plan]}`);
+      }
+    });
+  };
+
+  const confirmVipChange = () => {
+    setConfirmState({
+      isOpen: true,
+      title: vipEnabled ? 'Otorgar Acceso VIP' : 'Revocar Acceso VIP',
+      description: vipEnabled ? 'El usuario tendrá acceso total sin generar cobros.' : 'El usuario volverá a su plan y facturación normal.',
+      summaryData: [
+        { label: 'Usuario', value: client.fullName },
+        { label: 'Estado VIP Nuevo', value: vipEnabled ? 'Activo' : 'Revocado' },
+        ...(vipEnabled && vipExpiresAt ? [{ label: 'Vencimiento', value: formatDate(vipExpiresAt) }] : [])
+      ],
+      onConfirm: () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        onRun(adminSetVipAccess({ workspaceId: client.workspaceId, enabled: vipEnabled, reason: vipReason, expiresAt: vipExpiresAt || null }), vipEnabled ? `Acceso VIP otorgado a ${client.fullName}` : `Acceso VIP revocado a ${client.fullName}`);
+      }
+    });
   };
 
   return (
@@ -325,13 +378,13 @@ function ClientAdminSheet({ client, pending, onClose, onRun }: { client: SuperAd
 
         <section className="mt-5 space-y-3 rounded-3xl border border-arca-border bg-arca-surface-1 p-4">
           <div><p className="text-[9px] font-black uppercase tracking-[0.16em] text-arca-text-dim">Plan comercial</p><select value={plan} onChange={(event) => setPlan(event.target.value as AdminPlanCode)} className="mt-2 w-full rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-3 text-sm font-bold text-arca-text-primary outline-none"><option value="free">Arca Gratis</option><option value="personal_pro">Personal Pro</option><option value="business">Arca Business</option></select></div>
-          <button disabled={pending || plan === client.planCode} onClick={() => onRun(adminChangePlan({ workspaceId: client.workspaceId, planCode: plan, note }))} className="w-full rounded-xl bg-arca-accent py-3 text-xs font-black text-black disabled:opacity-40">Guardar cambio de plan</button>
+          <button disabled={pending || plan === client.planCode} onClick={confirmPlanChange} className="w-full rounded-xl bg-arca-accent py-3 text-xs font-black text-black disabled:opacity-40">Guardar cambio de plan</button>
         </section>
 
         <section className="mt-3 space-y-3 rounded-3xl border border-arca-accent/25 bg-arca-accent/[0.05] p-4">
           <button onClick={() => setVipEnabled((current) => !current)} role="switch" aria-checked={vipEnabled} className="flex w-full items-center justify-between text-left"><div className="flex gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-arca-accent/15 text-arca-accent"><Crown size={18} /></div><div><p className="text-sm font-bold text-arca-text-primary">Acceso VIP completo</p><p className="mt-0.5 text-[9px] text-arca-text-dim">Todo el acceso sin generar cobros</p></div></div><div className={`h-6 w-11 rounded-full p-0.5 ${vipEnabled ? 'bg-arca-accent' : 'bg-arca-surface-2 ring-1 ring-arca-border'}`}><motion.div animate={{ x: vipEnabled ? 20 : 0 }} className="h-5 w-5 rounded-full bg-white" /></div></button>
           {vipEnabled && <><input value={vipReason} onChange={(event) => setVipReason(event.target.value)} className="w-full rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-3 text-xs text-arca-text-primary outline-none" placeholder="Motivo de la cortesía" /><label className="block text-[9px] font-bold uppercase tracking-wider text-arca-text-dim">Vence opcionalmente<input type="date" value={vipExpiresAt} onChange={(event) => setVipExpiresAt(event.target.value)} className="mt-1.5 w-full rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-3 text-xs text-arca-text-primary outline-none" /></label></>}
-          <button disabled={pending || (vipEnabled && !vipReason.trim())} onClick={() => onRun(adminSetVipAccess({ workspaceId: client.workspaceId, enabled: vipEnabled, reason: vipReason, expiresAt: vipExpiresAt || null }))} className="w-full rounded-xl border border-arca-accent/35 py-3 text-xs font-black text-arca-accent disabled:opacity-40">Guardar acceso VIP</button>
+          <button disabled={pending || (vipEnabled && !vipReason.trim())} onClick={confirmVipChange} className="w-full rounded-xl border border-arca-accent/35 py-3 text-xs font-black text-arca-accent disabled:opacity-40">Guardar acceso VIP</button>
         </section>
 
         <section className="mt-3 space-y-3 rounded-3xl border border-arca-border bg-arca-surface-1 p-4">
@@ -340,10 +393,31 @@ function ClientAdminSheet({ client, pending, onClose, onRun }: { client: SuperAd
             <button disabled={pending} onClick={() => confirmStatus('past_due', '¿Marcar esta suscripción con pago pendiente?')} className="rounded-xl border border-arca-alert/25 bg-arca-alert/[0.06] py-3 text-[10px] font-black text-arca-alert">Pago pendiente</button>
             <button disabled={pending} onClick={() => confirmStatus('canceled', '¿Cancelar el plan? Sus datos se conservarán y su acceso volverá al nivel gratuito.')} className="rounded-xl border border-arca-alert/25 bg-arca-alert/[0.06] py-3 text-[10px] font-black text-arca-alert">Cancelar plan</button>
             <button disabled={pending} onClick={() => confirmStatus('active', '¿Reactivar esta suscripción?')} className="rounded-xl border border-arca-success/25 bg-arca-success/[0.06] py-3 text-[10px] font-black text-arca-success">Reactivar plan</button>
-            <button disabled={pending} onClick={() => { const pause = client.workspaceStatus !== 'paused'; if (window.confirm(pause ? '¿Suspender el acceso de esta cuenta?' : '¿Reactivar esta cuenta?')) onRun(adminSetWorkspaceStatus({ workspaceId: client.workspaceId, status: pause ? 'paused' : 'active', note })); }} className="rounded-xl border border-arca-border bg-arca-surface-2 py-3 text-[10px] font-black text-arca-text-secondary">{client.workspaceStatus === 'paused' ? 'Activar cuenta' : 'Suspender cuenta'}</button>
+            <button disabled={pending} onClick={() => { 
+              const pause = client.workspaceStatus !== 'paused'; 
+              setConfirmState({
+                isOpen: true,
+                title: pause ? 'Suspender cuenta' : 'Reactivar cuenta',
+                description: pause ? 'El usuario no podrá acceder a su información.' : 'El usuario recuperará el acceso a su cuenta.',
+                summaryData: [{ label: 'Usuario', value: client.fullName }],
+                onConfirm: () => {
+                  setConfirmState(prev => ({ ...prev, isOpen: false }));
+                  onRun(adminSetWorkspaceStatus({ workspaceId: client.workspaceId, status: pause ? 'paused' : 'active', note }), pause ? `Cuenta de ${client.fullName} suspendida` : `Cuenta de ${client.fullName} reactivada`);
+                }
+              });
+            }} className="rounded-xl border border-arca-border bg-arca-surface-2 py-3 text-[10px] font-black text-arca-text-secondary">{client.workspaceStatus === 'paused' ? 'Activar cuenta' : 'Suspender cuenta'}</button>
           </div>
         </section>
       </motion.section>
+
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        description={confirmState.description}
+        summaryData={confirmState.summaryData}
+        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmState.onConfirm}
+      />
     </motion.div>
   );
 }

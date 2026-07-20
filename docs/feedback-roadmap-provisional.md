@@ -175,9 +175,9 @@ Para cerrar una tarea debe quedar:
 
 **Hecho localmente:** se creó un sistema global (`LoaderContext`) que muestra el SVG de Arca (animación estilo *vault spin*) sobre un fondo oscuro, bloqueando interacciones durante cargas pesadas. También se implementaron *Toasts* (notificaciones flotantes) para mostrar los resultados explícitos de éxito o error, eliminando los `window.alert` y beneficiando a toda la app.
 
-### 18. ⬜ Confirmar visualmente los cambios de acceso VIP y planes
+### 18. 🟠 Confirmar visualmente los cambios de acceso VIP y planes
 
-**Pendiente:** mostrar qué usuario cambió, estado anterior, estado nuevo y confirmación final después de activar VIP, quitar VIP o cambiar el plan.
+**Hecho localmente:** se creó el componente reutilizable `ConfirmDialog` que se levanta al presionar "Guardar cambio de plan", "Guardar acceso VIP" y otras acciones críticas. Ahora muestra explícitamente el usuario y un desglose del cambio (estado actual vs. nuevo) antes de enviarlo. Además, los mensajes de éxito en los Toast se han vuelto descriptivos (ej. "Plan actualizado a Arca Negocios").
 
 ### 19. 🐞 Corregir cobros repetidos después de confirmar un pago
 
