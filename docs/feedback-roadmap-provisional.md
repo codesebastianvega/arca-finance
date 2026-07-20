@@ -169,11 +169,11 @@ Para cerrar una tarea debe quedar:
 - Los análisis extensos solo aparecen cuando el usuario pide explicación, comparación o diagnóstico detallado.
 - Evitar introducciones, disculpas y cierres genéricos que no aportan una decisión.
 
-### 17. ⬜ Agregar loader y confirmación a las acciones de SuperAdmin
+### 17. 🟠 Agregar loader y confirmación a las acciones de SuperAdmin
 
 **Problema:** al cambiar planes o accesos no queda claro si la aplicación está trabajando.
 
-**Pendiente:** overlay de procesamiento para acciones importantes, bloqueo temporal de controles y resultado explícito de éxito o error.
+**Hecho localmente:** se creó un sistema global (`LoaderContext`) que muestra el SVG de Arca (animación estilo *vault spin*) sobre un fondo oscuro, bloqueando interacciones durante cargas pesadas. También se implementaron *Toasts* (notificaciones flotantes) para mostrar los resultados explícitos de éxito o error, eliminando los `window.alert` y beneficiando a toda la app.
 
 ### 18. ⬜ Confirmar visualmente los cambios de acceso VIP y planes
 

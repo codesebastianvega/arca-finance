@@ -38,6 +38,7 @@ import NewUserOnboarding from './features/onboarding/new-user-onboarding';
 import PlanLockedScreen from './components/PlanLockedScreen';
 import { canAccessScreen, requiredPlanForScreen } from './lib/plan-entitlements';
 import { isThemeId, type ThemeId } from './lib/themes';
+import { LoaderProvider } from './lib/loader-context';
 
 export type { ThemeId } from './lib/themes';
 export type AppUserSummary = {
@@ -325,7 +326,7 @@ export default function App({
   };
 
   return (
-    <>
+    <LoaderProvider>
       <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData} canUseNova={userSummary.canUseNova} novaMonthlyLimit={userSummary.novaMonthlyLimit} novaUsed={userSummary.novaUsed} billingNotice={initialBillingNotice}>
         {renderScreen()}
       </AppShell>
@@ -339,6 +340,6 @@ export default function App({
           onComplete={() => setShowOnboarding(false)}
         />
       ) : null}
-    </>
+    </LoaderProvider>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -33,6 +33,7 @@ import {
 } from '@/app/superadmin-actions';
 import type { AdminPlanCode, AdminSubscriptionInvoice, AdminSubscriptionStatus, SuperAdminClient, SuperAdminViewModel } from '@/src/lib/superadmin-types';
 import type { BillingPlan } from '@/src/lib/billing';
+import { useLoader } from '@/src/lib/loader-context';
 
 type AdminTab = 'resumen' | 'clientes' | 'cobros' | 'planes' | 'ia';
 
@@ -76,7 +77,23 @@ export default function SuperAdminScreen({ onBack, data }: { onBack: () => void;
   const [tab, setTab] = useState<AdminTab>('resumen');
   const [search, setSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const { showLoader, hideLoader, notify } = useLoader();
+  
+  const handleRun = (operation: Promise<unknown>, successMessage: string = 'Operación completada') => {
+    showLoader('Procesando...');
+    operation
+      .then(() => {
+        router.refresh();
+        notify(successMessage, 'success');
+      })
+      .catch((error: Error) => {
+        notify(error.message || 'No se pudo completar la acción.', 'error');
+      })
+      .finally(() => {
+        hideLoader();
+      });
+  };
+
   const selectedClient = data.clients.find((client) => client.userId === selectedClientId) ?? null;
   const filteredClients = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -111,8 +128,8 @@ export default function SuperAdminScreen({ onBack, data }: { onBack: () => void;
 
       {tab === 'resumen' && <OverviewTab data={data} onOpenClients={() => setTab('clientes')} />}
       {tab === 'clientes' && <ClientsTab clients={filteredClients} search={search} onSearch={setSearch} onSelect={(client) => setSelectedClientId(client.userId)} />}
-      {tab === 'cobros' && <BillingTab invoices={data.invoices} pending={isPending} onRun={(operation) => startTransition(() => { void operation.then(() => router.refresh()).catch((error: Error) => alert(error.message || 'No se pudo gestionar el cobro.')); })} />}
-      {tab === 'planes' && <PlansTab plans={data.plans} clients={data.clients} pending={isPending} onRun={(operation) => startTransition(() => { void operation.then(() => router.refresh()).catch((error: Error) => alert(error.message || 'No se pudo actualizar el plan.')); })} />}
+      {tab === 'cobros' && <BillingTab invoices={data.invoices} pending={false} onRun={(operation) => handleRun(operation, 'Cobro procesado correctamente')} />}
+      {tab === 'planes' && <PlansTab plans={data.plans} clients={data.clients} pending={false} onRun={(operation) => handleRun(operation, 'Plan actualizado correctamente')} />}
       {tab === 'ia' && <AiUsageTab data={data} onSelect={(client) => setSelectedClientId(client.userId)} />}
 
       <AnimatePresence>
@@ -120,11 +137,9 @@ export default function SuperAdminScreen({ onBack, data }: { onBack: () => void;
           <ClientAdminSheet
             key={selectedClient.userId}
             client={selectedClient}
-            pending={isPending}
+            pending={false}
             onClose={() => setSelectedClientId(null)}
-            onRun={(operation) => startTransition(() => {
-              void operation.then(() => router.refresh()).catch((error: Error) => alert(error.message || 'No se pudo completar la acción.'));
-            })}
+            onRun={(operation) => handleRun(operation, 'Cliente actualizado correctamente')}
           />
         )}
       </AnimatePresence>
