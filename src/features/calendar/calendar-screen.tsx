@@ -9,11 +9,13 @@ import {
   ChevronRight,
   CircleAlert,
   Plus,
+  ReceiptText,
   Sparkles,
   TrendingDown,
   TrendingUp,
   WalletCards,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { haptics } from '@/src/lib/haptics';
 import type { CalendarEventItem, CalendarMonth, CalendarViewModel } from '@/src/lib/calendar-types';
@@ -22,6 +24,7 @@ import type { TodayReceivable } from '@/src/lib/today-data';
 import { ObligationActionModal } from '@/src/features/obligations/components/obligation-action-modal';
 import { ReceivableActionModal } from '@/src/features/dashboard/components/receivable-action-modal';
 import { CalculationHelper } from '@/src/components/calculation-helper';
+import BottomSheet from '@/src/components/BottomSheet';
 
 const WEEK_DAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 type CalendarFilter = 'all' | 'overdue' | CalendarEventItem['kind'];
@@ -44,6 +47,7 @@ export default function CalendarScreen({
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [filter, setFilter] = useState<CalendarFilter>('all');
   const [selectedEvent, setSelectedEvent] = useState<CalendarMonth['events'][number] | null>(null);
+  const [isNewEventMenuOpen, setIsNewEventMenuOpen] = useState(false);
   const router = useRouter();
 
   const currentMonth = data.months[currentIndex];
@@ -122,10 +126,15 @@ export default function CalendarScreen({
       });
   }, [currentMonth.events, filter, selectedDay]);
 
-  const openNewEvent = () => {
+  const selectedDate = () => {
     const day = selectedDay ?? Math.min(new Date().getDate(), currentMonth.daysInMonth);
-    const date = `${currentMonth.key}-${String(day).padStart(2, '0')}`;
-    window.dispatchEvent(new CustomEvent('open-register', { detail: { segment: 'Obligacion', type: 'gasto', date } }));
+    return `${currentMonth.key}-${String(day).padStart(2, '0')}`;
+  };
+
+  const openRegisterForDate = (detail: { segment: 'Obligacion' | 'Movimiento'; type: 'gasto' | 'ingreso'; incomeStatus?: 'expected' }) => {
+    haptics.medium();
+    setIsNewEventMenuOpen(false);
+    window.dispatchEvent(new CustomEvent('open-register', { detail: { ...detail, date: selectedDate() } }));
   };
 
   const accountLabel = (event: CalendarEventItem) => {
@@ -253,7 +262,7 @@ export default function CalendarScreen({
             </button>
           )) : <div className="px-5 py-8 text-center"><CalendarDays className="mx-auto text-arca-text-dim" size={24} /><p className="mt-2 text-xs font-semibold text-arca-text-secondary">No hay movimientos con este filtro.</p></div>}
         </div>
-        <button type="button" onClick={openNewEvent} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-arca-accent/40 bg-arca-accent/[0.05] py-3.5 text-xs font-black text-arca-accent"><Plus size={16} /> Agregar compromiso</button>
+        <button type="button" onClick={() => setIsNewEventMenuOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-arca-accent/40 bg-arca-accent/[0.05] py-3.5 text-xs font-black text-arca-accent"><Plus size={16} /> {selectedDay ? `Agregar en el día ${selectedDay}` : 'Programar en la agenda'}</button>
       </section>
 
       <aside className="rounded-[22px] border border-arca-border bg-arca-surface-1 p-4">
@@ -269,8 +278,53 @@ export default function CalendarScreen({
 
       <ObligationActionModal obligation={mappedObligation} accounts={accounts} onClose={() => setSelectedEvent(null)} onRefresh={() => router.refresh()} />
       <ReceivableActionModal receivable={mappedReceivable} accounts={accounts} onClose={() => setSelectedEvent(null)} onRefresh={() => router.refresh()} />
+      <BottomSheet isOpen={isNewEventMenuOpen} onClose={() => setIsNewEventMenuOpen(false)} title="Agregar a la agenda">
+        <div className="space-y-3 pb-2">
+          <div className="rounded-2xl border border-arca-border bg-arca-surface-2 px-4 py-3">
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-arca-text-dim">Fecha seleccionada</p>
+            <p className="mt-1 text-sm font-black capitalize text-arca-text-primary">{fullDateLabel(selectedDate())}</p>
+            <p className="mt-1 text-[10px] leading-4 text-arca-text-secondary">Lo programado aparecerá en Agenda y proyecciones, pero no cambiará tu saldo hasta que lo confirmes.</p>
+          </div>
+          <AgendaAction
+            icon={TrendingDown}
+            tone="alert"
+            title="Programar gasto"
+            description="Pago, factura, deuda o compromiso que cubrirás en esta fecha."
+            onClick={() => openRegisterForDate({ segment: 'Obligacion', type: 'gasto' })}
+          />
+          <AgendaAction
+            icon={TrendingUp}
+            tone="positive"
+            title="Programar ingreso"
+            description="Dinero que esperas recibir, sin sumarlo todavía a tus cuentas."
+            onClick={() => openRegisterForDate({ segment: 'Movimiento', type: 'ingreso', incomeStatus: 'expected' })}
+          />
+          <AgendaAction
+            icon={ReceiptText}
+            tone="neutral"
+            title="Registrar movimiento realizado"
+            description="Un ingreso o gasto que ya ocurrió en la fecha seleccionada."
+            onClick={() => openRegisterForDate({ segment: 'Movimiento', type: 'gasto' })}
+          />
+        </div>
+      </BottomSheet>
     </div>
   );
+}
+
+function AgendaAction({ icon: Icon, tone, title, description, onClick }: { icon: LucideIcon; tone: 'alert' | 'positive' | 'neutral'; title: string; description: string; onClick: () => void }) {
+  const toneClass = tone === 'alert' ? 'bg-arca-alert/10 text-arca-alert' : tone === 'positive' ? 'bg-arca-positive/10 text-arca-positive' : 'bg-arca-accent/10 text-arca-accent';
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-2xl border border-arca-border bg-arca-surface-1 p-4 text-left transition-colors active:bg-arca-surface-2">
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneClass}`}><Icon size={20} /></span>
+      <span className="min-w-0 flex-1"><span className="block text-sm font-black text-arca-text-primary">{title}</span><span className="mt-1 block text-[10px] leading-4 text-arca-text-secondary">{description}</span></span>
+      <ChevronRight size={17} className="shrink-0 text-arca-text-dim" />
+    </button>
+  );
+}
+
+function fullDateLabel(rawDate: string) {
+  return new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${rawDate}T00:00:00-05:00`));
 }
 
 function SummaryMetric({ icon: Icon, label, value, tone }: { icon: typeof TrendingUp; label: string; value: string; tone: 'alert' | 'positive' }) {

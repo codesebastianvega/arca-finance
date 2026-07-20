@@ -38,6 +38,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   const [defaultGoalType, setDefaultGoalType] = useState<'goal' | 'pocket'>('goal');
   const [defaultType, setDefaultType] = useState<'gasto' | 'ingreso'>('gasto');
   const [defaultDate, setDefaultDate] = useState('');
+  const [defaultIncomeStatus, setDefaultIncomeStatus] = useState<'received' | 'expected'>('received');
 
   const openOverlay = useCallback((overlay: 'register' | 'nova') => {
     window.history.pushState(
@@ -76,10 +77,12 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
       const goalType = customEvent.detail?.goalType || 'goal';
       const type = customEvent.detail?.type || 'gasto';
       const date = customEvent.detail?.date || '';
+      const incomeStatus = customEvent.detail?.incomeStatus === 'expected' ? 'expected' : 'received';
       setDefaultSegment(segment);
       setDefaultGoalType(goalType);
       setDefaultType(type);
       setDefaultDate(date);
+      setDefaultIncomeStatus(incomeStatus);
       openOverlay('register');
     };
     window.addEventListener('open-register', handleOpen);
@@ -154,20 +157,27 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         onScreenChange={setCurrentScreen}
         onAddClick={() => {
           setDefaultSegment('Grid');
+          setDefaultType('gasto');
           setDefaultDate('');
+          setDefaultIncomeStatus('received');
           openOverlay('register');
         }}
       />
 
       {/* Register Bottom Sheet */}
-      <BottomSheet isOpen={isRegisterOpen} onClose={() => closeOverlay('register')} title="Nuevo Registro">
+      <BottomSheet
+        isOpen={isRegisterOpen}
+        onClose={() => closeOverlay('register')}
+        title={defaultSegment === 'Obligacion' ? 'Programar gasto' : defaultType === 'ingreso' && defaultIncomeStatus === 'expected' ? 'Programar ingreso' : 'Nuevo registro'}
+      >
         <RegisterScreen
-          key={`${defaultSegment}-${defaultType}-${defaultDate}`}
+          key={`${defaultSegment}-${defaultType}-${defaultDate}-${defaultIncomeStatus}`}
           data={registerData}
           defaultSegment={defaultSegment}
           defaultGoalType={defaultGoalType}
           defaultType={defaultType}
           defaultDate={defaultDate}
+          defaultIncomeStatus={defaultIncomeStatus}
           onSuccess={() => {
             router.refresh();
             closeOverlay('register');
