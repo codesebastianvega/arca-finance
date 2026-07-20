@@ -101,23 +101,23 @@ Para cerrar una tarea debe quedar:
 
 **Experiencia:** el onboarding ahora incluye un paso visual con vista previa, aplica el tema al instante y conserva la preferencia para el resto de la app.
 
-### 10. 🟡 Agregar accesos rápidos para pagos e ingresos futuros
+### 10. 🟠 Agregar accesos rápidos para pagos e ingresos futuros
 
 **Ya existe:** selector desde Agenda con “Programar gasto” y “Programar ingreso”.
 
-**Falta:** decidir e implementar accesos equivalentes desde el FAB principal sin sobrecargar su menú.
+**Implementado:** el FAB principal abre un menú breve con tres caminos: registrar algo ocurrido, programar un gasto y programar un ingreso. Los accesos futuros abren directamente el formulario y estado correctos, y explican que el saldo no cambia hasta confirmar la operación.
 
-### 11. ⬜ Agregar recurrencias diarias, semanales y quincenales
+### 11. 🟠 Agregar recurrencias diarias, semanales y quincenales
 
-**Situación actual:** los ingresos esperados permiten una sola vez o recurrencia mensual por días del mes.
+**Implementado:** los ingresos esperados aceptan una sola vez, diario, semanal, cada dos semanas, quincenal o mensual. Diario, semanal y cada dos semanas usan la fecha inicial como ancla; quincenal exige dos días del mes y mensual permite uno o varios.
 
-**Falta:** frecuencia diaria, semanal, cada dos semanas, quincenal y mensual con reglas comprensibles.
+**Compatibilidad:** las recurrencias mensuales existentes conservan su frecuencia y sus días de pago. Las nuevas reglas se guardan en la misma plantilla y generan eventos futuros hasta su fecha final, cantidad de cobros o ventana de proyección.
 
-### 12. ⬜ Aclarar y calcular correctamente el número de repeticiones
+### 12. 🟠 Aclarar y calcular correctamente el número de repeticiones
 
-**Problema:** “12 veces” significa 12 ocurrencias, pero el usuario puede interpretarlo como 12 meses.
+**Implementado:** el formulario habla de cantidad de cobros y muestra un resumen antes de guardar con frecuencia, número real de ocurrencias y duración estimada.
 
-**Pendiente:** mostrar ocurrencias y duración estimada. Ejemplo: 24 pagos quincenales equivalen aproximadamente a 12 meses.
+**Ejemplo:** 24 cobros cada dos semanas se presentan como 24 ocurrencias y aproximadamente 11 meses, porque la duración va desde el primer cobro hasta el último.
 
 ### 13. 🟡 Permitir que Nova gestione toda la estructura financiera
 

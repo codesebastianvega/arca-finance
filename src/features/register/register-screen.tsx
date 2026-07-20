@@ -3,6 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createAccount, createBusinessUnit, createCreditCard, createIncomeSource, createMovement, createReceivableLoan, createPayableLoan, createSavingsGoal, createScheduledObligation, createExpectedIncome, createExpenseCategory, createBankCredit } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 import type { RegisterViewModel } from '@/src/lib/register-data';
+import {
+  defaultSemimonthlyDays,
+  INCOME_RECURRENCE_OPTIONS,
+  type IncomeRecurrenceEndMode,
+  type IncomeRecurrenceFrequency,
+} from '@/src/lib/income-recurrence';
+import { summarizeRecurrence } from '@/src/lib/recurrence-summary';
 import { 
   Check, 
   CheckCircle2,
@@ -204,9 +211,9 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [movementDate, setMovementDate] = useState(defaultDate);
   const [movementIncomeSourceId, setMovementIncomeSourceId] = useState('');
   const [incomeStatus, setIncomeStatus] = useState<'received' | 'expected'>(defaultIncomeStatus);
-  const [recurrenceMode, setRecurrenceMode] = useState<'once' | 'monthly'>('once');
+  const [recurrenceMode, setRecurrenceMode] = useState<IncomeRecurrenceFrequency>('once');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
-  const [recurrenceEndMode, setRecurrenceEndMode] = useState<'indefinite' | 'until_date' | 'count'>('indefinite');
+  const [recurrenceEndMode, setRecurrenceEndMode] = useState<IncomeRecurrenceEndMode>('indefinite');
   const [recurrenceEndDate, setRecurrenceEndDate] = useState('');
   const [recurrenceCount, setRecurrenceCount] = useState('');
   const [selectedBank, setSelectedBank] = useState(COLOMBIAN_BANKS[0]);
@@ -300,6 +307,23 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     if (!query) return COLOMBIAN_BANKS;
     return COLOMBIAN_BANKS.filter((bank) => bank.name.toLowerCase().includes(query));
   }, [bankQuery]);
+
+  const recurrenceSummary = useMemo(() => {
+    if (recurrenceMode === 'once' || !movementDate) return null;
+    try {
+      return summarizeRecurrence({
+        frequency: recurrenceMode,
+        startDate: movementDate,
+        recurrenceDays,
+        endMode: recurrenceEndMode,
+        endDate: recurrenceEndDate || null,
+        occurrenceCount: recurrenceCount ? Number(recurrenceCount) : null,
+        occurrenceNoun: { singular: 'cobro', plural: 'cobros' },
+      });
+    } catch {
+      return null;
+    }
+  }, [movementDate, recurrenceCount, recurrenceDays, recurrenceEndDate, recurrenceEndMode, recurrenceMode]);
 
   const expenseCategoryOptions = useMemo(() => {
     const dbCategories = data.categories.map((category) => ({
@@ -1004,73 +1028,92 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           <div className="space-y-4 pt-2 border-t border-arca-border/50">
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Frecuencia</label>
-              <div className="flex bg-arca-surface-3 p-1 rounded-xl border border-arca-border">
-                <button 
-                  onClick={() => { haptics.light(); setRecurrenceMode('once'); }}
-                  className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${recurrenceMode === 'once' ? 'bg-arca-surface-2 text-arca-text-primary shadow-sm' : 'text-arca-text-dim'}`}
-                >
-                  Una vez
-                </button>
-                <button 
-                  onClick={() => { haptics.light(); setRecurrenceMode('monthly'); }}
-                  className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${recurrenceMode === 'monthly' ? 'bg-arca-surface-2 text-arca-text-primary shadow-sm' : 'text-arca-text-dim'}`}
-                >
-                  Mensual
-                </button>
+              <div className="grid grid-cols-2 gap-2">
+                {INCOME_RECURRENCE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      haptics.light();
+                      setRecurrenceMode(option.value);
+                      if (option.value === 'semimonthly') {
+                        setRecurrenceDays(movementDate ? defaultSemimonthlyDays(movementDate) : [15, 30]);
+                      } else if (option.value === 'monthly') {
+                        const startDay = movementDate ? Number(movementDate.slice(-2)) : 1;
+                        setRecurrenceDays(recurrenceDays.length ? recurrenceDays : [startDay]);
+                      } else {
+                        setRecurrenceDays([]);
+                      }
+                    }}
+                    className={`rounded-xl border px-3 py-3 text-left transition-all ${recurrenceMode === option.value ? 'border-arca-accent bg-arca-accent/10 text-arca-text-primary' : 'border-arca-border bg-arca-surface-2 text-arca-text-secondary'}`}
+                  >
+                    <span className="block text-[10px] font-black uppercase tracking-wider">{option.label}</span>
+                    <span className="mt-1 block text-[9px] leading-4 text-arca-text-dim">{option.helper}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {recurrenceMode === 'monthly' && (
+            {recurrenceMode !== 'once' && (
               <div className="space-y-4 p-4 rounded-xl border border-arca-border bg-arca-surface-2/30">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Días de pago</label>
-                  <p className="text-[10px] text-arca-text-dim ml-1 mb-2">Selecciona los días del mes en que recibes este pago.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 15, 28, 30].map(day => (
-                      <button
-                        key={day}
-                        onClick={() => {
-                          haptics.light();
-                          if (recurrenceDays.includes(day)) {
-                            setRecurrenceDays(recurrenceDays.filter(d => d !== day));
-                          } else {
-                            setRecurrenceDays([...recurrenceDays, day].sort((a,b) => a-b));
+                {(recurrenceMode === 'monthly' || recurrenceMode === 'semimonthly') && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Días de pago</label>
+                    <p className="text-[10px] text-arca-text-dim ml-1 mb-2">
+                      {recurrenceMode === 'semimonthly' ? 'Elige exactamente dos días del mes.' : 'Puedes elegir uno o varios días del mes.'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 5, 15, 20, 28, 30].map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            haptics.light();
+                            if (recurrenceDays.includes(day)) {
+                              setRecurrenceDays(recurrenceDays.filter((item) => item !== day));
+                            } else if (recurrenceMode === 'monthly' || recurrenceDays.length < 2) {
+                              setRecurrenceDays([...recurrenceDays, day].sort((a, b) => a - b));
+                            }
+                          }}
+                          className={`w-10 h-10 rounded-full font-bold text-xs transition-colors flex items-center justify-center border ${recurrenceDays.includes(day) ? 'bg-arca-accent text-black border-arca-accent shadow-lg shadow-arca-accent/20' : 'bg-arca-surface-2 text-arca-text-secondary border-arca-border hover:bg-arca-border/50'}`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        aria-label="Agregar otro día de pago"
+                        placeholder="+ Día"
+                        className="w-16 h-10 rounded-full text-xs font-bold text-center bg-arca-surface-3 border border-arca-border focus:outline-none focus:border-arca-accent"
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return;
+                          event.preventDefault();
+                          const value = Number((event.target as HTMLInputElement).value);
+                          const canAdd = recurrenceMode === 'monthly' || recurrenceDays.length < 2;
+                          if (value >= 1 && value <= 31 && canAdd && !recurrenceDays.includes(value)) {
+                            setRecurrenceDays([...recurrenceDays, value].sort((a, b) => a - b));
+                            (event.target as HTMLInputElement).value = '';
                           }
                         }}
-                        className={`w-10 h-10 rounded-full font-bold text-xs transition-colors flex items-center justify-center border ${recurrenceDays.includes(day) ? 'bg-arca-accent text-white border-arca-accent shadow-lg shadow-arca-accent/20' : 'bg-arca-surface-2 text-arca-text-secondary border-arca-border hover:bg-arca-border/50'}`}
-                      >
-                        {day}
-                      </button>
-                    ))}
-                    <input 
-                      type="number" 
-                      placeholder="+ Día" 
-                      className="w-16 h-10 rounded-full text-xs font-bold text-center bg-arca-surface-3 border border-arca-border focus:outline-none focus:border-arca-accent"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const val = Number((e.target as HTMLInputElement).value);
-                          if (val >= 1 && val <= 31 && !recurrenceDays.includes(val)) {
-                            setRecurrenceDays([...recurrenceDays, val].sort((a,b) => a-b));
-                            (e.target as HTMLInputElement).value = '';
-                          }
-                        }
-                      }}
-                    />
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-2 pt-2 border-t border-arca-border/50">
                   <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Fin de recurrencia</label>
                   <select
                     value={recurrenceEndMode}
-                    onChange={(e) => setRecurrenceEndMode(e.target.value as any)}
+                    onChange={(event) => setRecurrenceEndMode(event.target.value as IncomeRecurrenceEndMode)}
                     className="w-full bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
                   >
-                    <option value="indefinite">Indefinido (siempre)</option>
+                    <option value="indefinite">Sin fecha final</option>
                     <option value="until_date">Hasta una fecha</option>
-                    <option value="count">Número de veces</option>
+                    <option value="count">Cantidad de cobros</option>
                   </select>
+                  {recurrenceEndMode === 'indefinite' ? <p className="ml-1 text-[9px] leading-4 text-arca-text-dim">Arca mantendrá activa la regla y proyectará sus próximos movimientos.</p> : null}
                 </div>
 
                 {recurrenceEndMode === 'until_date' && (
@@ -1087,9 +1130,10 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
                 {recurrenceEndMode === 'count' && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cantidad de veces</label>
+                    <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cantidad de cobros</label>
                     <input
                       type="number"
+                      min="1"
                       value={recurrenceCount}
                       onChange={(e) => setRecurrenceCount(e.target.value)}
                       placeholder="Ej: 12"
@@ -1097,6 +1141,13 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
                     />
                   </div>
                 )}
+
+                {recurrenceSummary ? (
+                  <div className="rounded-xl border border-arca-accent/25 bg-arca-accent/[0.07] px-3 py-3">
+                    <p className="text-[10px] font-black text-arca-text-primary">{recurrenceSummary.summary}</p>
+                    <p className="mt-1 text-[9px] leading-4 text-arca-text-secondary">{recurrenceSummary.explanation}</p>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

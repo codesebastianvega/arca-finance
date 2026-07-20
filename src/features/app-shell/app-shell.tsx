@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
-import { BellRing, ChevronRight, Plus, X } from 'lucide-react';
+import { BellRing, CalendarClock, ChevronRight, ReceiptText, TrendingDown, TrendingUp, Wand2 } from 'lucide-react';
 import { Screen } from '../../types';
 import { haptics } from '../../lib/haptics';
 import { NAV_ITEMS, getNavItem } from './nav';
@@ -12,7 +12,6 @@ import BottomSheet from '../../components/BottomSheet';
 import RegisterScreen from '../register/register-screen';
 import type { RegisterViewModel } from '@/src/lib/register-data';
 import AiChat from '../chat/ai-chat';
-import { Wand2 } from 'lucide-react';
 import { recordAppUsage } from '@/app/telemetry-actions';
 import type { BillingNotice } from '@/src/lib/billing-data';
 import { PullToRefresh } from '../pwa/pull-to-refresh';
@@ -32,6 +31,7 @@ interface AppShellProps {
 export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode, canUseNova, novaMonthlyLimit, novaUsed, billingNotice }: AppShellProps) {
   const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [novaInitialPrompt, setNovaInitialPrompt] = useState<string | null>(null);
   const [defaultSegment, setDefaultSegment] = useState('Movimiento');
@@ -40,21 +40,24 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   const [defaultDate, setDefaultDate] = useState('');
   const [defaultIncomeStatus, setDefaultIncomeStatus] = useState<'received' | 'expected'>('received');
 
-  const openOverlay = useCallback((overlay: 'register' | 'nova') => {
-    window.history.pushState(
-      { ...window.history.state, arcaOverlay: overlay },
-      '',
-      window.location.href,
-    );
+  const openOverlay = useCallback((overlay: 'quick-add' | 'register' | 'nova') => {
+    const nextState = { ...window.history.state, arcaOverlay: overlay };
+    if (window.history.state?.arcaOverlay) {
+      window.history.replaceState(nextState, '', window.location.href);
+    } else {
+      window.history.pushState(nextState, '', window.location.href);
+    }
+    setIsQuickAddOpen(overlay === 'quick-add');
     setIsRegisterOpen(overlay === 'register');
     setIsAiChatOpen(overlay === 'nova');
   }, []);
 
-  const closeOverlay = useCallback((overlay: 'register' | 'nova') => {
+  const closeOverlay = useCallback((overlay: 'quick-add' | 'register' | 'nova') => {
     if (window.history.state?.arcaOverlay === overlay) {
       window.history.back();
       return;
     }
+    if (overlay === 'quick-add') setIsQuickAddOpen(false);
     if (overlay === 'register') setIsRegisterOpen(false);
     if (overlay === 'nova') setIsAiChatOpen(false);
   }, []);
@@ -62,6 +65,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   useEffect(() => {
     const handleOverlayHistory = (event: PopStateEvent) => {
       const overlay = event.state?.arcaOverlay;
+      setIsQuickAddOpen(overlay === 'quick-add');
       setIsRegisterOpen(overlay === 'register');
       setIsAiChatOpen(overlay === 'nova');
     };
@@ -115,6 +119,20 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
     return () => window.removeEventListener('open-nova', handleOpenNova);
   }, [canUseNova, openOverlay, setCurrentScreen]);
 
+  const openRegister = useCallback((options: {
+    segment: string;
+    type?: 'gasto' | 'ingreso';
+    incomeStatus?: 'received' | 'expected';
+  }) => {
+    haptics.light();
+    setDefaultSegment(options.segment);
+    setDefaultGoalType('goal');
+    setDefaultType(options.type ?? 'gasto');
+    setDefaultDate('');
+    setDefaultIncomeStatus(options.incomeStatus ?? 'received');
+    openOverlay('register');
+  }, [openOverlay]);
+
   return (
     <div className="min-h-screen bg-arca-base light:bg-arca-light-base text-arca-text-primary light:text-arca-light-text-primary transition-colors duration-500 overflow-x-hidden selection:bg-arca-accent/30 selection:text-arca-accent">
       
@@ -156,13 +174,56 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         currentScreen={currentScreen} 
         onScreenChange={setCurrentScreen}
         onAddClick={() => {
-          setDefaultSegment('Grid');
-          setDefaultType('gasto');
-          setDefaultDate('');
-          setDefaultIncomeStatus('received');
-          openOverlay('register');
+          openOverlay('quick-add');
         }}
       />
+
+      <BottomSheet
+        isOpen={isQuickAddOpen}
+        onClose={() => closeOverlay('quick-add')}
+        title="¿Qué quieres agregar?"
+      >
+        <div className="space-y-5 pb-2">
+          <button
+            type="button"
+            onClick={() => openRegister({ segment: 'Grid' })}
+            className="flex w-full items-center gap-3 rounded-2xl border border-arca-accent/30 bg-arca-accent/[0.08] p-4 text-left"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-arca-accent text-arca-base">
+              <ReceiptText size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black text-arca-text-primary">Registrar algo de hoy</span>
+              <span className="mt-1 block text-[10px] leading-4 text-arca-text-secondary">Movimiento, cuenta, tarjeta, ahorro u otro registro.</span>
+            </span>
+            <ChevronRight size={17} className="shrink-0 text-arca-accent" />
+          </button>
+
+          <div>
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <CalendarClock size={14} className="text-arca-accent" />
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-arca-text-dim">Para una fecha futura</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <QuickAddAction
+                icon={TrendingDown}
+                title="Programar gasto"
+                description="Pago o compromiso pendiente."
+                tone="alert"
+                onClick={() => openRegister({ segment: 'Obligacion', type: 'gasto' })}
+              />
+              <QuickAddAction
+                icon={TrendingUp}
+                title="Programar ingreso"
+                description="Dinero que esperas recibir."
+                tone="positive"
+                onClick={() => openRegister({ segment: 'Movimiento', type: 'ingreso', incomeStatus: 'expected' })}
+              />
+            </div>
+            <p className="mt-3 px-1 text-[9px] leading-4 text-arca-text-dim">Lo programado aparecerá en Agenda y proyecciones. Tu saldo cambiará únicamente cuando confirmes que ocurrió.</p>
+          </div>
+        </div>
+      </BottomSheet>
 
       {/* Register Bottom Sheet */}
       <BottomSheet
@@ -204,5 +265,31 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         }}
       /> : null}
     </div>
+  );
+}
+
+function QuickAddAction({ icon: Icon, title, description, tone, onClick }: {
+  icon: typeof TrendingDown;
+  title: string;
+  description: string;
+  tone: 'alert' | 'positive';
+  onClick: () => void;
+}) {
+  const toneClass = tone === 'alert'
+    ? 'bg-arca-alert/10 text-arca-alert'
+    : 'bg-arca-positive/10 text-arca-positive';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border border-arca-border bg-arca-surface-2 p-3 text-left"
+    >
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${toneClass}`}>
+        <Icon size={17} />
+      </span>
+      <span className="mt-3 block text-xs font-black text-arca-text-primary">{title}</span>
+      <span className="mt-1 block text-[9px] leading-4 text-arca-text-secondary">{description}</span>
+    </button>
   );
 }

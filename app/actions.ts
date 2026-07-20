@@ -3,6 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { requireWorkspaceContext } from "@/src/lib/auth";
 import { getSupabaseAdminClient } from "@/src/lib/supabase";
+import {
+  generateIncomeOccurrenceDates,
+  normalizeRecurrenceDays,
+  validateIncomeRecurrence,
+  type IncomeRecurrenceEndMode,
+  type IncomeRecurrenceFrequency,
+} from "@/src/lib/income-recurrence";
 
 function timingStatusFromDates(dueDateRaw: string, paidAtRaw: string) {
   const dueDate = new Date(`${dueDateRaw}T00:00:00-05:00`);
@@ -890,9 +897,9 @@ export async function createExpectedIncome(input: {
   accountId: string;
   unit: string;
   sourceId?: string | null;
-  recurrenceMode?: 'once' | 'monthly';
+  recurrenceMode?: IncomeRecurrenceFrequency;
   recurrenceDays?: number[];
-  recurrenceEndMode?: 'indefinite' | 'until_date' | 'count';
+  recurrenceEndMode?: IncomeRecurrenceEndMode;
   recurrenceEndDate?: string | null;
   recurrenceCount?: number | null;
 }) {
@@ -909,13 +916,21 @@ export async function createExpectedIncome(input: {
   const sourceId = input.sourceId?.trim() || null;
   
   const recurrenceMode = input.recurrenceMode || 'once';
-  const recurrenceDays = input.recurrenceDays || [];
+  const recurrenceDays = normalizeRecurrenceDays(input.recurrenceDays);
+  const recurrenceEndMode = input.recurrenceEndMode || 'indefinite';
 
   if (!title) throw new Error("El ingreso necesita un concepto.");
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("El monto debe ser mayor a cero.");
   if (!dueDate) throw new Error("Debes definir la fecha esperada.");
   if (!accountId) throw new Error("Debes elegir una cuenta destino.");
-  if (recurrenceMode === 'monthly' && recurrenceDays.length === 0) throw new Error("Debes elegir al menos un día de pago para la recurrencia mensual.");
+  validateIncomeRecurrence({
+    frequency: recurrenceMode,
+    startDate: dueDate,
+    recurrenceDays,
+    endMode: recurrenceEndMode,
+    endDate: input.recurrenceEndDate,
+    occurrenceCount: input.recurrenceCount,
+  });
 
   const { data: account, error: accountError } = await admin
     .from("accounts")
@@ -949,17 +964,6 @@ export async function createExpectedIncome(input: {
       throw new Error(`No se pudo registrar el ingreso esperado: ${error.message}`);
     }
   } else {
-    // Es recurrente (monthly)
-    // 1. Crear el income_template
-    // 2. Generar scheduled_events (por 12 meses o hasta el limite)
-    
-    // Obtenemos un income_source dummy si no hay uno (esto depende de schema, vamos a omitirlo si no es requerido o usar null si se permite, aunque income_source_id es required en income_templates segun el schema)
-    // Wait, let me check the schema: "income_source_id uuid not null" ?
-    // If it's not null, we MUST have a sourceId. What if sourceId is null?
-    // Let's check schema.sql lines 444-470 output from before.
-    // "income_source_id uuid not null references public.income_sources(id) on delete restrict,"
-    // Ah, it's NOT NULL. But what if the user didn't pick an income source? 
-    // They are forced to pick one in the UI. Let's assume sourceId is provided.
     if (!sourceId) {
       throw new Error("Se requiere una fuente de ingreso para crear recurrencia.");
     }
@@ -969,12 +973,12 @@ export async function createExpectedIncome(input: {
       name: title,
       kind: "income",
       status: "active",
-      recurrence_mode: "monthly",
-      frequency: "monthly",
-      days_of_month: recurrenceDays,
+      recurrence_mode: recurrenceMode === 'monthly' ? 'monthly' : 'frequency',
+      frequency: recurrenceMode,
+      days_of_month: recurrenceMode === 'monthly' || recurrenceMode === 'semimonthly' ? recurrenceDays : [],
       start_date: dueDate,
-      end_date: input.recurrenceEndMode === 'until_date' ? input.recurrenceEndDate : null,
-      occurrence_limit: input.recurrenceEndMode === 'count' ? input.recurrenceCount : null,
+      end_date: recurrenceEndMode === 'until_date' ? input.recurrenceEndDate : null,
+      occurrence_limit: recurrenceEndMode === 'count' ? input.recurrenceCount : null,
       default_amount: amount,
       default_account_id: accountId,
       business_unit_key: unit,
@@ -986,71 +990,37 @@ export async function createExpectedIncome(input: {
       throw new Error(`No se pudo registrar la plantilla de ingreso: ${templateError?.message ?? "sin respuesta"}`);
     }
 
-    // Generar eventos proyectados
-    const eventsToInsert = [];
-    let currentDate = new Date(`${dueDate}T00:00:00-05:00`);
-    let occurrencesGenerated = 0;
-    
-    const maxMonthsToGenerate = 12; // Por defecto generar solo hasta 1 año para no saturar
-    const maxOccurrences = input.recurrenceEndMode === 'count' && input.recurrenceCount ? input.recurrenceCount : maxMonthsToGenerate * recurrenceDays.length;
-    
-    const endDateObj = input.recurrenceEndMode === 'until_date' && input.recurrenceEndDate ? new Date(`${input.recurrenceEndDate}T00:00:00-05:00`) : new Date(currentDate.getTime() + 1000 * 60 * 60 * 24 * 365); // 1 año max default
-
-    // Para el primer mes de inicio (dueDate month)
-    let startYear = currentDate.getFullYear();
-    let startMonth = currentDate.getMonth();
-
-    for (let monthOffset = 0; monthOffset < maxMonthsToGenerate; monthOffset++) {
-      let currentMonth = startMonth + monthOffset;
-      let currentYear = startYear;
-      if (currentMonth > 11) {
-        currentYear += Math.floor(currentMonth / 12);
-        currentMonth = currentMonth % 12;
-      }
-
-      for (const day of recurrenceDays) {
-        if (occurrencesGenerated >= maxOccurrences) break;
-
-        // Evitar dias invalidos (ej 30 de feb) limitando al maximo dia del mes
-        const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-        const validDay = Math.min(day, lastDayOfMonth);
-        
-        const eventDate = new Date(currentYear, currentMonth, validDay);
-        
-        // Skip si es antes de startDate
-        if (eventDate < new Date(`${dueDate}T00:00:00-05:00`)) continue;
-        
-        // Skip si pasa el endDate
-        if (eventDate > endDateObj) break;
-
-        const eventDateStr = new Intl.DateTimeFormat("en-CA", {
-          year: "numeric", month: "2-digit", day: "2-digit"
-        }).format(eventDate);
-
-        eventsToInsert.push({
-          workspace_id: context.workspace.id,
-          due_date: eventDateStr,
-          title,
-          amount,
-          kind: "income",
-          status: "scheduled",
-          priority: "medium",
-          account_id: accountId,
-          suggested_account_id: accountId,
-          business_unit_key: unit,
-          linked_entity_type: "income_source",
-          linked_entity_id: sourceId,
-          template_id: template.id,
-        });
-
-        occurrencesGenerated++;
-      }
-    }
+    const occurrenceDates = generateIncomeOccurrenceDates({
+      frequency: recurrenceMode,
+      startDate: dueDate,
+      recurrenceDays,
+      endMode: recurrenceEndMode,
+      endDate: input.recurrenceEndDate,
+      occurrenceCount: input.recurrenceCount,
+      maxOccurrences: recurrenceEndMode === 'count' ? input.recurrenceCount ?? 1000 : recurrenceEndMode === 'until_date' ? 1000 : 366,
+      generationHorizonDays: recurrenceEndMode === 'indefinite' ? 366 : 36_525,
+    });
+    const eventsToInsert = occurrenceDates.map((eventDate) => ({
+      workspace_id: context.workspace.id,
+      due_date: eventDate,
+      title,
+      amount,
+      kind: "income",
+      status: "scheduled",
+      priority: "medium",
+      account_id: accountId,
+      suggested_account_id: accountId,
+      business_unit_key: unit,
+      linked_entity_type: "income_source",
+      linked_entity_id: sourceId,
+      template_id: template.id,
+    }));
 
     if (eventsToInsert.length > 0) {
       const { error: bulkError } = await admin.from("scheduled_events").insert(eventsToInsert);
       if (bulkError) {
         console.error("Supabase Error (bulk):", bulkError);
+        await admin.from("income_templates").delete().eq("id", template.id).eq("workspace_id", context.workspace.id);
         throw new Error(`Error generando eventos proyectados: ${bulkError.message}`);
       }
     }

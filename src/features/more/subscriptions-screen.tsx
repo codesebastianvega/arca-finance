@@ -176,8 +176,8 @@ function EmptyState({ tab, onCreate }: { tab: ActiveTab; onCreate?: () => void }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[9px] font-black uppercase tracking-wider text-arca-text-dim">{label}</span>{children}</label>; }
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-arca-border bg-arca-surface-2 p-3"><p className="text-[8px] font-black uppercase tracking-wider text-arca-text-dim">{label}</p><p className="mt-1 truncate text-xs font-black capitalize text-arca-text-primary">{value}</p></div>; }
 
-function frequencyLabel(value: string) { return ({ monthly: 'Mensual', bimonthly: 'Bimestral', quarterly: 'Trimestral', biannual: 'Semestral', annual: 'Anual' } as Record<string, string>)[value] ?? value; }
-function frequencySuffix(value: string) { return ({ monthly: '/ mes', bimonthly: '/ 2 meses', quarterly: '/ 3 meses', biannual: '/ 6 meses', annual: '/ año' } as Record<string, string>)[value] ?? '/ recurrencia'; }
+function frequencyLabel(value: string) { return ({ daily: 'Diario', weekly: 'Semanal', biweekly: 'Cada 2 semanas', semimonthly: 'Quincenal', monthly: 'Mensual', bimonthly: 'Bimestral', quarterly: 'Trimestral', biannual: 'Semestral', annual: 'Anual' } as Record<string, string>)[value] ?? value; }
+function frequencySuffix(value: string) { return ({ daily: '/ día', weekly: '/ semana', biweekly: '/ 2 semanas', semimonthly: '/ quincena', monthly: '/ mes', bimonthly: '/ 2 meses', quarterly: '/ 3 meses', biannual: '/ 6 meses', annual: '/ año' } as Record<string, string>)[value] ?? '/ recurrencia'; }
 function unitLabel(value: string) { return value === 'general' ? 'General' : value.replaceAll('_', ' '); }
 function dateLabel(value: string) { return new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'long', timeZone: 'America/Bogota' }).format(new Date(`${value}T12:00:00-05:00`)); }
 function moneyFormatter(currency: string) { const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'COP'; return new Intl.NumberFormat('es-CO', { style: 'currency', currency: safeCurrency, maximumFractionDigits: 0 }); }
@@ -185,11 +185,18 @@ function novaMessage(total: number, expenses: number) { if (!total) return 'Cuan
 
 function occurrencesPerMonth(item: Subscription) {
   if (item.frequency === 'monthly' && item.daysOfMonth.length > 0) return item.daysOfMonth.length;
+  if (item.frequency === 'daily') return 30;
+  if (item.frequency === 'weekly') return 4;
+  if (item.frequency === 'biweekly' || item.frequency === 'semimonthly') return 2;
   return 1;
 }
 
 function monthlyEquivalent(item: Subscription) {
   if (item.frequency === 'monthly') return item.defaultAmount * occurrencesPerMonth(item);
+  if (item.frequency === 'daily') return item.defaultAmount * (365 / 12);
+  if (item.frequency === 'weekly') return item.defaultAmount * (52 / 12);
+  if (item.frequency === 'biweekly') return item.defaultAmount * (26 / 12);
+  if (item.frequency === 'semimonthly') return item.defaultAmount * 2;
   const divisor: Record<string, number> = { bimonthly: 2, quarterly: 3, biannual: 6, annual: 12 };
   return item.defaultAmount / (divisor[item.frequency] ?? 1);
 }
