@@ -50,15 +50,18 @@ import type { AppUserSummary, ThemeId } from '../App';
 import type { RegisterOption, RegisterViewModel } from '../lib/register-data';
 import {
   archiveAccount,
+  archiveCreditCard,
   archiveBusinessUnit,
   createAccount,
   createBusinessUnit,
+  createCreditCard,
   createExpenseCategory,
   createIncomeSource,
   deleteExpenseCategory,
   deleteIncomeSource,
   updateBusinessUnit,
   updateAccountDetails,
+  updateCreditCardDetails,
   updateExpenseCategory,
   updateIncomeSource,
 } from '@/app/actions';
@@ -135,7 +138,7 @@ const THEMES: { id: ThemeId; name: string; description: string; colors: [string,
   },
 ];
 
-type ManagerView = 'accounts' | 'units' | 'income' | 'categories' | null;
+type ManagerView = 'accounts' | 'cards' | 'units' | 'income' | 'categories' | null;
 type EditorState = {
   id?: string;
   name: string;
@@ -147,6 +150,18 @@ type EditorState = {
   type: string;
   balance: string;
   color: string;
+  issuer: string;
+  limitValue: string;
+  used: string;
+  cutOffDate: string;
+  payDueDate: string;
+  minimumPayment: string;
+  annualInterestRate: string;
+  interestType: string;
+  estimatedPayoffMonths: string;
+  estimatedTotalPayment: string;
+  paymentStrategy: string;
+  notes: string;
 };
 
 const EMPTY_EDITOR: EditorState = {
@@ -159,6 +174,18 @@ const EMPTY_EDITOR: EditorState = {
   type: 'Ahorros',
   balance: '0',
   color: '#C68A45',
+  issuer: '',
+  limitValue: '0',
+  used: '0',
+  cutOffDate: '1',
+  payDueDate: '1',
+  minimumPayment: '0',
+  annualInterestRate: '',
+  interestType: 'EA',
+  estimatedPayoffMonths: '',
+  estimatedTotalPayment: '',
+  paymentStrategy: 'minimum',
+  notes: '',
 };
 
 export default function ConfiguracionScreen({ onBack, theme, setTheme, data, user, plans }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel; user: AppUserSummary; plans: BillingPlan[] }) {
@@ -219,6 +246,16 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     });
   };
 
+  const handleArchiveCard = (id: string) => {
+    if (!window.confirm("¿Quieres archivar esta tarjeta? Solo se puede hacer cuando su deuda esté en $0.")) return;
+    haptics.medium();
+    startTransition(() => {
+      void archiveCreditCard(id)
+        .then(() => router.refresh())
+        .catch((error: Error) => alert(error.message || "No se pudo archivar la tarjeta."));
+    });
+  };
+
   const handleDeleteSource = (id: string) => {
     if (!window.confirm("¿Estás seguro de eliminar este concepto de ingreso?")) return;
     haptics.medium();
@@ -238,17 +275,49 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
         ? editor.id
           ? updateAccountDetails({ id: editor.id, name: editor.name, entity: editor.entity, type: editor.type, color: editor.color })
           : createAccount({ name: editor.name, entity: editor.entity, type: editor.type, balance: Number(editor.balance || 0), color: editor.color })
-        : managerView === 'units'
-        ? editor.id
-          ? updateBusinessUnit({ id: editor.id, name: editor.name, key: editor.key })
-          : createBusinessUnit({ name: editor.name, key: editor.key || editor.name })
-        : managerView === 'income'
+        : managerView === 'cards'
           ? editor.id
-            ? updateIncomeSource({ id: editor.id, name: editor.name, businessUnitKey: editor.unitKey, defaultAccountId: editor.accountId })
-            : createIncomeSource({ name: editor.name, businessUnitKey: editor.unitKey, defaultAccountId: editor.accountId })
-          : editor.id
-            ? updateExpenseCategory({ id: editor.id, name: editor.name, parentId: editor.parentId || null })
-            : createExpenseCategory({ name: editor.name, parentId: editor.parentId || null });
+            ? updateCreditCardDetails({
+                id: editor.id,
+                name: editor.name,
+                issuer: editor.issuer,
+                limitValue: Number(editor.limitValue || 0),
+                cutOffDate: Number(editor.cutOffDate || 1),
+                payDueDate: Number(editor.payDueDate || 1),
+                minimumPayment: Number(editor.minimumPayment || 0),
+                annualInterestRate: editor.annualInterestRate ? Number(editor.annualInterestRate) : null,
+                interestType: editor.interestType,
+                estimatedPayoffMonths: editor.estimatedPayoffMonths ? Number(editor.estimatedPayoffMonths) : null,
+                estimatedTotalPayment: editor.estimatedTotalPayment ? Number(editor.estimatedTotalPayment) : null,
+                paymentStrategy: editor.paymentStrategy,
+                notes: editor.notes,
+              })
+            : createCreditCard({
+                name: editor.name,
+                issuer: editor.issuer,
+                limitValue: Number(editor.limitValue || 0),
+                used: Number(editor.used || 0),
+                cutOffDate: Number(editor.cutOffDate || 1),
+                payDueDate: Number(editor.payDueDate || 1),
+                minimumPayment: Number(editor.minimumPayment || 0),
+                annualInterestRate: editor.annualInterestRate ? Number(editor.annualInterestRate) : null,
+                interestType: editor.interestType,
+                estimatedPayoffMonths: editor.estimatedPayoffMonths ? Number(editor.estimatedPayoffMonths) : null,
+                estimatedTotalPayment: editor.estimatedTotalPayment ? Number(editor.estimatedTotalPayment) : null,
+                paymentStrategy: editor.paymentStrategy,
+                notes: editor.notes,
+              })
+          : managerView === 'units'
+            ? editor.id
+              ? updateBusinessUnit({ id: editor.id, name: editor.name, key: editor.key })
+              : createBusinessUnit({ name: editor.name, key: editor.key || editor.name })
+            : managerView === 'income'
+              ? editor.id
+                ? updateIncomeSource({ id: editor.id, name: editor.name, businessUnitKey: editor.unitKey, defaultAccountId: editor.accountId })
+                : createIncomeSource({ name: editor.name, businessUnitKey: editor.unitKey, defaultAccountId: editor.accountId })
+              : editor.id
+                ? updateExpenseCategory({ id: editor.id, name: editor.name, parentId: editor.parentId || null })
+                : createExpenseCategory({ name: editor.name, parentId: editor.parentId || null });
 
       void mutation
         .then(() => {
@@ -311,6 +380,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     ? 'Proyectos y actividades'
     : managerView === 'accounts'
       ? 'Cuentas y efectivo'
+    : managerView === 'cards'
+      ? 'Tarjetas de crédito'
     : managerView === 'income'
       ? 'Conceptos de ingreso'
       : 'Categorías de gasto';
@@ -471,6 +542,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
         <SectionHeading icon={Settings2} eyebrow="Tus datos" title="Organización financiera" />
         <div className="overflow-hidden rounded-2xl border border-arca-border divide-y divide-arca-border">
           <ManagerRow icon={Wallet} label="Cuentas y efectivo" description="Bancos, billeteras y dinero disponible" count={data.accounts.length} onClick={() => openManager('accounts')} />
+          <ManagerRow icon={CreditCard} label="Tarjetas de crédito" description="Cupo, deuda, corte y pago mínimo" count={data.creditCards.length} onClick={() => openManager('cards')} />
           <ManagerRow icon={Briefcase} label="Proyectos y actividades" description="Separa trabajo o negocios de tus finanzas personales" count={projectUnits.length} onClick={() => openManager('units')} />
           <ManagerRow icon={Wallet} label="Conceptos de ingreso" description="Nómina, contratos y otros cobros" count={data.incomeSources.length} onClick={() => openManager('income')} />
           <ManagerRow icon={Settings2} label="Categorías de gasto" description="Clasifica en qué sale tu dinero" count={dbCategories.length} onClick={() => openManager('categories')} />
@@ -544,6 +616,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
               )}
 
               {!editor && managerView === 'accounts' && <ManagerList empty="Aún no tienes cuentas activas.">{data.accounts.map((account) => <ManagerItem archive key={account.id} title={account.label} subtitle={`${account.entity || account.meta || 'Cuenta'} · ${formatAccountBalance(account.amount ?? 0)}`} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: account.id, name: account.label, entity: account.entity ?? '', type: normalizeAccountType(account.meta), balance: String(account.amount ?? 0), color: account.color ?? '#C68A45' })} onDelete={() => handleArchiveAccount(account.id)} disabled={isPending} />)}</ManagerList>}
+              {!editor && managerView === 'cards' && <ManagerList empty="Aún no tienes tarjetas registradas.">{data.creditCards.map((card) => <ManagerItem archive key={card.id} title={card.name} subtitle={`${card.issuer} · deuda ${formatAccountBalance(card.used)} de ${formatAccountBalance(card.limit)}`} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: card.id, name: card.name, issuer: card.issuer, limitValue: String(card.limit), used: String(card.used), cutOffDate: String(card.cutOffDay), payDueDate: String(card.payDueDay), minimumPayment: String(card.minimumPayment), annualInterestRate: card.annualInterestRate == null ? '' : String(card.annualInterestRate), interestType: card.interestType, estimatedPayoffMonths: card.estimatedPayoffMonths == null ? '' : String(card.estimatedPayoffMonths), estimatedTotalPayment: card.estimatedTotalPayment == null ? '' : String(card.estimatedTotalPayment), paymentStrategy: card.paymentStrategy, notes: card.notes })} onDelete={() => handleArchiveCard(card.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'units' && <ManagerList empty="Aún no tienes proyectos. Tus registros seguirán en Personal.">{projectUnits.map((unit) => <ManagerItem archive key={unit.id} title={unit.label} subtitle="Proyecto o actividad" onEdit={() => setEditor({ ...EMPTY_EDITOR, id: unit.id, name: unit.label, key: unit.value })} onDelete={() => handleDeleteUnit(unit.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'income' && <ManagerList empty="No tienes conceptos de ingreso registrados.">{data.incomeSources.map((source) => <ManagerItem key={source.id} title={source.label} subtitle={source.unitKey} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: source.id, name: source.label, unitKey: source.unitKey, accountId: source.defaultAccountId ?? '' })} onDelete={() => handleDeleteSource(source.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'categories' && <ManagerList empty="No tienes categorías personalizadas.">{dbCategories.map((category) => <ManagerItem key={category.id} title={category.label} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: category.id, name: category.label, parentId: category.parentId })} onDelete={() => handleDeleteCategory(category.id)} disabled={isPending} />)}</ManagerList>}
@@ -668,12 +741,33 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
         <p className="text-xs font-bold text-arca-text-primary">{value.id ? 'Editar elemento' : 'Nuevo elemento'}</p>
         <p className="mt-1 text-[9px] text-arca-text-dim">Los cambios se reflejarán en registros, filtros y reportes.</p>
       </div>
-      <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'accounts' ? 'Ej. Cuenta principal' : view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
+      <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'accounts' ? 'Ej. Cuenta principal' : view === 'cards' ? 'Ej. Visa principal' : view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
       {view === 'accounts' && (
         <>
           <label className="block"><span className={labelClass}>Banco o entidad</span><input value={value.entity} onChange={(event) => onChange({ ...value, entity: event.target.value })} className={inputClass} placeholder="Ej. Nu, Nequi, Bancolombia o Efectivo" /></label>
           <label className="block"><span className={labelClass}>Tipo de cuenta</span><select required value={value.type} onChange={(event) => onChange({ ...value, type: event.target.value })} className={inputClass}><option value="Ahorros">Ahorros</option><option value="Corriente">Corriente</option><option value="Billetera digital">Billetera digital</option><option value="Efectivo">Efectivo</option><option value="Inversión">Inversión</option></select></label>
           {!value.id ? <label className="block"><span className={labelClass}>Saldo inicial</span><input inputMode="numeric" value={value.balance} onChange={(event) => onChange({ ...value, balance: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /><span className="mt-1 block text-[9px] leading-4 text-arca-text-dim">Se registrará como saldo inicial, no como ingreso del mes.</span></label> : <p className="rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-2 text-[9px] leading-4 text-arca-text-dim">El saldo se corrige con movimientos o transferencias para conservar el historial.</p>}
+        </>
+      )}
+      {view === 'cards' && (
+        <>
+          <label className="block"><span className={labelClass}>Banco o emisor</span><input required value={value.issuer} onChange={(event) => onChange({ ...value, issuer: event.target.value })} className={inputClass} placeholder="Ej. Nu o Bancolombia" /></label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block"><span className={labelClass}>Cupo total</span><input required inputMode="numeric" value={value.limitValue} onChange={(event) => onChange({ ...value, limitValue: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /></label>
+            {!value.id ? <label className="block"><span className={labelClass}>Deuda inicial</span><input required inputMode="numeric" value={value.used} onChange={(event) => onChange({ ...value, used: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /></label> : <div><span className={labelClass}>Deuda actual</span><p className={`${inputClass} cursor-not-allowed opacity-70`}>{formatAccountBalance(Number(value.used || 0))}</p></div>}
+          </div>
+          {value.id ? <p className="rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-2 text-[9px] leading-4 text-arca-text-dim">La deuda cambia con compras, pagos o ajustes; editar la tarjeta no modifica el historial.</p> : null}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block"><span className={labelClass}>Día de corte</span><input required type="number" min="1" max="31" value={value.cutOffDate} onChange={(event) => onChange({ ...value, cutOffDate: event.target.value })} className={inputClass} /></label>
+            <label className="block"><span className={labelClass}>Día de pago</span><input required type="number" min="1" max="31" value={value.payDueDate} onChange={(event) => onChange({ ...value, payDueDate: event.target.value })} className={inputClass} /></label>
+          </div>
+          <label className="block"><span className={labelClass}>Pago mínimo mensual</span><input inputMode="numeric" value={value.minimumPayment} onChange={(event) => onChange({ ...value, minimumPayment: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /></label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block"><span className={labelClass}>Interés anual (%)</span><input inputMode="decimal" value={value.annualInterestRate} onChange={(event) => onChange({ ...value, annualInterestRate: event.target.value.replace(/[^0-9.,]/g, '').replace(',', '.') })} className={inputClass} placeholder="Opcional" /></label>
+            <label className="block"><span className={labelClass}>Tipo de tasa</span><select value={value.interestType} onChange={(event) => onChange({ ...value, interestType: event.target.value })} className={inputClass}><option value="EA">Efectiva anual</option><option value="NMV">Mensual vencida</option><option value="unknown">No la sé</option></select></label>
+          </div>
+          <label className="block"><span className={labelClass}>Estrategia de pago</span><select value={value.paymentStrategy} onChange={(event) => onChange({ ...value, paymentStrategy: event.target.value })} className={inputClass}><option value="minimum">Pago mínimo</option><option value="fixed">Cuota fija</option><option value="full">Pago total</option></select></label>
+          <label className="block"><span className={labelClass}>Notas</span><textarea value={value.notes} onChange={(event) => onChange({ ...value, notes: event.target.value })} className={`${inputClass} min-h-20 resize-none`} placeholder="Beneficios, condiciones o recordatorios" /></label>
         </>
       )}
       {view === 'income' && (

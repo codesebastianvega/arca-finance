@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Clock3,
+  CreditCard,
   FolderPlus,
   Pencil,
   ReceiptText,
@@ -37,6 +38,9 @@ const ACTION_TYPES = new Set([
   'tool-create_account',
   'tool-update_account',
   'tool-archive_account',
+  'tool-create_credit_card',
+  'tool-update_credit_card',
+  'tool-archive_credit_card',
 ]);
 
 export type FinancialActionPart = {
@@ -75,7 +79,7 @@ function value(input: Record<string, unknown>, key: string) {
   return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
 }
 
-function actionPresentation(part: FinancialActionPart) {
+function actionPresentation(part: FinancialActionPart, currencyCode: string) {
   const input = part.input ?? {};
 
   if (part.type === 'tool-record_transaction') {
@@ -177,6 +181,46 @@ function actionPresentation(part: FinancialActionPart) {
     };
   }
 
+  if (part.type === 'tool-create_credit_card') {
+    return {
+      icon: CreditCard,
+      eyebrow: 'Nueva tarjeta',
+      title: value(input, 'name') ?? 'Crear tarjeta de crédito',
+      details: [
+        ['Emisor', value(input, 'issuer')],
+        ['Cupo', formatMoney(input.limitValue, currencyCode)],
+        ['Deuda inicial', formatMoney(input.initialDebt, currencyCode) ?? formatMoney(0, currencyCode)],
+        ['Corte y pago', `Día ${input.cutOffDay ?? '—'} · día ${input.payDueDay ?? '—'}`],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-update_credit_card') {
+    return {
+      icon: Pencil,
+      eyebrow: 'Editar tarjeta',
+      title: value(input, 'name') ?? 'Actualizar tarjeta',
+      details: [
+        ['Emisor', value(input, 'issuer')],
+        ['Nuevo cupo', formatMoney(input.limitValue, currencyCode)],
+        ['Deuda', 'No se modificará'],
+        ['Corte y pago', `Día ${input.cutOffDay ?? '—'} · día ${input.payDueDay ?? '—'}`],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-archive_credit_card') {
+    return {
+      icon: Archive,
+      eyebrow: 'Archivar tarjeta',
+      title: value(input, 'name') ?? 'Tarjeta de crédito',
+      details: [
+        ['Condición', 'Deuda en $0'],
+        ['Historial', 'Se conservará'],
+      ],
+    };
+  }
+
   return {
     icon: CalendarPlus,
     eyebrow: 'Programar pago',
@@ -203,7 +247,7 @@ export function FinancialActionCard({
   onViewChanges?: () => void;
 }) {
   const input = part.input ?? {};
-  const presentation = actionPresentation(part);
+  const presentation = actionPresentation(part, currencyCode);
   const Icon = presentation.icon;
   const amount = formatMoney(input.amount ?? input.initialBalance, currencyCode);
 

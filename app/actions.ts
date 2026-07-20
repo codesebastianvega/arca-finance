@@ -1727,11 +1727,116 @@ export async function updateCreditCardFull(input: {
   return { ok: true };
 }
 
+export async function updateCreditCardDetails(input: {
+  id: string;
+  name: string;
+  issuer: string;
+  limitValue: number;
+  cutOffDate: number;
+  payDueDate: number;
+  minimumPayment: number;
+  annualInterestRate: number | null;
+  interestType: string;
+  estimatedPayoffMonths: number | null;
+  estimatedTotalPayment: number | null;
+  paymentStrategy: string;
+  notes: string;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { data: currentCard, error: currentError } = await admin
+    .from("credit_cards")
+    .select("id, name, used")
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (currentError) throw new Error(`No se pudo consultar la tarjeta: ${currentError.message}`);
+  if (!currentCard) throw new Error("La tarjeta ya no está disponible.");
+
+  const name = input.name.trim();
+  const issuer = input.issuer.trim();
+  const limitValue = Number(input.limitValue);
+  const used = Number(currentCard.used ?? 0);
+  const minimumPayment = Number(input.minimumPayment);
+
+  if (!name) throw new Error("La tarjeta necesita un nombre.");
+  if (!issuer) throw new Error("La tarjeta necesita un emisor.");
+  if (!Number.isFinite(limitValue) || limitValue < 0) throw new Error("El cupo debe ser válido.");
+  if (limitValue > 0 && used > limitValue) throw new Error("El cupo no puede ser menor que la deuda actual.");
+  if (!Number.isFinite(minimumPayment) || minimumPayment < 0) throw new Error("El pago mínimo debe ser válido.");
+
+  const cutOffDate = Math.min(31, Math.max(1, Math.trunc(input.cutOffDate || 1)));
+  const payDueDate = Math.min(31, Math.max(1, Math.trunc(input.payDueDate || 1)));
+  const annualInterestRate = input.annualInterestRate == null || Number.isNaN(input.annualInterestRate) ? null : Math.max(0, input.annualInterestRate);
+  const estimatedPayoffMonths = input.estimatedPayoffMonths == null || Number.isNaN(input.estimatedPayoffMonths) ? null : Math.max(0, Math.trunc(input.estimatedPayoffMonths));
+  const estimatedTotalPayment = input.estimatedTotalPayment == null || Number.isNaN(input.estimatedTotalPayment) ? null : Math.max(0, input.estimatedTotalPayment);
+  const interestType = input.interestType.trim() || "unknown";
+  const paymentStrategy = input.paymentStrategy.trim() || "minimum";
+  const palette = creditCardBrandPalette(issuer);
+
+  const { error } = await admin
+    .from("credit_cards")
+    .update({
+      name,
+      issuer,
+      limit_value: limitValue,
+      cut_off_date: cutOffDate,
+      pay_due_date: payDueDate,
+      minimum_payment: minimumPayment,
+      annual_interest_rate: annualInterestRate,
+      interest_type: interestType,
+      estimated_payoff_months: estimatedPayoffMonths,
+      estimated_total_payment: estimatedTotalPayment,
+      payment_strategy: paymentStrategy,
+      notes: input.notes.trim(),
+      status: limitValue > 0 && used >= limitValue ? "blocked" : "active",
+      brand_color: palette.brand,
+      text_color: palette.text,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) throw new Error(`No se pudo actualizar la tarjeta: ${error.message}`);
+
+  const { error: eventError } = await admin
+    .from("scheduled_events")
+    .update({ title: `Pago TDC ${name}`, amount: minimumPayment })
+    .eq("workspace_id", context.workspace.id)
+    .eq("linked_entity_type", "credit_card")
+    .eq("linked_entity_id", input.id)
+    .eq("status", "pending");
+
+  if (eventError) console.error("No se pudieron sincronizar los pagos programados de la tarjeta:", eventError);
+
+  revalidatePath("/app");
+  return { ok: true, cardId: String(currentCard.id), name, issuer, limitValue, used, minimumPayment, cutOffDate, payDueDate };
+}
+
 export async function archiveCreditCard(cardId: string) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
 
   if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { data: card, error: cardError } = await admin
+    .from("credit_cards")
+    .select("id, name, used")
+    .eq("id", cardId)
+    .eq("workspace_id", context.workspace.id)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (cardError) throw new Error(`No se pudo consultar la tarjeta: ${cardError.message}`);
+  if (!card) throw new Error("La tarjeta ya no está disponible.");
+  if (Number(card.used ?? 0) > 0) {
+    throw new Error("No puedes archivar una tarjeta con deuda. Registra primero sus pagos o ajustes.");
+  }
 
   const { error } = await admin
     .from("credit_cards")
@@ -1744,8 +1849,18 @@ export async function archiveCreditCard(cardId: string) {
 
   if (error) throw new Error(`No se pudo archivar la tarjeta: ${error.message}`);
 
+  const { error: eventError } = await admin
+    .from("scheduled_events")
+    .update({ status: "cancelled" })
+    .eq("workspace_id", context.workspace.id)
+    .eq("linked_entity_type", "credit_card")
+    .eq("linked_entity_id", cardId)
+    .eq("status", "pending");
+
+  if (eventError) console.error("No se pudieron cancelar los pagos programados de la tarjeta:", eventError);
+
   revalidatePath("/app");
-  return { ok: true };
+  return { ok: true, cardId: String(card.id), name: String(card.name) };
 }
 
 export async function createCreditCard(input: {
@@ -1851,7 +1966,17 @@ export async function createCreditCard(input: {
   }
 
   revalidatePath("/app");
-  return { ok: true };
+  return {
+    ok: true,
+    cardId: String(credit.id),
+    name,
+    issuer,
+    limitValue: input.limitValue,
+    used: input.used,
+    minimumPayment: input.minimumPayment,
+    cutOffDate,
+    payDueDate,
+  };
 }
 
 export async function createBankCredit(input: {

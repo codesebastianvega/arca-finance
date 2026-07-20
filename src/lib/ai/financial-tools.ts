@@ -10,15 +10,18 @@ import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadMonthViewModel } from "@/src/lib/month-data";
 import {
   archiveAccount,
+  archiveCreditCard,
   archiveBusinessUnit,
   confirmScheduledEventNow,
   createAccount,
+  createCreditCard,
   createBusinessUnit,
   createExpectedIncome,
   createMovement,
   createScheduledObligation,
   saveMonthlyPlan,
   updateAccountDetails,
+  updateCreditCardDetails,
   updateBusinessUnit,
 } from "@/app/actions";
 
@@ -97,6 +100,21 @@ export function createFinancialTools(context: WorkspaceContext) {
             type: account.meta,
             balance: account.amount ?? 0,
             color: account.color ?? null,
+          })),
+          creditCards: options.creditCards.map((card) => ({
+            id: card.id,
+            name: card.name,
+            issuer: card.issuer,
+            limit: card.limit,
+            used: card.used,
+            available: Math.max(0, card.limit - card.used),
+            minimumPayment: card.minimumPayment,
+            annualInterestRate: card.annualInterestRate,
+            interestType: card.interestType,
+            cutOffDay: card.cutOffDay,
+            payDueDay: card.payDueDay,
+            paymentStrategy: card.paymentStrategy,
+            notes: card.notes,
           })),
           categories: options.categories.map((category) => ({
             id: category.id,
@@ -286,6 +304,102 @@ export function createFinancialTools(context: WorkspaceContext) {
           accountId: result.accountId,
           name: result.name,
         };
+      },
+    }),
+
+    create_credit_card: tool({
+      title: "Crear tarjeta de crédito",
+      description:
+        "Registra una tarjeta de crédito con su cupo, deuda inicial, fechas y pago mínimo. La deuda inicial es un punto de partida, no un gasto nuevo.",
+      needsApproval: true,
+      inputSchema: z.object({
+        name: z.string().min(2).describe("Nombre visible de la tarjeta."),
+        issuer: z.string().min(2).describe("Banco o entidad emisora."),
+        limitValue: z.number().min(0).describe("Cupo total de la tarjeta."),
+        initialDebt: z.number().min(0).default(0).describe("Deuda actual al registrarla; no crea un gasto."),
+        cutOffDay: z.number().int().min(1).max(31).describe("Día de corte."),
+        payDueDay: z.number().int().min(1).max(31).describe("Día límite de pago."),
+        minimumPayment: z.number().min(0).default(0).describe("Pago mínimo mensual conocido."),
+        annualInterestRate: z.number().min(0).nullable().optional().describe("Tasa anual en porcentaje, si el usuario la conoce."),
+        interestType: z.enum(["EA", "NMV", "unknown"]).default("unknown"),
+        paymentStrategy: z.enum(["minimum", "fixed", "full"]).default("minimum"),
+        notes: z.string().optional(),
+      }),
+      execute: async ({ name, issuer, limitValue, initialDebt, cutOffDay, payDueDay, minimumPayment, annualInterestRate, interestType, paymentStrategy, notes }) => {
+        const result = await createCreditCard({
+          name,
+          issuer,
+          limitValue,
+          used: initialDebt,
+          cutOffDate: cutOffDay,
+          payDueDate: payDueDay,
+          minimumPayment,
+          annualInterestRate: annualInterestRate ?? null,
+          interestType,
+          estimatedPayoffMonths: null,
+          estimatedTotalPayment: null,
+          paymentStrategy,
+          notes: notes ?? "",
+        });
+        return { success: result.ok, action: "credit_card_created", ...result, currency: context.workspace.currencyCode };
+      },
+    }),
+
+    update_credit_card: tool({
+      title: "Editar tarjeta de crédito",
+      description:
+        "Actualiza datos contractuales de una tarjeta sin modificar la deuda utilizada. Consulta primero get_financial_action_options y usa el ID exacto.",
+      needsApproval: true,
+      inputSchema: z.object({
+        cardId: z.string().min(1).describe("ID exacto de la tarjeta."),
+        name: z.string().min(2),
+        issuer: z.string().min(2),
+        limitValue: z.number().min(0),
+        cutOffDay: z.number().int().min(1).max(31),
+        payDueDay: z.number().int().min(1).max(31),
+        minimumPayment: z.number().min(0),
+        annualInterestRate: z.number().min(0).nullable().optional(),
+        interestType: z.enum(["EA", "NMV", "unknown"]),
+        paymentStrategy: z.enum(["minimum", "fixed", "full"]),
+      }),
+      execute: async ({ cardId, name, issuer, limitValue, cutOffDay, payDueDay, minimumPayment, annualInterestRate, interestType, paymentStrategy }) => {
+        const options = await loadRegisterViewModel(context);
+        const card = options.creditCards.find((item) => item.id === cardId);
+        if (!card) throw new Error("La tarjeta ya no está disponible.");
+        const result = await updateCreditCardDetails({
+          id: card.id,
+          name,
+          issuer,
+          limitValue,
+          cutOffDate: cutOffDay,
+          payDueDate: payDueDay,
+          minimumPayment,
+          annualInterestRate: annualInterestRate ?? null,
+          interestType,
+          estimatedPayoffMonths: card.estimatedPayoffMonths,
+          estimatedTotalPayment: card.estimatedTotalPayment,
+          paymentStrategy,
+          notes: card.notes,
+        });
+        return { success: result.ok, action: "credit_card_updated", previousName: card.name, ...result, currency: context.workspace.currencyCode };
+      },
+    }),
+
+    archive_credit_card: tool({
+      title: "Archivar tarjeta de crédito",
+      description:
+        "Archiva una tarjeta y conserva su historial. Solo se permite cuando su deuda utilizada es cero. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        cardId: z.string().min(1).describe("ID exacto de la tarjeta."),
+        name: z.string().min(1).describe("Nombre visible para confirmar."),
+      }),
+      execute: async ({ cardId }) => {
+        const options = await loadRegisterViewModel(context);
+        const card = options.creditCards.find((item) => item.id === cardId);
+        if (!card) throw new Error("La tarjeta ya no está disponible.");
+        const result = await archiveCreditCard(card.id);
+        return { success: result.ok, action: "credit_card_archived", cardId: result.cardId, name: result.name };
       },
     }),
 

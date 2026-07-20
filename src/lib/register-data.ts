@@ -15,6 +15,22 @@ export type RegisterOption = {
 
 export type RegisterViewModel = {
   accounts: RegisterOption[];
+  creditCards: Array<{
+    id: string;
+    name: string;
+    issuer: string;
+    limit: number;
+    used: number;
+    minimumPayment: number;
+    annualInterestRate: number | null;
+    interestType: string;
+    estimatedPayoffMonths: number | null;
+    estimatedTotalPayment: number | null;
+    paymentStrategy: string;
+    notes: string;
+    cutOffDay: number;
+    payDueDay: number;
+  }>;
   categories: RegisterOption[];
   units: RegisterOption[];
   incomeSources: Array<{
@@ -117,12 +133,18 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
   const sourcesPromise = loadIncomeSourcesForRegister(workspaceId, supabase);
   const unitsPromise = loadBusinessUnitsForRegister(workspaceId, supabase);
 
-  const [accountsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
+  const [accountsResult, cardsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, name, entity, type, balance, color")
       .eq("workspace_id", workspaceId)
       .eq("active", true)
+      .eq("archived", false)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("credit_cards")
+      .select("id, name, issuer, limit_value, used, minimum_payment, annual_interest_rate, interest_type, estimated_payoff_months, estimated_total_payment, payment_strategy, notes, cut_off_date, pay_due_date")
+      .eq("workspace_id", workspaceId)
       .eq("archived", false)
       .order("created_at", { ascending: true }),
     supabase
@@ -137,6 +159,9 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
 
   if (accountsResult.error) {
     throw new Error(`No se pudieron leer las cuentas para registrar: ${accountsResult.error.message}`);
+  }
+  if (cardsResult.error) {
+    throw new Error(`No se pudieron leer las tarjetas para registrar: ${cardsResult.error.message}`);
   }
   if (categoriesResult.error) {
     throw new Error(`No se pudieron leer las categorias para registrar: ${categoriesResult.error.message}`);
@@ -157,6 +182,22 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       amount: typeof row.balance === "number" ? row.balance : Number(row.balance ?? 0),
       entity: row.entity ? String(row.entity) : null,
       color: row.color ? String(row.color) : null,
+    })),
+    creditCards: (cardsResult.data ?? []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      issuer: String(row.issuer ?? ""),
+      limit: Number(row.limit_value ?? 0),
+      used: Number(row.used ?? 0),
+      minimumPayment: Number(row.minimum_payment ?? 0),
+      annualInterestRate: row.annual_interest_rate == null ? null : Number(row.annual_interest_rate),
+      interestType: String(row.interest_type ?? "unknown"),
+      estimatedPayoffMonths: row.estimated_payoff_months == null ? null : Number(row.estimated_payoff_months),
+      estimatedTotalPayment: row.estimated_total_payment == null ? null : Number(row.estimated_total_payment),
+      paymentStrategy: String(row.payment_strategy ?? "minimum"),
+      notes: String(row.notes ?? ""),
+      cutOffDay: Number(row.cut_off_date ?? 1),
+      payDueDay: Number(row.pay_due_date ?? 1),
     })),
     categories: (categoriesResult.data ?? []).map((row) => ({
       id: String(row.id),
