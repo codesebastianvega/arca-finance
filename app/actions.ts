@@ -337,6 +337,51 @@ export async function updateAccount(input: { id: string; name: string; entity?: 
   return { ok: true };
 }
 
+export async function updateAccountDetails(input: {
+  id: string;
+  name: string;
+  entity?: string | null;
+  type: string;
+  color?: string | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const name = input.name.trim();
+  const entity = input.entity?.trim() || null;
+  const type = input.type.trim();
+  const color = input.color?.trim() || "#C68A45";
+
+  if (!name) throw new Error("La cuenta necesita un nombre.");
+  if (!type) throw new Error("Selecciona el tipo de cuenta.");
+
+  const { data, error } = await admin
+    .from("accounts")
+    .update({ name, entity, type, color, updated_at: new Date().toISOString() })
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id)
+    .eq("active", true)
+    .eq("archived", false)
+    .select("id, name, entity, type, balance, color")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`No se pudo actualizar la cuenta: ${error?.message ?? "sin respuesta"}`);
+  }
+
+  revalidatePath("/app");
+  return {
+    ok: true,
+    accountId: String(data.id),
+    name: String(data.name),
+    entity: data.entity ? String(data.entity) : null,
+    type: String(data.type),
+    balance: Number(data.balance ?? 0),
+    color: String(data.color ?? color),
+  };
+}
+
 export async function deleteAccount(accountId: string) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
@@ -409,12 +454,21 @@ export async function createAccount(input: {
       active: true,
       archived: false,
     })
-    .select("id")
+    .select("id, name, entity, type, balance, color")
     .single();
 
   if (error || !newAccount) throw new Error(`No se pudo crear la cuenta: ${error?.message ?? "desconocido"}`);
 
   if (balance > 0) {
+    const unitsResult = await admin
+      .from("business_units")
+      .select("name, key")
+      .eq("workspace_id", context.workspace.id)
+      .order("created_at", { ascending: true });
+    const personalUnit = (unitsResult.data ?? []).find((unit) =>
+      String(unit.name).toLowerCase() === "personal" || String(unit.key).startsWith("personal-"),
+    );
+    const personalUnitKey = personalUnit ? String(personalUnit.key) : "general";
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Bogota",
       year: "numeric",
@@ -430,7 +484,7 @@ export async function createAccount(input: {
       concept: `Saldo inicial: ${name}`,
       account_id: newAccount.id,
       category: "Ingreso",
-      unit: "personal",
+      unit: personalUnitKey,
       date: `${today}T00:00:00-05:00`,
       posted_at: new Date().toISOString(),
       metadata: { is_initial_balance: true },
@@ -442,7 +496,15 @@ export async function createAccount(input: {
   }
 
   revalidatePath("/app");
-  return { ok: true };
+  return {
+    ok: true,
+    accountId: String(newAccount.id),
+    name,
+    entity,
+    type,
+    balance,
+    color,
+  };
 }
 
 export type MonthlyPlanAllocationInput = {
@@ -1273,6 +1335,34 @@ export async function archiveAccount(accountId: string) {
 
   if (!admin) throw new Error("Supabase admin client no disponible.");
 
+  const { data: account, error: accountError } = await admin
+    .from("accounts")
+    .select("id, name, balance")
+    .eq("id", accountId)
+    .eq("workspace_id", context.workspace.id)
+    .eq("active", true)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (accountError || !account) {
+    throw new Error(`No se encontró la cuenta: ${accountError?.message ?? "sin respuesta"}`);
+  }
+
+  const balance = Number(account.balance ?? 0);
+  if (Math.abs(balance) > 0.009) {
+    throw new Error("Para archivar esta cuenta, primero deja su saldo en $0 mediante un movimiento o transferencia.");
+  }
+
+  const { count, error: countError } = await admin
+    .from("accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", context.workspace.id)
+    .eq("active", true)
+    .eq("archived", false);
+
+  if (countError) throw new Error(`No se pudieron validar tus cuentas: ${countError.message}`);
+  if ((count ?? 0) <= 1) throw new Error("Debes conservar al menos una cuenta activa en Arca.");
+
   const { error } = await admin
     .from("accounts")
     .update({
@@ -1286,7 +1376,7 @@ export async function archiveAccount(accountId: string) {
   if (error) throw new Error(`No se pudo archivar la cuenta: ${error.message}`);
 
   revalidatePath("/app");
-  return { ok: true };
+  return { ok: true, accountId: String(account.id), name: String(account.name) };
 }
 
 export async function createBusinessUnit(input: { name: string; key: string }) {

@@ -7,6 +7,8 @@ export type RegisterOption = {
   value: string;
   meta?: string;
   amount?: number;
+  entity?: string | null;
+  color?: string | null;
   parentId?: string | null;
   icon?: string | null;
 };
@@ -118,7 +120,7 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
   const [accountsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
     supabase
       .from("accounts")
-      .select("id, name, type, balance")
+      .select("id, name, entity, type, balance, color")
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .eq("archived", false)
@@ -153,6 +155,8 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       value: String(row.id),
       meta: String(row.type ?? "cuenta"),
       amount: typeof row.balance === "number" ? row.balance : Number(row.balance ?? 0),
+      entity: row.entity ? String(row.entity) : null,
+      color: row.color ? String(row.color) : null,
     })),
     categories: (categoriesResult.data ?? []).map((row) => ({
       id: String(row.id),

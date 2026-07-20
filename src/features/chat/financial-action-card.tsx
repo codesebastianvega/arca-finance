@@ -12,6 +12,7 @@ import {
   Pencil,
   ReceiptText,
   ShieldCheck,
+  WalletCards,
   XCircle,
 } from 'lucide-react';
 import {
@@ -33,6 +34,9 @@ const ACTION_TYPES = new Set([
   'tool-create_project',
   'tool-update_project',
   'tool-archive_project',
+  'tool-create_account',
+  'tool-update_account',
+  'tool-archive_account',
 ]);
 
 export type FinancialActionPart = {
@@ -136,6 +140,43 @@ function actionPresentation(part: FinancialActionPart) {
     };
   }
 
+  if (part.type === 'tool-create_account') {
+    return {
+      icon: WalletCards,
+      eyebrow: 'Nueva cuenta',
+      title: value(input, 'name') ?? 'Crear cuenta',
+      details: [
+        ['Entidad', value(input, 'entity') ?? 'Sin entidad'],
+        ['Tipo', value(input, 'type')],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-update_account') {
+    return {
+      icon: Pencil,
+      eyebrow: 'Editar cuenta',
+      title: value(input, 'name') ?? 'Actualizar cuenta',
+      details: [
+        ['Nombre actual', value(input, 'currentName')],
+        ['Entidad', value(input, 'entity') ?? 'Sin entidad'],
+        ['Tipo', value(input, 'type')],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-archive_account') {
+    return {
+      icon: Archive,
+      eyebrow: 'Archivar cuenta',
+      title: value(input, 'name') ?? 'Cuenta',
+      details: [
+        ['Condición', 'Saldo en $0'],
+        ['Historial', 'Se conservará'],
+      ],
+    };
+  }
+
   return {
     icon: CalendarPlus,
     eyebrow: 'Programar pago',
@@ -164,7 +205,7 @@ export function FinancialActionCard({
   const input = part.input ?? {};
   const presentation = actionPresentation(part);
   const Icon = presentation.icon;
-  const amount = formatMoney(input.amount, currencyCode);
+  const amount = formatMoney(input.amount ?? input.initialBalance, currencyCode);
 
   if (part.state === 'input-streaming' || part.state === 'input-available') {
     return (

@@ -81,9 +81,11 @@ Para cerrar una tarea debe quedar:
 
 ### 7. 🟡 Gestionar más elementos desde Configuración
 
-**Ya existe:** administración de unidades de negocio, conceptos de ingreso y categorías de gasto.
+**Ya existe:** administración de proyectos, conceptos de ingreso y categorías de gasto. Localmente también se agregó gestión de cuentas y efectivo: crear, editar datos y archivar de forma segura.
 
-**Falta:** administrar cuentas, tarjetas, créditos, fuentes de ingreso y otros datos estructurales desde Configuración.
+**Seguridad aplicada:** editar una cuenta no altera su saldo; archivar exige saldo en cero y conservar al menos otra cuenta activa. El flujo antiguo de Dinero también usa archivado seguro en lugar de eliminación física.
+
+**Falta:** administrar tarjetas, créditos, préstamos, ahorros y otros datos estructurales desde Configuración.
 
 ### 8. 🟡 Corregir completamente el botón Atrás en Configuración
 
@@ -119,9 +121,9 @@ Para cerrar una tarea debe quedar:
 
 ### 13. 🟡 Permitir que Nova gestione toda la estructura financiera
 
-**Ya existe:** Nova consulta saldos, movimientos, obligaciones y panorama financiero; también puede preparar movimientos, pagos e ingresos programados mediante herramientas con confirmación. Localmente ya puede consultar, crear, renombrar y archivar proyectos mediante tarjetas visuales con aprobación humana.
+**Ya existe:** Nova consulta saldos, movimientos, obligaciones y panorama financiero; también puede preparar movimientos, pagos e ingresos programados mediante herramientas con confirmación. Localmente ya puede consultar, crear, editar y archivar proyectos y cuentas mediante tarjetas visuales con aprobación humana.
 
-**Falta:** herramientas para crear y administrar categorías, cuentas, conceptos de ingreso y otras estructuras. Cada escritura debe conservar confirmación humana y validación de permisos.
+**Falta:** herramientas para crear y administrar categorías, conceptos de ingreso, tarjetas, créditos y otras estructuras. Cada escritura debe conservar confirmación humana y validación de permisos.
 
 ### 14. 🟡 Mejorar las tarjetas de acciones de Nova
 
@@ -187,4 +189,4 @@ Para cerrar una tarea debe quedar:
 
 ## Punto actual
 
-Los puntos **4** y **6** están terminados localmente y pendientes de publicación. El siguiente trabajo nuevo en orden es el punto **7: gestionar más elementos desde Configuración**.
+Los puntos **4** y **6** quedaron guardados en el commit `04e2a27`. El punto **7** está en curso: cuentas terminadas localmente; el siguiente subbloque es tarjetas.

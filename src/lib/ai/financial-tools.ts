@@ -9,13 +9,16 @@ import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadMonthViewModel } from "@/src/lib/month-data";
 import {
+  archiveAccount,
   archiveBusinessUnit,
   confirmScheduledEventNow,
+  createAccount,
   createBusinessUnit,
   createExpectedIncome,
   createMovement,
   createScheduledObligation,
   saveMonthlyPlan,
+  updateAccountDetails,
   updateBusinessUnit,
 } from "@/app/actions";
 
@@ -90,8 +93,10 @@ export function createFinancialTools(context: WorkspaceContext) {
           accounts: options.accounts.map((account) => ({
             id: account.id,
             name: account.label,
+            entity: account.entity ?? null,
             type: account.meta,
             balance: account.amount ?? 0,
+            color: account.color ?? null,
           })),
           categories: options.categories.map((category) => ({
             id: category.id,
@@ -187,6 +192,98 @@ export function createFinancialTools(context: WorkspaceContext) {
           success: result.ok,
           action: "project_archived",
           projectId: result.unitId,
+          name: result.name,
+        };
+      },
+    }),
+
+    create_account: tool({
+      title: "Crear cuenta",
+      description:
+        "Crea una cuenta bancaria, billetera digital, efectivo o inversión. El saldo inicial queda registrado como punto de partida. Úsala solo cuando el usuario pida agregar una cuenta.",
+      needsApproval: true,
+      inputSchema: z.object({
+        name: z.string().min(2).describe("Nombre visible de la cuenta."),
+        entity: z.string().optional().describe("Banco o entidad, si aplica."),
+        type: z.enum(["Ahorros", "Corriente", "Billetera digital", "Efectivo", "Inversión"]),
+        initialBalance: z.number().min(0).default(0).describe("Saldo actual desde el que empezará la cuenta; no es ingreso del mes."),
+      }),
+      execute: async ({ name, entity, type, initialBalance }) => {
+        const result = await createAccount({
+          name,
+          entity,
+          type,
+          balance: initialBalance,
+          color: "#C68A45",
+        });
+        return {
+          success: result.ok,
+          action: "account_created",
+          accountId: result.accountId,
+          name: result.name,
+          entity: result.entity,
+          type: result.type,
+          balance: result.balance,
+          currency: context.workspace.currencyCode,
+        };
+      },
+    }),
+
+    update_account: tool({
+      title: "Editar cuenta",
+      description:
+        "Actualiza nombre, entidad o tipo de una cuenta activa sin cambiar su saldo. Usa un ID devuelto por get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        accountId: z.string().min(1).describe("ID exacto de la cuenta."),
+        currentName: z.string().min(1).describe("Nombre actual para la confirmación."),
+        name: z.string().min(2).describe("Nombre nuevo o confirmado."),
+        entity: z.string().optional().describe("Banco o entidad."),
+        type: z.enum(["Ahorros", "Corriente", "Billetera digital", "Efectivo", "Inversión"]),
+      }),
+      execute: async ({ accountId, currentName, name, entity, type }) => {
+        const options = await loadRegisterViewModel(context);
+        const account = options.accounts.find((item) => item.id === accountId);
+        if (!account) throw new Error("La cuenta ya no está disponible.");
+        const result = await updateAccountDetails({
+          id: account.id,
+          name,
+          entity,
+          type,
+          color: account.color,
+        });
+        return {
+          success: result.ok,
+          action: "account_updated",
+          accountId: result.accountId,
+          previousName: currentName || account.label,
+          name: result.name,
+          entity: result.entity,
+          type: result.type,
+          balance: result.balance,
+          currency: context.workspace.currencyCode,
+        };
+      },
+    }),
+
+    archive_account: tool({
+      title: "Archivar cuenta",
+      description:
+        "Archiva una cuenta sin borrar su historial. Solo es posible si su saldo es cero y queda otra cuenta activa. Usa un ID devuelto por get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        accountId: z.string().min(1).describe("ID exacto de la cuenta."),
+        name: z.string().min(1).describe("Nombre visible para la confirmación."),
+      }),
+      execute: async ({ accountId }) => {
+        const options = await loadRegisterViewModel(context);
+        const account = options.accounts.find((item) => item.id === accountId);
+        if (!account) throw new Error("La cuenta ya no está disponible.");
+        const result = await archiveAccount(account.id);
+        return {
+          success: result.ok,
+          action: "account_archived",
+          accountId: result.accountId,
           name: result.name,
         };
       },

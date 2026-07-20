@@ -26,7 +26,6 @@ import {
   updateAccount,
   updateCreditCardFull,
   updateSavingsGoal,
-  deleteAccount,
 } from "@/app/actions";
 import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel } from "@/src/lib/money-data";
 import { haptics } from "../../lib/haptics";
@@ -238,7 +237,7 @@ export default function AccountsScreen({
     startTransition(async () => {
       try {
         if (selectedEntity.entityType === "cuenta") {
-          await deleteAccount(selectedEntity.id);
+          await archiveAccount(selectedEntity.id);
         } else if (selectedEntity.entityType === "tarjeta") {
           await archiveCreditCard(selectedEntity.id);
         } else {

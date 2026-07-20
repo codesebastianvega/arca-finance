@@ -49,13 +49,16 @@ import { haptics } from '../lib/haptics';
 import type { AppUserSummary, ThemeId } from '../App';
 import type { RegisterOption, RegisterViewModel } from '../lib/register-data';
 import {
+  archiveAccount,
   archiveBusinessUnit,
+  createAccount,
   createBusinessUnit,
   createExpenseCategory,
   createIncomeSource,
   deleteExpenseCategory,
   deleteIncomeSource,
   updateBusinessUnit,
+  updateAccountDetails,
   updateExpenseCategory,
   updateIncomeSource,
 } from '@/app/actions';
@@ -132,7 +135,7 @@ const THEMES: { id: ThemeId; name: string; description: string; colors: [string,
   },
 ];
 
-type ManagerView = 'units' | 'income' | 'categories' | null;
+type ManagerView = 'accounts' | 'units' | 'income' | 'categories' | null;
 type EditorState = {
   id?: string;
   name: string;
@@ -140,6 +143,10 @@ type EditorState = {
   unitKey: string;
   accountId: string;
   parentId: string;
+  entity: string;
+  type: string;
+  balance: string;
+  color: string;
 };
 
 const EMPTY_EDITOR: EditorState = {
@@ -148,6 +155,10 @@ const EMPTY_EDITOR: EditorState = {
   unitKey: '',
   accountId: '',
   parentId: '',
+  entity: '',
+  type: 'Ahorros',
+  balance: '0',
+  color: '#C68A45',
 };
 
 export default function ConfiguracionScreen({ onBack, theme, setTheme, data, user, plans }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel; user: AppUserSummary; plans: BillingPlan[] }) {
@@ -198,6 +209,16 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     startTransition(() => { void archiveBusinessUnit(id).then(() => router.refresh()).catch((error: Error) => alert(error.message || "No se pudo archivar el proyecto.")); });
   };
 
+  const handleArchiveAccount = (id: string) => {
+    if (!window.confirm("¿Quieres archivar esta cuenta? Debe estar en $0 y no puede ser tu única cuenta activa.")) return;
+    haptics.medium();
+    startTransition(() => {
+      void archiveAccount(id)
+        .then(() => router.refresh())
+        .catch((error: Error) => alert(error.message || "No se pudo archivar la cuenta."));
+    });
+  };
+
   const handleDeleteSource = (id: string) => {
     if (!window.confirm("¿Estás seguro de eliminar este concepto de ingreso?")) return;
     haptics.medium();
@@ -213,7 +234,11 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     if (!managerView || !editor?.name.trim()) return;
 
     startTransition(() => {
-      const mutation = managerView === 'units'
+      const mutation = managerView === 'accounts'
+        ? editor.id
+          ? updateAccountDetails({ id: editor.id, name: editor.name, entity: editor.entity, type: editor.type, color: editor.color })
+          : createAccount({ name: editor.name, entity: editor.entity, type: editor.type, balance: Number(editor.balance || 0), color: editor.color })
+        : managerView === 'units'
         ? editor.id
           ? updateBusinessUnit({ id: editor.id, name: editor.name, key: editor.key })
           : createBusinessUnit({ name: editor.name, key: editor.key || editor.name })
@@ -284,6 +309,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
 
   const managerTitle = managerView === 'units'
     ? 'Proyectos y actividades'
+    : managerView === 'accounts'
+      ? 'Cuentas y efectivo'
     : managerView === 'income'
       ? 'Conceptos de ingreso'
       : 'Categorías de gasto';
@@ -443,6 +470,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
       <section className="space-y-3">
         <SectionHeading icon={Settings2} eyebrow="Tus datos" title="Organización financiera" />
         <div className="overflow-hidden rounded-2xl border border-arca-border divide-y divide-arca-border">
+          <ManagerRow icon={Wallet} label="Cuentas y efectivo" description="Bancos, billeteras y dinero disponible" count={data.accounts.length} onClick={() => openManager('accounts')} />
           <ManagerRow icon={Briefcase} label="Proyectos y actividades" description="Separa trabajo o negocios de tus finanzas personales" count={projectUnits.length} onClick={() => openManager('units')} />
           <ManagerRow icon={Wallet} label="Conceptos de ingreso" description="Nómina, contratos y otros cobros" count={data.incomeSources.length} onClick={() => openManager('income')} />
           <ManagerRow icon={Settings2} label="Categorías de gasto" description="Clasifica en qué sale tu dinero" count={dbCategories.length} onClick={() => openManager('categories')} />
@@ -515,6 +543,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
                 />
               )}
 
+              {!editor && managerView === 'accounts' && <ManagerList empty="Aún no tienes cuentas activas.">{data.accounts.map((account) => <ManagerItem archive key={account.id} title={account.label} subtitle={`${account.entity || account.meta || 'Cuenta'} · ${formatAccountBalance(account.amount ?? 0)}`} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: account.id, name: account.label, entity: account.entity ?? '', type: normalizeAccountType(account.meta), balance: String(account.amount ?? 0), color: account.color ?? '#C68A45' })} onDelete={() => handleArchiveAccount(account.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'units' && <ManagerList empty="Aún no tienes proyectos. Tus registros seguirán en Personal.">{projectUnits.map((unit) => <ManagerItem archive key={unit.id} title={unit.label} subtitle="Proyecto o actividad" onEdit={() => setEditor({ ...EMPTY_EDITOR, id: unit.id, name: unit.label, key: unit.value })} onDelete={() => handleDeleteUnit(unit.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'income' && <ManagerList empty="No tienes conceptos de ingreso registrados.">{data.incomeSources.map((source) => <ManagerItem key={source.id} title={source.label} subtitle={source.unitKey} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: source.id, name: source.label, unitKey: source.unitKey, accountId: source.defaultAccountId ?? '' })} onDelete={() => handleDeleteSource(source.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'categories' && <ManagerList empty="No tienes categorías personalizadas.">{dbCategories.map((category) => <ManagerItem key={category.id} title={category.label} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: category.id, name: category.label, parentId: category.parentId })} onDelete={() => handleDeleteCategory(category.id)} disabled={isPending} />)}</ManagerList>}
@@ -612,8 +641,8 @@ function ManagerItem({ title, subtitle, onEdit, onDelete, disabled, archive = fa
     <div className="flex items-center justify-between rounded-2xl border border-arca-border bg-arca-surface-1 p-4">
       <div className="min-w-0"><p className="truncate text-sm font-semibold text-arca-text-primary">{title}</p>{subtitle && <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-arca-text-dim">{subtitle}</p>}</div>
       <div className="ml-3 flex shrink-0 gap-2">
-        <button onClick={onEdit} disabled={disabled} aria-label={`Editar ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-surface-2 text-arca-text-secondary disabled:opacity-40"><Pencil size={14} /></button>
-        <button onClick={onDelete} disabled={disabled} aria-label={`${archive ? 'Archivar' : 'Eliminar'} ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-alert/10 text-arca-alert disabled:opacity-40">{archive ? <Archive size={15} /> : <Trash2 size={15} />}</button>
+        <button type="button" onClick={onEdit} disabled={disabled} aria-label={`Editar ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-surface-2 text-arca-text-secondary disabled:opacity-40"><Pencil size={14} /></button>
+        <button type="button" onClick={onDelete} disabled={disabled} aria-label={`${archive ? 'Archivar' : 'Eliminar'} ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-alert/10 text-arca-alert disabled:opacity-40">{archive ? <Archive size={15} /> : <Trash2 size={15} />}</button>
       </div>
     </div>
   );
@@ -639,7 +668,14 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
         <p className="text-xs font-bold text-arca-text-primary">{value.id ? 'Editar elemento' : 'Nuevo elemento'}</p>
         <p className="mt-1 text-[9px] text-arca-text-dim">Los cambios se reflejarán en registros, filtros y reportes.</p>
       </div>
-      <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
+      <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'accounts' ? 'Ej. Cuenta principal' : view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
+      {view === 'accounts' && (
+        <>
+          <label className="block"><span className={labelClass}>Banco o entidad</span><input value={value.entity} onChange={(event) => onChange({ ...value, entity: event.target.value })} className={inputClass} placeholder="Ej. Nu, Nequi, Bancolombia o Efectivo" /></label>
+          <label className="block"><span className={labelClass}>Tipo de cuenta</span><select required value={value.type} onChange={(event) => onChange({ ...value, type: event.target.value })} className={inputClass}><option value="Ahorros">Ahorros</option><option value="Corriente">Corriente</option><option value="Billetera digital">Billetera digital</option><option value="Efectivo">Efectivo</option><option value="Inversión">Inversión</option></select></label>
+          {!value.id ? <label className="block"><span className={labelClass}>Saldo inicial</span><input inputMode="numeric" value={value.balance} onChange={(event) => onChange({ ...value, balance: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /><span className="mt-1 block text-[9px] leading-4 text-arca-text-dim">Se registrará como saldo inicial, no como ingreso del mes.</span></label> : <p className="rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-2 text-[9px] leading-4 text-arca-text-dim">El saldo se corrige con movimientos o transferencias para conservar el historial.</p>}
+        </>
+      )}
       {view === 'income' && (
         <>
           <label className="block"><span className={labelClass}>Proyecto o actividad</span><select required value={value.unitKey} onChange={(event) => onChange({ ...value, unitKey: event.target.value })} className={inputClass}><option value="">Selecciona Personal o un proyecto</option>{units.map((unit) => <option key={unit.id} value={unit.value}>{unit.label}</option>)}</select></label>
@@ -655,6 +691,27 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
       </div>
     </form>
   );
+}
+
+function formatAccountBalance(value: number) {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function normalizeAccountType(value?: string) {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === 'wallet' || normalized === 'billetera') return 'Billetera digital';
+  if (normalized === 'cash') return 'Efectivo';
+  if (normalized === 'bank') return 'Ahorros';
+  if (normalized === 'ahorros') return 'Ahorros';
+  if (normalized === 'corriente') return 'Corriente';
+  if (normalized === 'billetera digital') return 'Billetera digital';
+  if (normalized === 'efectivo') return 'Efectivo';
+  if (normalized === 'inversión') return 'Inversión';
+  return 'Ahorros';
 }
 
 function PlanOption({ plan, current, selected, onSelect }: { plan: BillingPlan; current: boolean; selected: boolean; onSelect: () => void }) {
