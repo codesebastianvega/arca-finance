@@ -30,6 +30,41 @@ type IncomeSourceRow = {
   default_account_id?: string | null;
 };
 
+type BusinessUnitRow = {
+  id: string;
+  name: string;
+  key: string;
+  archived?: boolean;
+};
+
+async function loadBusinessUnitsForRegister(
+  workspaceId: string,
+  supabase: Awaited<ReturnType<typeof createSupabaseServerComponentClient>>,
+) {
+  const primaryResult = await supabase
+    .from("business_units")
+    .select("id, name, key, archived")
+    .eq("workspace_id", workspaceId)
+    .eq("archived", false)
+    .order("created_at", { ascending: true });
+
+  if (!primaryResult.error) {
+    return primaryResult as { data: BusinessUnitRow[] | null; error: null };
+  }
+
+  if (!primaryResult.error.message.includes("archived")) {
+    return primaryResult as { data: BusinessUnitRow[] | null; error: typeof primaryResult.error };
+  }
+
+  const fallbackResult = await supabase
+    .from("business_units")
+    .select("id, name, key")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: true });
+
+  return fallbackResult as { data: BusinessUnitRow[] | null; error: typeof primaryResult.error };
+}
+
 async function loadIncomeSourcesForRegister(
   workspaceId: string,
   supabase: Awaited<ReturnType<typeof createSupabaseServerComponentClient>>,
@@ -78,6 +113,7 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
 
   const workspaceId = context.workspace.id;
   const sourcesPromise = loadIncomeSourcesForRegister(workspaceId, supabase);
+  const unitsPromise = loadBusinessUnitsForRegister(workspaceId, supabase);
 
   const [accountsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
     supabase
@@ -93,11 +129,7 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("business_units")
-      .select("id, name, key")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: true }),
+    unitsPromise,
     sourcesPromise,
   ]);
 
@@ -108,7 +140,7 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
     throw new Error(`No se pudieron leer las categorias para registrar: ${categoriesResult.error.message}`);
   }
   if (unitsResult.error) {
-    throw new Error(`No se pudieron leer los frentes para registrar: ${unitsResult.error.message}`);
+    throw new Error(`No se pudieron leer los proyectos para registrar: ${unitsResult.error.message}`);
   }
   if (sourcesResult.error) {
     throw new Error(`No se pudieron leer las fuentes de ingreso para registrar: ${sourcesResult.error.message}`);

@@ -2,7 +2,7 @@ import {
   Home, 
   Wallet, 
   ReceiptText, 
-  MoreHorizontal, 
+  Menu,
   LayoutDashboard, 
   Target, 
   TrendingUp, 
@@ -30,7 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'hoy', label: 'Hoy', icon: Home, category: 'primary' },
   { id: 'dinero_cuentas', label: 'Dinero', icon: Wallet, category: 'primary' },
   { id: 'calendario', label: 'Agenda', icon: Calendar, category: 'primary' },
-  { id: 'mas', label: 'Más', icon: MoreHorizontal, category: 'primary' },
+  { id: 'mas', label: 'Menú', icon: Menu, category: 'primary' },
 
   // Secondary (Mas Menu)
   { id: 'dashboard', label: 'Historial financiero', icon: LayoutDashboard, category: 'secondary' },

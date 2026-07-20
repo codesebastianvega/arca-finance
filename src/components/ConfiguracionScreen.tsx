@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, 
+  Archive,
   Bell, 
   Trash2,
   Home,
@@ -48,10 +49,10 @@ import { haptics } from '../lib/haptics';
 import type { AppUserSummary, ThemeId } from '../App';
 import type { RegisterOption, RegisterViewModel } from '../lib/register-data';
 import {
+  archiveBusinessUnit,
   createBusinessUnit,
   createExpenseCategory,
   createIncomeSource,
-  deleteBusinessUnit,
   deleteExpenseCategory,
   deleteIncomeSource,
   updateBusinessUnit,
@@ -192,9 +193,9 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
   };
 
   const handleDeleteUnit = (id: string) => {
-    if (!window.confirm("¿Estás seguro de eliminar este frente de negocio?")) return;
+    if (!window.confirm("¿Quieres archivar este proyecto? Sus movimientos conservarán su historial.")) return;
     haptics.medium();
-    startTransition(() => { void deleteBusinessUnit(id).then(() => router.refresh()).catch((error: Error) => alert(error.message || "No se pudo eliminar el frente.")); });
+    startTransition(() => { void archiveBusinessUnit(id).then(() => router.refresh()).catch((error: Error) => alert(error.message || "No se pudo archivar el proyecto.")); });
   };
 
   const handleDeleteSource = (id: string) => {
@@ -277,8 +278,12 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     isCustom: true
   }));
 
+  const projectUnits = data.units.filter(
+    (unit) => unit.label.toLowerCase() !== 'personal' && !unit.value.startsWith('personal-'),
+  );
+
   const managerTitle = managerView === 'units'
-    ? 'Unidades de negocio'
+    ? 'Proyectos y actividades'
     : managerView === 'income'
       ? 'Conceptos de ingreso'
       : 'Categorías de gasto';
@@ -438,7 +443,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
       <section className="space-y-3">
         <SectionHeading icon={Settings2} eyebrow="Tus datos" title="Organización financiera" />
         <div className="overflow-hidden rounded-2xl border border-arca-border divide-y divide-arca-border">
-          <ManagerRow icon={Briefcase} label="Unidades de negocio" description="Proyectos, frentes o actividades" count={data.units.length} onClick={() => openManager('units')} />
+          <ManagerRow icon={Briefcase} label="Proyectos y actividades" description="Separa trabajo o negocios de tus finanzas personales" count={projectUnits.length} onClick={() => openManager('units')} />
           <ManagerRow icon={Wallet} label="Conceptos de ingreso" description="Nómina, contratos y otros cobros" count={data.incomeSources.length} onClick={() => openManager('income')} />
           <ManagerRow icon={Settings2} label="Categorías de gasto" description="Clasifica en qué sale tu dinero" count={dbCategories.length} onClick={() => openManager('categories')} />
         </div>
@@ -510,7 +515,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
                 />
               )}
 
-              {!editor && managerView === 'units' && <ManagerList empty="No tienes unidades de negocio registradas.">{data.units.map((unit) => <ManagerItem key={unit.id} title={unit.label} subtitle={unit.value} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: unit.id, name: unit.label, key: unit.value })} onDelete={() => handleDeleteUnit(unit.id)} disabled={isPending} />)}</ManagerList>}
+              {!editor && managerView === 'units' && <ManagerList empty="Aún no tienes proyectos. Tus registros seguirán en Personal.">{projectUnits.map((unit) => <ManagerItem archive key={unit.id} title={unit.label} subtitle="Proyecto o actividad" onEdit={() => setEditor({ ...EMPTY_EDITOR, id: unit.id, name: unit.label, key: unit.value })} onDelete={() => handleDeleteUnit(unit.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'income' && <ManagerList empty="No tienes conceptos de ingreso registrados.">{data.incomeSources.map((source) => <ManagerItem key={source.id} title={source.label} subtitle={source.unitKey} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: source.id, name: source.label, unitKey: source.unitKey, accountId: source.defaultAccountId ?? '' })} onDelete={() => handleDeleteSource(source.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'categories' && <ManagerList empty="No tienes categorías personalizadas.">{dbCategories.map((category) => <ManagerItem key={category.id} title={category.label} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: category.id, name: category.label, parentId: category.parentId })} onDelete={() => handleDeleteCategory(category.id)} disabled={isPending} />)}</ManagerList>}
             </motion.section>
@@ -602,13 +607,13 @@ function ManagerList({ children, empty }: { children: React.ReactNode; empty: st
   return hasItems ? <div className="space-y-2">{children}</div> : <p className="rounded-2xl border border-arca-border bg-arca-surface-1 p-6 text-center text-sm text-arca-text-dim">{empty}</p>;
 }
 
-function ManagerItem({ title, subtitle, onEdit, onDelete, disabled }: { title: string; subtitle?: string; onEdit: () => void; onDelete: () => void; disabled: boolean }) {
+function ManagerItem({ title, subtitle, onEdit, onDelete, disabled, archive = false }: { title: string; subtitle?: string; onEdit: () => void; onDelete: () => void; disabled: boolean; archive?: boolean }) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-arca-border bg-arca-surface-1 p-4">
       <div className="min-w-0"><p className="truncate text-sm font-semibold text-arca-text-primary">{title}</p>{subtitle && <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-arca-text-dim">{subtitle}</p>}</div>
       <div className="ml-3 flex shrink-0 gap-2">
         <button onClick={onEdit} disabled={disabled} aria-label={`Editar ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-surface-2 text-arca-text-secondary disabled:opacity-40"><Pencil size={14} /></button>
-        <button onClick={onDelete} disabled={disabled} aria-label={`Eliminar ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-alert/10 text-arca-alert disabled:opacity-40"><Trash2 size={15} /></button>
+        <button onClick={onDelete} disabled={disabled} aria-label={`${archive ? 'Archivar' : 'Eliminar'} ${title}`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-alert/10 text-arca-alert disabled:opacity-40">{archive ? <Archive size={15} /> : <Trash2 size={15} />}</button>
       </div>
     </div>
   );
@@ -635,12 +640,9 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
         <p className="mt-1 text-[9px] text-arca-text-dim">Los cambios se reflejarán en registros, filtros y reportes.</p>
       </div>
       <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
-      {view === 'units' && (
-        <label className="block"><span className={labelClass}>Clave interna</span><input required disabled={Boolean(value.id)} value={value.key} onChange={(event) => onChange({ ...value, key: event.target.value })} className={`${inputClass} disabled:opacity-50`} placeholder="ej. sie-travel" /><span className="mt-1 block text-[9px] text-arca-text-dim">Al editar se conserva para no romper movimientos anteriores.</span></label>
-      )}
       {view === 'income' && (
         <>
-          <label className="block"><span className={labelClass}>Unidad de negocio</span><select required value={value.unitKey} onChange={(event) => onChange({ ...value, unitKey: event.target.value })} className={inputClass}><option value="">Selecciona una unidad</option>{units.map((unit) => <option key={unit.id} value={unit.value}>{unit.label}</option>)}</select></label>
+          <label className="block"><span className={labelClass}>Proyecto o actividad</span><select required value={value.unitKey} onChange={(event) => onChange({ ...value, unitKey: event.target.value })} className={inputClass}><option value="">Selecciona Personal o un proyecto</option>{units.map((unit) => <option key={unit.id} value={unit.value}>{unit.label}</option>)}</select></label>
           <label className="block"><span className={labelClass}>Cuenta predeterminada</span><select required value={value.accountId} onChange={(event) => onChange({ ...value, accountId: event.target.value })} className={inputClass}><option value="">Selecciona una cuenta</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</select></label>
         </>
       )}

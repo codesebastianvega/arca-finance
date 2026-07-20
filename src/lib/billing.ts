@@ -36,7 +36,7 @@ export const DEFAULT_BILLING_PLANS: BillingPlan[] = [
     active: true,
     aiMonthlyLimit: 500,
     description: 'Control personal y operativo para proyectos y negocios.',
-    features: ['Todo Arca Personal', 'Unidades de negocio', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación'],
+    features: ['Todo Arca Personal', 'Proyectos y actividades', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación'],
   },
 ];
 

@@ -89,7 +89,7 @@ export default function ExecutiveDashboard({ data, currency, onBack, onOpenNova,
   return (
     <div className="space-y-5 pb-6">
       <header className="flex items-start gap-3">
-        <button type="button" onClick={onBack} aria-label="Volver a Más" className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim transition-colors hover:text-arca-accent">
+        <button type="button" onClick={onBack} aria-label="Volver al menú" className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim transition-colors hover:text-arca-accent">
           <ArrowLeft size={19} />
         </button>
         <div>

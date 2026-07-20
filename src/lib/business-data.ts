@@ -81,6 +81,41 @@ type IncomeSourceRow = {
   default_account_id?: string | null;
 };
 
+type BusinessUnitRow = {
+  id: string;
+  name: string;
+  key: string;
+  archived?: boolean;
+};
+
+async function loadBusinessUnits(
+  workspaceId: string,
+  supabase: Awaited<ReturnType<typeof createSupabaseServerComponentClient>>,
+) {
+  const primaryResult = await supabase
+    .from("business_units")
+    .select("id, name, key, archived")
+    .eq("workspace_id", workspaceId)
+    .eq("archived", false)
+    .order("created_at", { ascending: true });
+
+  if (!primaryResult.error) {
+    return primaryResult as { data: BusinessUnitRow[] | null; error: null };
+  }
+
+  if (!primaryResult.error.message.includes("archived")) {
+    return primaryResult as { data: BusinessUnitRow[] | null; error: typeof primaryResult.error };
+  }
+
+  const fallbackResult = await supabase
+    .from("business_units")
+    .select("id, name, key")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: true });
+
+  return fallbackResult as { data: BusinessUnitRow[] | null; error: typeof primaryResult.error };
+}
+
 async function loadIncomeSourcesForBusiness(
   workspaceId: string,
   supabase: Awaited<ReturnType<typeof createSupabaseServerComponentClient>>,
@@ -131,9 +166,10 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
   const { start, nextMonth } = currentMonthBounds();
   const today = todayKey();
   const sourcesPromise = loadIncomeSourcesForBusiness(workspaceId, supabase);
+  const unitsPromise = loadBusinessUnits(workspaceId, supabase);
 
   const [unitsResult, transactionsResult, scheduledResult, sourcesResult, accountsResult] = await Promise.all([
-    supabase.from("business_units").select("id, name, key").eq("workspace_id", workspaceId).order("created_at", { ascending: true }),
+    unitsPromise,
     supabase
       .from("transactions")
       .select("amount, kind, unit, date, status")
@@ -160,7 +196,7 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
   ]);
 
   if (unitsResult.error) {
-    throw new Error(`No se pudieron leer los frentes: ${unitsResult.error.message}`);
+    throw new Error(`No se pudieron leer los proyectos: ${unitsResult.error.message}`);
   }
   if (transactionsResult.error) {
     throw new Error(`No se pudieron leer los movimientos de negocios: ${transactionsResult.error.message}`);
@@ -179,10 +215,13 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
   const activeItems: BusinessActiveItem[] = [];
 
   for (const row of unitsResult.data ?? []) {
+    const name = String(row.name);
+    const key = String(row.key);
+    if (name.toLowerCase() === "personal" || key.startsWith("personal-")) continue;
     unitMap.set(String(row.key), {
       id: String(row.id),
-      name: String(row.name),
-      key: String(row.key),
+      name,
+      key,
       realIncome: 0,
       expectedIncome: 0,
       realExpense: 0,

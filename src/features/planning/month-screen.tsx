@@ -75,7 +75,7 @@ export default function MonthScreen({ onBack, onOpenNova, data, currency }: Mont
   return (
     <div className="space-y-5 pb-7">
       <header className="flex items-start gap-3">
-        <button type="button" onClick={onBack} aria-label="Volver a Más" className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim hover:text-arca-accent"><ArrowLeft size={19} /></button>
+        <button type="button" onClick={onBack} aria-label="Volver al menú" className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim hover:text-arca-accent"><ArrowLeft size={19} /></button>
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu regla de distribución</p>
           <h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-arca-text-primary">Plan de {data.monthLabel}</h1>

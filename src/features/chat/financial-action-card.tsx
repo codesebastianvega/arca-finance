@@ -2,11 +2,14 @@
 
 import type { ToolUIPart } from 'ai';
 import {
+  Archive,
   CalendarPlus,
   ArrowRight,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
+  FolderPlus,
+  Pencil,
   ReceiptText,
   ShieldCheck,
   XCircle,
@@ -27,6 +30,9 @@ const ACTION_TYPES = new Set([
   'tool-confirm_obligation_payment',
   'tool-schedule_obligation',
   'tool-schedule_expected_income',
+  'tool-create_project',
+  'tool-update_project',
+  'tool-archive_project',
 ]);
 
 export type FinancialActionPart = {
@@ -100,6 +106,33 @@ function actionPresentation(part: FinancialActionPart) {
         ['Cuenta destino', value(input, 'accountName')],
         ['Fecha esperada', value(input, 'dueDate')],
       ],
+    };
+  }
+
+  if (part.type === 'tool-create_project') {
+    return {
+      icon: FolderPlus,
+      eyebrow: 'Nuevo proyecto',
+      title: value(input, 'name') ?? 'Crear proyecto o actividad',
+      details: [['Organización', 'Separado de Personal']],
+    };
+  }
+
+  if (part.type === 'tool-update_project') {
+    return {
+      icon: Pencil,
+      eyebrow: 'Renombrar proyecto',
+      title: value(input, 'newName') ?? 'Actualizar proyecto',
+      details: [['Nombre actual', value(input, 'currentName')]],
+    };
+  }
+
+  if (part.type === 'tool-archive_project') {
+    return {
+      icon: Archive,
+      eyebrow: 'Archivar proyecto',
+      title: value(input, 'name') ?? 'Proyecto o actividad',
+      details: [['Historial', 'Se conservará']],
     };
   }
 

@@ -9,11 +9,14 @@ import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadMonthViewModel } from "@/src/lib/month-data";
 import {
+  archiveBusinessUnit,
   confirmScheduledEventNow,
+  createBusinessUnit,
   createExpectedIncome,
   createMovement,
   createScheduledObligation,
   saveMonthlyPlan,
+  updateBusinessUnit,
 } from "@/app/actions";
 
 type GenericRow = Record<string, unknown>;
@@ -72,11 +75,13 @@ async function getSupabase() {
 
 export function createFinancialTools(context: WorkspaceContext) {
   const workspaceId = context.workspace.id;
+  const isPersonalUnit = (unit: { label: string; value: string }) =>
+    normalize(unit.label) === "personal" || unit.value.startsWith("personal-");
 
   return {
     get_financial_action_options: tool({
       description:
-        "Consulta las cuentas, categorías, frentes e ingresos disponibles para preparar una acción financiera. Úsala antes de registrar movimientos o programar ingresos/pagos; nunca le pidas al usuario identificadores internos.",
+        "Consulta cuentas, categorías, el espacio Personal, proyectos e ingresos disponibles para preparar una acción financiera. Úsala antes de registrar movimientos o programar ingresos/pagos; nunca le pidas al usuario identificadores internos.",
       inputSchema: z.object({}),
       execute: async () => {
         const options = await loadRegisterViewModel(context);
@@ -96,8 +101,93 @@ export function createFinancialTools(context: WorkspaceContext) {
             id: unit.id,
             name: unit.label,
             key: unit.value,
+            type: isPersonalUnit(unit) ? "personal" : "project",
           })),
           incomeSources: options.incomeSources,
+        };
+      },
+    }),
+
+    get_projects_and_activities: tool({
+      description:
+        "Consulta los proyectos y actividades activos. Úsala para listar, comparar o identificar el proyecto que se quiere editar o archivar. Personal no es un proyecto y no se puede archivar.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const options = await loadRegisterViewModel(context);
+        const projects = options.units
+          .filter((unit) => !isPersonalUnit(unit))
+          .map((unit) => ({ id: unit.id, name: unit.label, key: unit.value }));
+        return {
+          count: projects.length,
+          projects,
+          personalMode: projects.length === 0,
+          instruction: projects.length === 0
+            ? "El usuario usa Arca en modo Personal. Solo crea un proyecto si lo solicita."
+            : "Usa el id exacto de esta lista para editar o archivar.",
+        };
+      },
+    }),
+
+    create_project: tool({
+      title: "Crear proyecto",
+      description:
+        "Crea un proyecto o actividad para separar ingresos y gastos de Personal. Úsala solo cuando el usuario pida crear un negocio, cliente, trabajo o proyecto.",
+      needsApproval: true,
+      inputSchema: z.object({
+        name: z.string().min(2).describe("Nombre visible del proyecto o actividad."),
+      }),
+      execute: async ({ name }) => {
+        const result = await createBusinessUnit({ name, key: name });
+        return {
+          success: result.ok,
+          action: "project_created",
+          projectId: result.unitId,
+          name: result.name,
+        };
+      },
+    }),
+
+    update_project: tool({
+      title: "Renombrar proyecto",
+      description:
+        "Cambia el nombre de un proyecto existente. Consulta get_projects_and_activities antes y usa su ID exacto.",
+      needsApproval: true,
+      inputSchema: z.object({
+        projectId: z.string().min(1).describe("ID exacto devuelto por get_projects_and_activities."),
+        currentName: z.string().min(1).describe("Nombre actual visible para la confirmación."),
+        newName: z.string().min(2).describe("Nuevo nombre solicitado."),
+      }),
+      execute: async ({ projectId, newName }) => {
+        const options = await loadRegisterViewModel(context);
+        const project = options.units.find((unit) => unit.id === projectId && !isPersonalUnit(unit));
+        if (!project) throw new Error("El proyecto ya no está disponible.");
+        const result = await updateBusinessUnit({ id: project.id, name: newName, key: project.value });
+        return {
+          success: result.ok,
+          action: "project_updated",
+          projectId: result.unitId,
+          previousName: project.label,
+          name: result.name,
+        };
+      },
+    }),
+
+    archive_project: tool({
+      title: "Archivar proyecto",
+      description:
+        "Oculta un proyecto activo sin borrar su historial financiero. Consulta get_projects_and_activities antes y usa su ID exacto. Personal nunca se puede archivar.",
+      needsApproval: true,
+      inputSchema: z.object({
+        projectId: z.string().min(1).describe("ID exacto devuelto por get_projects_and_activities."),
+        name: z.string().min(1).describe("Nombre visible del proyecto para la confirmación."),
+      }),
+      execute: async ({ projectId }) => {
+        const result = await archiveBusinessUnit(projectId);
+        return {
+          success: result.ok,
+          action: "project_archived",
+          projectId: result.unitId,
+          name: result.name,
         };
       },
     }),
@@ -413,7 +503,7 @@ export function createFinancialTools(context: WorkspaceContext) {
         accountId: z.string().min(1).describe("ID de una cuenta devuelta por get_financial_action_options."),
         accountName: z.string().min(1).describe("Nombre visible de esa misma cuenta."),
         category: z.string().min(1).describe("Categoría existente devuelta por get_financial_action_options."),
-        unit: z.string().default("general").describe("Key del frente existente; usa general si no hay frentes."),
+        unit: z.string().optional().describe("Key de Personal o de un proyecto devuelto por get_financial_action_options. Omitir para usar Personal."),
         date: z.string().optional().describe("Fecha efectiva YYYY-MM-DD; omitir para hoy."),
       }),
       execute: async (input) => {
@@ -428,10 +518,11 @@ export function createFinancialTools(context: WorkspaceContext) {
           throw new Error("La categoría seleccionada no existe en Arca.");
         }
 
-        const unit =
-          options.units.find((item) => item.value === input.unit)?.value ??
-          (options.units.length === 0 ? "general" : null);
-        if (!unit) throw new Error("El frente seleccionado no existe en Arca.");
+        const personalKey = options.units.find(isPersonalUnit)?.value ?? "general";
+        const unit = input.unit
+          ? options.units.find((item) => item.value === input.unit)?.value
+          : personalKey;
+        if (!unit) throw new Error("El proyecto seleccionado no existe en Arca.");
 
         const result = await createMovement({
           kind: input.kind,
@@ -540,7 +631,7 @@ export function createFinancialTools(context: WorkspaceContext) {
         dueDate: z.string().describe("Fecha esperada YYYY-MM-DD."),
         accountId: z.string().min(1).describe("Cuenta destino obtenida con get_financial_action_options."),
         accountName: z.string().min(1).describe("Nombre visible de la cuenta destino."),
-        unit: z.string().default("general").describe("Key del frente existente; usa general si no hay frentes."),
+        unit: z.string().optional().describe("Key de Personal o de un proyecto devuelto por get_financial_action_options. Omitir para usar Personal."),
         sourceId: z.string().optional().describe("Fuente de ingreso existente, si aplica."),
       }),
       execute: async (input) => {
@@ -548,10 +639,11 @@ export function createFinancialTools(context: WorkspaceContext) {
         const account = options.accounts.find((item) => item.id === input.accountId);
         if (!account) throw new Error("La cuenta destino ya no está disponible.");
 
-        const unit =
-          options.units.find((item) => item.value === input.unit)?.value ??
-          (options.units.length === 0 ? "general" : null);
-        if (!unit) throw new Error("El frente seleccionado no existe en Arca.");
+        const personalKey = options.units.find(isPersonalUnit)?.value ?? "general";
+        const unit = input.unit
+          ? options.units.find((item) => item.value === input.unit)?.value
+          : personalKey;
+        if (!unit) throw new Error("El proyecto seleccionado no existe en Arca.");
 
         await createExpectedIncome({
           title: input.title,

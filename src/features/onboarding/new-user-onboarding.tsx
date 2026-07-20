@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Banknote,
+  Briefcase,
   Check,
   CircleDollarSign,
   Crown,
@@ -15,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  UserRound,
   WalletCards,
 } from "lucide-react";
 import { completeFirstRunSetup } from "@/app/actions";
@@ -22,8 +24,9 @@ import { selectInitialSubscriptionPlan } from "@/app/billing-actions";
 import type { BillingPlan } from "@/src/lib/billing";
 import type { AdminPlanCode } from "@/src/lib/superadmin-types";
 
-type OnboardingStep = "welcome" | "goal" | "accountType" | "accountDetails" | "balance" | "review" | "plans" | "done";
+type OnboardingStep = "welcome" | "goal" | "usage" | "accountType" | "accountDetails" | "balance" | "review" | "plans" | "done";
 type OnboardingGoal = "clarity" | "expenses" | "debt" | "savings";
+type UsageMode = "personal" | "projects";
 
 type NewUserOnboardingProps = {
   firstName: string;
@@ -32,7 +35,7 @@ type NewUserOnboardingProps = {
   onComplete: () => void;
 };
 
-const STEPS: OnboardingStep[] = ["welcome", "goal", "accountType", "accountDetails", "balance", "review", "plans", "done"];
+const STEPS: OnboardingStep[] = ["welcome", "goal", "usage", "accountType", "accountDetails", "balance", "review", "plans", "done"];
 
 const GOALS: Array<{ value: OnboardingGoal; title: string; description: string; icon: typeof Target }> = [
   { value: "clarity", title: "Entender mi dinero", description: "Saber cuánto tengo y qué viene después.", icon: Target },
@@ -61,6 +64,8 @@ export default function NewUserOnboarding({ firstName, currency, plans, onComple
   const router = useRouter();
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [goal, setGoal] = useState<OnboardingGoal | null>(null);
+  const [usageMode, setUsageMode] = useState<UsageMode | null>(null);
+  const [projectName, setProjectName] = useState("");
   const [accountName, setAccountName] = useState("Cuenta principal");
   const [entity, setEntity] = useState("");
   const [accountType, setAccountType] = useState("");
@@ -97,6 +102,7 @@ export default function NewUserOnboarding({ firstName, currency, plans, onComple
           entity,
           accountType,
           balance: Number.isFinite(parsedBalance) ? parsedBalance : 0,
+          initialProjectName: usageMode === "projects" ? projectName : null,
         });
         setStep("plans");
       } catch (submitError) {
@@ -174,7 +180,31 @@ export default function NewUserOnboarding({ firstName, currency, plans, onComple
                 </button>
               ))}
             </div>
-            <button type="button" disabled={!goal} onClick={() => goTo("accountType")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+            <button type="button" disabled={!goal} onClick={() => goTo("usage")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
+          </section>
+        ) : null}
+
+        {step === "usage" ? (
+          <section className="flex flex-1 flex-col justify-center py-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu forma de usar Arca</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">¿Cómo vas a organizar tu dinero?</h1>
+            <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Personal funciona sin configuraciones extra. Los proyectos te permiten separar un negocio o actividad.</p>
+            <div className="mt-7 space-y-3">
+              <button type="button" aria-pressed={usageMode === "personal"} onClick={() => setUsageMode("personal")} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${usageMode === "personal" ? "border-arca-accent bg-arca-accent/[0.09]" : "border-arca-border bg-arca-surface-1"}`}>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${usageMode === "personal" ? "bg-arca-accent text-black" : "bg-arca-surface-2 text-arca-accent"}`}><UserRound size={20} /></span>
+                <span className="min-w-0 flex-1"><strong className="block text-sm">Solo mis finanzas personales</strong><span className="mt-1 block text-[11px] leading-4 text-arca-text-secondary">Arca guardará todo en Personal automáticamente.</span></span>
+                {usageMode === "personal" ? <Check className="shrink-0 text-arca-accent" size={18} /> : null}
+              </button>
+              <button type="button" aria-pressed={usageMode === "projects"} onClick={() => setUsageMode("projects")} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${usageMode === "projects" ? "border-arca-accent bg-arca-accent/[0.09]" : "border-arca-border bg-arca-surface-1"}`}>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${usageMode === "projects" ? "bg-arca-accent text-black" : "bg-arca-surface-2 text-arca-accent"}`}><Briefcase size={20} /></span>
+                <span className="min-w-0 flex-1"><strong className="block text-sm">También manejo proyectos</strong><span className="mt-1 block text-[11px] leading-4 text-arca-text-secondary">Separa un negocio, cliente, trabajo o actividad.</span></span>
+                {usageMode === "projects" ? <Check className="shrink-0 text-arca-accent" size={18} /> : null}
+              </button>
+            </div>
+            {usageMode === "projects" ? (
+              <label className="mt-5 block"><span className="mb-2 block text-[10px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Nombre del primer proyecto</span><input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} className="h-14 w-full rounded-2xl border border-arca-border bg-arca-surface-1 px-4 text-base font-semibold outline-none focus:border-arca-accent" placeholder="Ej. Mi negocio, Freelance, Recreo" /></label>
+            ) : null}
+            <button type="button" disabled={!usageMode || (usageMode === "projects" && !projectName.trim())} onClick={() => goTo("accountType")} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-40">Continuar <ArrowRight size={18} /></button>
           </section>
         ) : null}
 
@@ -235,6 +265,7 @@ export default function NewUserOnboarding({ firstName, currency, plans, onComple
               <div className="pt-5"><p className="text-[9px] font-black uppercase tracking-[0.14em] text-arca-text-dim">Saldo inicial</p><p className="mt-1 text-3xl font-black tracking-[-0.04em]">{balanceLabel(balance, currency)}</p></div>
             </div>
             {selectedGoal ? <p className="mt-5 text-center text-xs leading-5 text-arca-text-secondary">Tu prioridad: <strong className="text-arca-text-primary">{selectedGoal.title}</strong></p> : null}
+            <p className="mt-2 text-center text-xs leading-5 text-arca-text-secondary">Organización: <strong className="text-arca-text-primary">{usageMode === "projects" ? projectName : "Personal"}</strong></p>
             {error ? <p role="alert" className="mt-4 rounded-2xl border border-arca-alert/30 bg-arca-alert/10 px-4 py-3 text-xs leading-5 text-arca-alert">{error}</p> : null}
             <button type="button" onClick={submitAccount} disabled={isPending} className="mt-7 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:opacity-50">{isPending ? "Preparando tu espacio…" : "Crear mi espacio"}{!isPending ? <ArrowRight size={18} /> : null}</button>
           </section>

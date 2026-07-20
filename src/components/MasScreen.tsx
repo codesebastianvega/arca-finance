@@ -68,7 +68,7 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
     <div className="relative space-y-6 pb-5">
       <header>
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-arca-accent">Tu espacio</p>
-        <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-arca-text-primary">Más herramientas</h1>
+        <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-arca-text-primary">Herramientas</h1>
         <p className="mt-2 text-xs leading-5 text-arca-text-secondary">Planifica, organiza y revisa tus finanzas desde un solo lugar.</p>
       </header>
 

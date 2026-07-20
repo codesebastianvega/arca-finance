@@ -531,6 +531,7 @@ export async function completeFirstRunSetup(input: {
   entity?: string | null;
   accountType: string;
   balance: number;
+  initialProjectName?: string | null;
 }) {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient();
@@ -546,19 +547,20 @@ export async function completeFirstRunSetup(input: {
   if (!accountType) throw new Error("Selecciona el tipo de cuenta.");
   if (!Number.isFinite(balance) || balance < 0) throw new Error("El saldo inicial debe ser válido.");
 
-  const existingUnit = await admin
+  const existingUnits = await admin
     .from("business_units")
-    .select("key")
+    .select("key, name")
     .eq("workspace_id", context.workspace.id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
-  if (existingUnit.error) {
-    throw new Error(`No se pudo comprobar tu espacio personal: ${existingUnit.error.message}`);
+  if (existingUnits.error) {
+    throw new Error(`No se pudo comprobar tu espacio personal: ${existingUnits.error.message}`);
   }
 
-  let personalUnitKey = existingUnit.data?.key ? String(existingUnit.data.key) : "";
+  const existingPersonalUnit = (existingUnits.data ?? []).find((unit) =>
+    String(unit.name).toLowerCase() === "personal" || String(unit.key).startsWith("personal-"),
+  );
+  let personalUnitKey = existingPersonalUnit?.key ? String(existingPersonalUnit.key) : "";
 
   if (!personalUnitKey) {
     personalUnitKey = `personal-${context.workspace.id.slice(0, 8)}`;
@@ -573,6 +575,42 @@ export async function completeFirstRunSetup(input: {
 
     if (unitError) {
       throw new Error(`No pudimos preparar tu espacio personal: ${unitError.message}`);
+    }
+  }
+
+  const initialProjectName = input.initialProjectName?.trim() || "";
+  if (initialProjectName) {
+    const existingProject = await admin
+      .from("business_units")
+      .select("id")
+      .eq("workspace_id", context.workspace.id)
+      .ilike("name", initialProjectName)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingProject.error) {
+      throw new Error(`No se pudo comprobar tu primer proyecto: ${existingProject.error.message}`);
+    }
+
+    if (!existingProject.data) {
+      const baseKey = initialProjectName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "proyecto";
+      const { error: projectError } = await admin.from("business_units").insert({
+        workspace_id: context.workspace.id,
+        name: initialProjectName,
+        key: `${baseKey}-${context.workspace.id.slice(0, 6)}`,
+        income: 0,
+        expense: 0,
+        pending: 0,
+      });
+
+      if (projectError) {
+        throw new Error(`No se pudo crear tu primer proyecto: ${projectError.message}`);
+      }
     }
   }
 
@@ -1260,22 +1298,26 @@ export async function createBusinessUnit(input: { name: string; key: string }) {
   const name = input.name.trim();
   const key = input.key.trim().toLowerCase().replace(/\s+/g, "-");
 
-  if (!name) throw new Error("El frente necesita un nombre.");
-  if (!key) throw new Error("El frente necesita una clave.");
+  if (!name) throw new Error("El proyecto necesita un nombre.");
+  if (!key) throw new Error("No se pudo generar el identificador del proyecto.");
 
-  const { error } = await admin.from("business_units").insert({
-    workspace_id: context.workspace.id,
-    name,
-    key,
-    income: 0,
-    expense: 0,
-    pending: 0,
-  });
+  const { data, error } = await admin
+    .from("business_units")
+    .insert({
+      workspace_id: context.workspace.id,
+      name,
+      key,
+      income: 0,
+      expense: 0,
+      pending: 0,
+    })
+    .select("id, name, key")
+    .single();
 
-  if (error) throw new Error(`No se pudo crear el frente: ${error.message}`);
+  if (error || !data) throw new Error(`No se pudo crear el proyecto: ${error?.message ?? "sin respuesta"}`);
 
   revalidatePath("/app");
-  return { ok: true };
+  return { ok: true, unitId: String(data.id), name: String(data.name), key: String(data.key) };
 }
 
 export async function updateBusinessUnit(input: { id: string; name: string; key: string }) {
@@ -1287,8 +1329,8 @@ export async function updateBusinessUnit(input: { id: string; name: string; key:
   const name = input.name.trim();
   const key = input.key.trim().toLowerCase().replace(/\s+/g, "-");
 
-  if (!name) throw new Error("El frente necesita un nombre.");
-  if (!key) throw new Error("El frente necesita una clave.");
+  if (!name) throw new Error("El proyecto necesita un nombre.");
+  if (!key) throw new Error("No se pudo conservar el identificador del proyecto.");
 
   const { error } = await admin
     .from("business_units")
@@ -1298,12 +1340,47 @@ export async function updateBusinessUnit(input: { id: string; name: string; key:
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.id)
-    .eq("workspace_id", context.workspace.id);
+    .eq("workspace_id", context.workspace.id)
+    .select("id, name, key")
+    .single();
 
-  if (error) throw new Error(`No se pudo actualizar el frente: ${error.message}`);
+  if (error) throw new Error(`No se pudo actualizar el proyecto: ${error.message}`);
 
   revalidatePath("/app");
-  return { ok: true };
+  return { ok: true, unitId: input.id, name, key };
+}
+
+export async function archiveBusinessUnit(id: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { data: unit, error: unitError } = await admin
+    .from("business_units")
+    .select("id, name, key")
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id)
+    .eq("archived", false)
+    .maybeSingle();
+
+  if (unitError?.message.includes("archived")) {
+    throw new Error("Falta aplicar la actualización de proyectos en Supabase antes de archivar.");
+  }
+  if (unitError || !unit) throw new Error("No se encontro el proyecto.");
+  if (String(unit.name).toLowerCase() === "personal" || String(unit.key).startsWith("personal-")) {
+    throw new Error("El espacio Personal no se puede archivar.");
+  }
+
+  const { error } = await admin
+    .from("business_units")
+    .update({ archived: true, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) throw new Error(`No se pudo archivar el proyecto: ${error.message}`);
+
+  revalidatePath("/app");
+  return { ok: true, unitId: String(unit.id), name: String(unit.name), key: String(unit.key) };
 }
 
 export async function createExpenseCategory(input: {
@@ -1384,7 +1461,7 @@ export async function createIncomeSource(input: {
   const defaultAccountId = input.defaultAccountId.trim();
 
   if (!name) throw new Error("La fuente necesita un nombre.");
-  if (!businessUnitKey) throw new Error("Debes elegir un frente.");
+  if (!businessUnitKey) throw new Error("Debes elegir Personal o un proyecto.");
   if (!defaultAccountId) throw new Error("Debes elegir la cuenta destino por defecto.");
 
   const { error } = await admin.from("income_sources").insert({
@@ -1418,7 +1495,7 @@ export async function updateIncomeSource(input: {
   const defaultAccountId = input.defaultAccountId.trim();
 
   if (!name) throw new Error("La fuente necesita un nombre.");
-  if (!businessUnitKey) throw new Error("Debes elegir un frente.");
+  if (!businessUnitKey) throw new Error("Debes elegir Personal o un proyecto.");
   if (!defaultAccountId) throw new Error("Debes elegir la cuenta destino por defecto.");
 
   const { error } = await admin
@@ -2792,7 +2869,7 @@ export async function deleteBusinessUnit(id: string) {
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
 
-  if (unitError || !unit) throw new Error("No se encontró la unidad de negocio.");
+  if (unitError || !unit) throw new Error("No se encontró el proyecto.");
 
   const [sources, transactions, events] = await Promise.all([
     admin.from("income_sources").select("id", { count: "exact", head: true }).eq("workspace_id", context.workspace.id).eq("business_unit_key", unit.key),

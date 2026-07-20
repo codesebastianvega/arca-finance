@@ -37,7 +37,7 @@ values
       'ai_monthly_limit', 500,
       'catalog_version', 2,
       'description', 'Control personal y operativo para proyectos y negocios.',
-      'features', jsonb_build_array('Todo Arca Personal', 'Unidades de negocio', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación')
+      'features', jsonb_build_array('Todo Arca Personal', 'Proyectos y actividades', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación')
     )
   )
 on conflict (code) do update

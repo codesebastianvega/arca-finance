@@ -324,6 +324,16 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     return [...mergedDefaults, ...dbCategories];
   }, [data.categories]);
 
+  const personalUnit = useMemo(
+    () => data.units.find((unit) => unit.label.toLowerCase() === 'personal' || unit.value.startsWith('personal-')),
+    [data.units],
+  );
+  const projectUnits = useMemo(
+    () => data.units.filter((unit) => unit.id !== personalUnit?.id),
+    [data.units, personalUnit?.id],
+  );
+  const personalUnitKey = personalUnit?.value ?? 'general';
+
   const filteredIncomeSources = useMemo(() => {
     return data.incomeSources.filter((source) => source.unitKey === movementUnit);
   }, [data.incomeSources, movementUnit]);
@@ -352,7 +362,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       setMovementAccountId(data.accounts[0]?.value ?? '');
     }
     if (!movementUnit) {
-      setMovementUnit(data.units[0]?.value ?? 'general');
+      setMovementUnit(personalUnitKey);
     }
     if (!movementDate) {
       const today = new Intl.DateTimeFormat('en-CA', {
@@ -372,7 +382,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     if (!selectedCategoryValue) {
       setSelectedCategoryValue(expenseCategoryOptions[0]?.value ?? 'General');
     }
-  }, [data.accounts, data.units, data.incomeSources, movementAccountId, movementUnit, movementDate, movementIncomeSourceId, loanAccountId, selectedCategoryValue, expenseCategoryOptions]);
+  }, [data.accounts, data.incomeSources, movementAccountId, movementUnit, movementDate, movementIncomeSourceId, loanAccountId, selectedCategoryValue, expenseCategoryOptions, personalUnitKey]);
 
   useEffect(() => {
     if (type !== 'ingreso') return;
@@ -437,7 +447,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     setTags('');
     setSelectedCategoryValue(expenseCategoryOptions[0]?.value ?? 'General');
     setMovementAccountId(data.accounts[0]?.value ?? '');
-    setMovementUnit(data.units[0]?.value ?? 'general');
+    setMovementUnit(personalUnitKey);
     setMovementIncomeSourceId(data.incomeSources[0]?.id ?? '');
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Bogota',
@@ -489,7 +499,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
   const handleQuickCreateUnit = () => {
     if (!quickUnitName.trim()) {
-      setSubmitError('Escribe el nombre del frente primero.');
+      setSubmitError('Escribe el nombre del proyecto primero.');
       return;
     }
 
@@ -504,7 +514,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
         haptics.success();
         router.refresh();
       } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : 'No se pudo crear el frente.');
+        setSubmitError(error instanceof Error ? error.message : 'No se pudo crear el proyecto.');
         haptics.error();
       }
     });
@@ -517,7 +527,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     }
 
     if (!movementUnit) {
-      setSubmitError('Primero crea o elige un frente.');
+      setSubmitError('Primero elige Personal o un proyecto.');
       return;
     }
 
@@ -758,11 +768,13 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           />
         </div>
 
-        {/* 3. Unidad de Negocio (Frente) */}
-        {data.units.length > 0 && (
+        {/* 3. Contexto opcional: Personal o proyecto */}
+        {projectUnits.length > 0 && (
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Unidad de Negocio</label>
+              <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
+                {type === 'ingreso' ? '¿De dónde viene este dinero?' : '¿A qué proyecto pertenece?'}
+              </label>
               <button
                 type="button"
                 onClick={() => { haptics.light(); setShowQuickUnitForm(!showQuickUnitForm); }}
@@ -774,7 +786,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             
             {showQuickUnitForm && (
               <div className="space-y-3 rounded-2xl border border-arca-accent/30 bg-arca-surface-2 p-4 mb-2">
-                <p className="text-[11px] text-arca-text-dim">Crea una unidad de negocio rápida.</p>
+                <p className="text-[11px] text-arca-text-dim">Crea un proyecto o actividad sin salir del registro.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -803,38 +815,11 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
               onChange={(e) => setMovementUnit(e.target.value)}
               className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
             >
-              <option value="general">(Personal / Ninguna)</option>
-              {data.units.map((unit) => (
+              <option value={personalUnitKey}>Personal</option>
+              {projectUnits.map((unit) => (
                 <option key={unit.id} value={unit.value}>{unit.label}</option>
               ))}
             </select>
-          </div>
-        )}
-
-        {/* Quick create prompts if no units exist */}
-        {data.units.length === 0 && (
-          <div className="space-y-3 rounded-2xl border border-arca-border bg-arca-surface-2 p-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Crear unidad de negocio rápida</p>
-              <p className="text-[11px] text-arca-text-dim">Puedes crear una para organizar de dónde llega este ingreso, o dejarlo así para gastos personales.</p>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={quickUnitName}
-                onChange={(e) => setQuickUnitName(e.target.value)}
-                placeholder="Ej: Freelance, Trabajo..."
-                className="min-w-0 flex-1 bg-arca-surface-3 border border-arca-border rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-arca-accent"
-              />
-              <button
-                type="button"
-                onClick={handleQuickCreateUnit}
-                disabled={isQuickCreatePending}
-                className="rounded-xl bg-arca-accent px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
-              >
-                Crear
-              </button>
-            </div>
           </div>
         )}
 

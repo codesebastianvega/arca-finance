@@ -94,9 +94,9 @@ export default function BusinessScreen({
       try {
         if (editor.type === 'unit') {
           if (editor.id) {
-            await updateBusinessUnit({ id: editor.id, name: editor.name, key: editor.key });
+            await updateBusinessUnit({ id: editor.id, name: editor.name, key: editor.key || editor.name });
           } else {
-            await createBusinessUnit({ name: editor.name, key: editor.key });
+            await createBusinessUnit({ name: editor.name, key: editor.name });
           }
         } else {
           if (editor.id) {
@@ -136,8 +136,8 @@ export default function BusinessScreen({
           <ArrowLeft size={20} />
         </button>
         <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-arca-accent">Unidades y proyectos</p>
-          <h1 className="text-xl font-black tracking-[-0.03em] text-arca-text-primary">Tus negocios</h1>
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-arca-accent">Proyectos y actividades</p>
+          <h1 className="text-xl font-black tracking-[-0.03em] text-arca-text-primary">Tu trabajo separado</h1>
         </div>
       </header>
 
@@ -150,7 +150,7 @@ export default function BusinessScreen({
               <p className={`mt-2 text-3xl font-black tracking-[-0.05em] ${data.totals.net >= 0 ? 'text-arca-text-primary' : 'text-arca-alert'}`}>
                 {formatMoney.format(data.totals.net)}
               </p>
-              <p className="mt-2 text-[10px] leading-4 text-arca-text-secondary">Ingresos cobrados menos gastos reales de tus unidades.</p>
+              <p className="mt-2 text-[10px] leading-4 text-arca-text-secondary">Ingresos cobrados menos gastos reales de tus proyectos.</p>
             </div>
             <span className={`rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider ${data.totals.net >= 0 ? 'bg-arca-positive/10 text-arca-positive' : 'bg-arca-alert/10 text-arca-alert'}`}>
               {data.totals.net >= 0 ? 'Positivo' : 'Negativo'}
@@ -168,9 +168,9 @@ export default function BusinessScreen({
         <div className="flex items-start justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-text-primary">Portafolio</p>
-            <p className="mt-1 text-[10px] text-arca-text-secondary">Qué está produciendo cada unidad este mes.</p>
+            <p className="mt-1 text-[10px] text-arca-text-secondary">Qué está produciendo cada proyecto este mes.</p>
           </div>
-          <button type="button" onClick={openNewUnit} aria-label="Crear unidad de negocio" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent">
+          <button type="button" onClick={openNewUnit} aria-label="Crear proyecto o actividad" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent">
             <Plus size={16} />
           </button>
         </div>
@@ -214,7 +214,10 @@ export default function BusinessScreen({
               </button>
             ))
           ) : (
-            <p className="text-xs text-arca-text-dim text-center py-4">Aún no hay unidades de negocio.</p>
+            <div className="rounded-[22px] border border-dashed border-arca-border p-5 text-center">
+              <p className="text-sm font-bold text-arca-text-primary">Todo está en Personal</p>
+              <p className="mt-1 text-xs leading-5 text-arca-text-dim">Crea un proyecto solo si quieres separar un negocio, cliente o actividad.</p>
+            </div>
           )}
         </div>
       </section>
@@ -245,10 +248,10 @@ export default function BusinessScreen({
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent"><Sparkles size={18} /></span>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">Nova analiza tu portafolio</p>
-            <p className="mt-1 text-xs leading-5 text-arca-text-secondary">Puedo comparar rentabilidad, detectar cobros atrasados y mostrarte qué unidad necesita atención.</p>
+            <p className="mt-1 text-xs leading-5 text-arca-text-secondary">Puedo comparar rentabilidad, detectar cobros atrasados y mostrarte qué proyecto necesita atención.</p>
             <button
               type="button"
-              onClick={() => onOpenNova(`Analiza mis unidades de negocio. Este mes he cobrado ${formatMoney.format(data.totals.realIncome)}, tengo gastos por ${formatMoney.format(data.totals.realExpense)} y ${formatMoney.format(data.totals.expectedIncome)} por cobrar. Compara la rentabilidad de cada unidad, revisa los cobros vencidos y dime qué debería atender primero.`)}
+              onClick={() => onOpenNova(`Analiza mis proyectos y actividades. Este mes he cobrado ${formatMoney.format(data.totals.realIncome)}, tengo gastos por ${formatMoney.format(data.totals.realExpense)} y ${formatMoney.format(data.totals.expectedIncome)} por cobrar. Compara la rentabilidad de cada proyecto, revisa los cobros vencidos y dime qué debería atender primero.`)}
               className="mt-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-arca-accent"
             >
               Analizar con Nova <ArrowRight size={14} />
@@ -282,7 +285,7 @@ export default function BusinessScreen({
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-xl font-bold text-arca-text-primary tracking-tight truncate">{selectedDetailUnit.name}</h3>
                     <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
-                      Unidad de Negocio · clave: {selectedDetailUnit.key}
+                      Proyecto o actividad
                     </p>
                   </div>
                   <button
@@ -346,7 +349,7 @@ export default function BusinessScreen({
                       ))
                     ) : (
                       <div className="rounded-xl border border-arca-border p-4 text-center text-xs text-arca-text-dim">
-                        No hay fuentes registradas para esta unidad.
+                        No hay conceptos de ingreso para este proyecto.
                       </div>
                     )}
                   </div>
@@ -404,11 +407,11 @@ export default function BusinessScreen({
               <div className="w-12 h-1.5 rounded-full bg-arca-border mx-auto" />
               <div>
                 <h3 className="text-lg font-bold text-arca-text-primary">
-                  {editor.type === 'unit' ? (editor.id ? 'Editar Unidad' : 'Nueva Unidad') : editor.id ? 'Editar Fuente' : 'Nueva Fuente'}
+                  {editor.type === 'unit' ? (editor.id ? 'Editar proyecto' : 'Nuevo proyecto') : editor.id ? 'Editar concepto' : 'Nuevo concepto'}
                 </h3>
                 <p className="text-xs text-arca-text-dim mt-1">
                   {editor.type === 'unit'
-                    ? 'Las unidades agrupan la caja de tus diferentes proyectos.'
+                    ? 'Separa los ingresos y gastos de un negocio, cliente o actividad.'
                     : 'Las fuentes detallan las formas de cobrar (ej. reservas).'}
                 </p>
               </div>
@@ -424,21 +427,10 @@ export default function BusinessScreen({
                   />
                 </label>
 
-                {editor.type === 'unit' ? (
-                  <label className="block space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Identificador (Clave)</span>
-                    <input
-                      type="text"
-                      value={editor.key}
-                      onChange={(e) => setEditor({ ...editor, key: e.target.value })}
-                      placeholder="ej. consultoria"
-                      className="w-full h-12 px-4 rounded-xl border border-arca-border bg-arca-surface-2 text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
-                    />
-                  </label>
-                ) : (
+                {editor.type !== 'unit' ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Unidad de Negocio</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">Proyecto o actividad</span>
                       <select
                         value={editor.unitKey}
                         onChange={(e) => setEditor({ ...editor, unitKey: e.target.value })}
@@ -463,7 +455,7 @@ export default function BusinessScreen({
                       </select>
                     </label>
                   </>
-                )}
+                ) : null}
               </div>
 
               {actionError ? <p className="text-xs text-arca-alert">{actionError}</p> : null}

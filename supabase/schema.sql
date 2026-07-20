@@ -123,12 +123,14 @@ create table if not exists public.business_units (
   income numeric not null default 0,
   expense numeric not null default 0,
   pending numeric not null default 0,
+  archived boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.accounts add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
 alter table public.business_units add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
+alter table public.business_units add column if not exists archived boolean not null default false;
 alter table public.income_sources add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
 alter table public.expense_categories add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
 alter table public.transactions add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
