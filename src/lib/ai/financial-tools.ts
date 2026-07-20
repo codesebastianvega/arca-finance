@@ -8,6 +8,7 @@ import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadMonthViewModel } from "@/src/lib/month-data";
+import { summarizeRecurrence } from "@/src/lib/recurrence-summary";
 import {
   archiveAccount,
   archiveCreditCard,
@@ -18,14 +19,24 @@ import {
   createCreditCard,
   createBankCredit,
   createBusinessUnit,
+  createExpenseCategory,
   createExpectedIncome,
+  createIncomeSource,
   createMovement,
+  createPayableLoan,
+  createReceivableLoan,
+  createSavingsGoal,
   createScheduledObligation,
+  createTransfer,
+  deleteExpenseCategory,
+  deleteIncomeSource,
   saveMonthlyPlan,
   updateAccountDetails,
   updateCreditCardDetails,
   updateBankCreditDetails,
   updateBusinessUnit,
+  updateExpenseCategory,
+  updateIncomeSource,
 } from "@/app/actions";
 
 type GenericRow = Record<string, unknown>;
@@ -143,6 +154,191 @@ export function createFinancialTools(context: WorkspaceContext) {
           })),
           incomeSources: options.incomeSources,
         };
+      },
+    }),
+
+    create_expense_category: tool({
+      title: "Crear categoría de gasto",
+      description: "Crea una categoría de gasto. Consulta primero get_financial_action_options y usa IDs exactos.",
+      needsApproval: true,
+      inputSchema: z.object({
+        name: z.string().min(2),
+        parentCategoryId: z.string().optional(),
+        parentCategoryName: z.string().optional(),
+      }),
+      execute: async ({ name, parentCategoryId, parentCategoryName }) => {
+        const options = await loadRegisterViewModel(context);
+        const parent = parentCategoryId ? options.categories.find((item) => item.id === parentCategoryId) : null;
+        if (parentCategoryId && !parent) throw new Error("La categoría principal ya no está disponible.");
+        if (parent && parentCategoryName && normalize(parent.label) !== normalize(parentCategoryName)) throw new Error("La categoría principal cambió; vuelve a consultarla.");
+        const result = await createExpenseCategory({ name, parentId: parent?.id ?? null });
+        return { success: result.ok, action: "expense_category_created", categoryId: result.categoryId, name, parentCategory: parent?.label ?? null };
+      },
+    }),
+
+    update_expense_category: tool({
+      title: "Editar categoría de gasto",
+      description: "Renombra o reorganiza una categoría existente. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        categoryId: z.string().min(1),
+        currentName: z.string().min(1),
+        name: z.string().min(2),
+        parentCategoryId: z.string().nullable().optional(),
+        parentCategoryName: z.string().nullable().optional(),
+      }),
+      execute: async ({ categoryId, currentName, name, parentCategoryId, parentCategoryName }) => {
+        const options = await loadRegisterViewModel(context);
+        const category = options.categories.find((item) => item.id === categoryId);
+        const parent = parentCategoryId ? options.categories.find((item) => item.id === parentCategoryId) : null;
+        if (!category) throw new Error("La categoría ya no está disponible.");
+        if (normalize(category.label) !== normalize(currentName)) throw new Error("La categoría cambió; vuelve a consultarla.");
+        if (parentCategoryId && !parent) throw new Error("La categoría principal ya no está disponible.");
+        if (parent && parentCategoryName && normalize(parent.label) !== normalize(parentCategoryName)) throw new Error("La categoría principal cambió; vuelve a consultarla.");
+        if (parent?.id === category.id) throw new Error("Una categoría no puede depender de sí misma.");
+        const result = await updateExpenseCategory({ id: category.id, name, parentId: parent?.id ?? null, icon: category.icon });
+        return { success: result.ok, action: "expense_category_updated", categoryId: category.id, previousName: category.label, name, parentCategory: parent?.label ?? null };
+      },
+    }),
+
+    delete_expense_category: tool({
+      title: "Eliminar categoría de gasto",
+      description: "Elimina una categoría existente. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({ categoryId: z.string().min(1), name: z.string().min(1) }),
+      execute: async ({ categoryId, name }) => {
+        const options = await loadRegisterViewModel(context);
+        const category = options.categories.find((item) => item.id === categoryId);
+        if (!category) throw new Error("La categoría ya no está disponible.");
+        if (normalize(category.label) !== normalize(name)) throw new Error("La categoría cambió; vuelve a consultarla.");
+        const result = await deleteExpenseCategory(category.id);
+        return { success: result.ok, action: "expense_category_deleted", categoryId: category.id, name: category.label };
+      },
+    }),
+
+    create_income_source: tool({
+      title: "Crear concepto de ingreso",
+      description: "Crea una fuente o concepto de ingreso vinculada a una cuenta y un espacio. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({ name: z.string().min(2), accountId: z.string().min(1), accountName: z.string().min(1), unitKey: z.string().min(1), unitName: z.string().min(1) }),
+      execute: async ({ name, accountId, accountName, unitKey, unitName }) => {
+        const options = await loadRegisterViewModel(context);
+        const account = options.accounts.find((item) => item.id === accountId);
+        const unit = options.units.find((item) => item.value === unitKey);
+        if (!account) throw new Error("La cuenta destino ya no está disponible.");
+        if (!unit) throw new Error("El espacio o proyecto ya no está disponible.");
+        if (normalize(account.label) !== normalize(accountName) || normalize(unit.label) !== normalize(unitName)) throw new Error("La cuenta o el proyecto cambió; vuelve a consultar las opciones.");
+        const result = await createIncomeSource({ name, defaultAccountId: account.id, businessUnitKey: unit.value });
+        return { success: result.ok, action: "income_source_created", sourceId: result.sourceId, name, accountName: account.label, unitName: unit.label };
+      },
+    }),
+
+    update_income_source: tool({
+      title: "Editar concepto de ingreso",
+      description: "Edita una fuente de ingreso existente. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({ sourceId: z.string().min(1), currentName: z.string().min(1), name: z.string().min(2), accountId: z.string().min(1), accountName: z.string().min(1), unitKey: z.string().min(1), unitName: z.string().min(1) }),
+      execute: async ({ sourceId, currentName, name, accountId, accountName, unitKey, unitName }) => {
+        const options = await loadRegisterViewModel(context);
+        const source = options.incomeSources.find((item) => item.id === sourceId);
+        const account = options.accounts.find((item) => item.id === accountId);
+        const unit = options.units.find((item) => item.value === unitKey);
+        if (!source) throw new Error("El concepto de ingreso ya no está disponible.");
+        if (normalize(source.label) !== normalize(currentName)) throw new Error("El concepto de ingreso cambió; vuelve a consultarlo.");
+        if (!account) throw new Error("La cuenta destino ya no está disponible.");
+        if (!unit) throw new Error("El espacio o proyecto ya no está disponible.");
+        if (normalize(account.label) !== normalize(accountName) || normalize(unit.label) !== normalize(unitName)) throw new Error("La cuenta o el proyecto cambió; vuelve a consultar las opciones.");
+        const result = await updateIncomeSource({ id: source.id, name, defaultAccountId: account.id, businessUnitKey: unit.value });
+        return { success: result.ok, action: "income_source_updated", sourceId: source.id, previousName: source.label, name, accountName: account.label, unitName: unit.label };
+      },
+    }),
+
+    delete_income_source: tool({
+      title: "Eliminar concepto de ingreso",
+      description: "Elimina una fuente de ingreso existente. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({ sourceId: z.string().min(1), name: z.string().min(1) }),
+      execute: async ({ sourceId, name }) => {
+        const options = await loadRegisterViewModel(context);
+        const source = options.incomeSources.find((item) => item.id === sourceId);
+        if (!source) throw new Error("El concepto de ingreso ya no está disponible.");
+        if (normalize(source.label) !== normalize(name)) throw new Error("El concepto de ingreso cambió; vuelve a consultarlo.");
+        const result = await deleteIncomeSource(source.id);
+        return { success: result.ok, action: "income_source_deleted", sourceId: source.id, name: source.label };
+      },
+    }),
+
+    create_personal_loan: tool({
+      title: "Registrar préstamo entre personas",
+      description: "Registra dinero prestado a otra persona o recibido en préstamo. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        direction: z.enum(["lent", "borrowed"]),
+        personName: z.string().min(2),
+        title: z.string().min(2).optional(),
+        amount: z.number().positive(),
+        dueDate: z.string().optional(),
+        accountId: z.string().min(1),
+        accountName: z.string().min(1),
+        balanceBefore: z.number().min(0),
+        notes: z.string().optional(),
+      }),
+      execute: async ({ direction, personName, title, amount, dueDate, accountId, accountName, balanceBefore, notes }) => {
+        const options = await loadRegisterViewModel(context);
+        const account = options.accounts.find((item) => item.id === accountId);
+        if (!account) throw new Error("La cuenta seleccionada ya no está disponible.");
+        if (normalize(account.label) !== normalize(accountName) || (account.amount ?? 0) !== balanceBefore) throw new Error("El saldo o la cuenta cambió; vuelve a consultar antes de confirmar.");
+        if (direction === "borrowed" && !dueDate) throw new Error("Debes indicar cuándo se pagará el préstamo recibido.");
+        if (direction === "lent") {
+          const result = await createReceivableLoan({ debtorName: personName, title, amount, dueDate, accountId: account.id, notes });
+          return { success: result.ok, action: "personal_loan_lent", receivableId: result.receivableId, personName, title: title ?? `Préstamo a ${personName}`, amount, dueDate: dueDate ?? null, accountName: account.label, balanceAfter: (account.amount ?? 0) - amount, currency: context.workspace.currencyCode };
+        }
+        const result = await createPayableLoan({ lenderName: personName, title, amount, dueDate, accountId: account.id, notes });
+        return { success: result.ok, action: "personal_loan_borrowed", personName, title: title ?? `Préstamo de ${personName}`, amount, dueDate, accountName: account.label, balanceAfter: (account.amount ?? 0) + amount, currency: context.workspace.currencyCode };
+      },
+    }),
+
+    transfer_between_accounts: tool({
+      title: "Transferir entre cuentas",
+      description: "Mueve dinero entre dos cuentas activas del usuario. Consulta primero get_financial_action_options y usa sus IDs exactos.",
+      needsApproval: true,
+      inputSchema: z.object({
+        fromAccountId: z.string().min(1),
+        fromAccountName: z.string().min(1),
+        fromBalanceBefore: z.number().min(0),
+        toAccountId: z.string().min(1),
+        toAccountName: z.string().min(1),
+        toBalanceBefore: z.number().min(0),
+        amount: z.number().positive(),
+        concept: z.string().min(2).default("Transferencia entre cuentas"),
+        date: z.string().optional().describe("Fecha YYYY-MM-DD; omitir para hoy."),
+      }),
+      execute: async ({ fromAccountId, fromAccountName, fromBalanceBefore, toAccountId, toAccountName, toBalanceBefore, amount, concept, date }) => {
+        const options = await loadRegisterViewModel(context);
+        const from = options.accounts.find((item) => item.id === fromAccountId);
+        const to = options.accounts.find((item) => item.id === toAccountId);
+        if (!from || !to) throw new Error("Una de las cuentas ya no está disponible.");
+        if (from.id === to.id) throw new Error("La cuenta origen y destino deben ser diferentes.");
+        if (normalize(from.label) !== normalize(fromAccountName) || normalize(to.label) !== normalize(toAccountName) || (from.amount ?? 0) !== fromBalanceBefore || (to.amount ?? 0) !== toBalanceBefore) {
+          throw new Error("Una cuenta o saldo cambió; vuelve a consultar antes de confirmar.");
+        }
+        const result = await createTransfer({ fromAccountId: from.id, toAccountId: to.id, amount, concept, date: date ?? dateInBogota() });
+        return { success: result.ok, action: "account_transfer_created", ...result, currency: context.workspace.currencyCode };
+      },
+    }),
+
+    create_savings_goal: tool({
+      title: "Crear meta de ahorro",
+      description: "Crea una meta de ahorro sin mover dinero todavía. Los aportes se registran después por separado.",
+      needsApproval: true,
+      inputSchema: z.object({
+        name: z.string().min(2),
+        target: z.number().positive(),
+        dueDate: z.string().nullable().optional().describe("Fecha objetivo YYYY-MM-DD, si existe."),
+      }),
+      execute: async ({ name, target, dueDate }) => {
+        const result = await createSavingsGoal({ name, target, current: 0, dueDate, goalType: "goal" });
+        return { success: result.ok, action: "savings_goal_created", goalId: result.goalId, name, target, current: 0, dueDate: dueDate ?? null, currency: context.workspace.currencyCode };
       },
     }),
 
@@ -530,7 +726,10 @@ export function createFinancialTools(context: WorkspaceContext) {
           .describe("Rango solicitado: vencidos, próximos 7 días, mes actual o todos."),
       }),
       execute: async ({ scope }) => {
-        const data = await loadObligationsViewModel(context);
+        const [data, options] = await Promise.all([
+          loadObligationsViewModel(context),
+          loadRegisterViewModel(context),
+        ]);
         const filter = scope === "overdue" ? "vencido" : scope === "week" ? "semana" : scope === "all" ? "todo" : "mes";
         const items = filterObligations(data.items, filter);
         return {
@@ -542,7 +741,12 @@ export function createFinancialTools(context: WorkspaceContext) {
           overdueTotal: items
             .filter((item) => item.status === "overdue")
             .reduce((sum, item) => sum + item.amount, 0),
-          items: items.slice(0, 30),
+          items: items.slice(0, 30).map((item) => {
+            const account = item.accountId
+              ? options.accounts.find((candidate) => candidate.id === item.accountId)
+              : null;
+            return { ...item, accountName: account?.label ?? null, accountBalance: account?.amount ?? null };
+          }),
           truncated: items.length > 30,
         };
       },
@@ -811,6 +1015,7 @@ export function createFinancialTools(context: WorkspaceContext) {
         amount: z.number().positive().describe("Monto positivo."),
         accountId: z.string().min(1).describe("ID de una cuenta devuelta por get_financial_action_options."),
         accountName: z.string().min(1).describe("Nombre visible de esa misma cuenta."),
+        balanceBefore: z.number().min(0).describe("Saldo actual devuelto para esa cuenta."),
         category: z.string().min(1).describe("Categoría existente devuelta por get_financial_action_options."),
         unit: z.string().optional().describe("Key de Personal o de un proyecto devuelto por get_financial_action_options. Omitir para usar Personal."),
         date: z.string().optional().describe("Fecha efectiva YYYY-MM-DD; omitir para hoy."),
@@ -819,6 +1024,9 @@ export function createFinancialTools(context: WorkspaceContext) {
         const options = await loadRegisterViewModel(context);
         const account = options.accounts.find((item) => item.id === input.accountId);
         if (!account) throw new Error("La cuenta seleccionada ya no está disponible.");
+        if (normalize(account.label) !== normalize(input.accountName) || (account.amount ?? 0) !== input.balanceBefore) {
+          throw new Error("El saldo o la cuenta cambió; vuelve a consultar antes de confirmar.");
+        }
 
         const category = options.categories.find(
           (item) => normalize(item.label) === normalize(input.category),
@@ -852,6 +1060,10 @@ export function createFinancialTools(context: WorkspaceContext) {
           kind: input.kind,
           accountName: account.label,
           category: input.kind === "income" ? "Ingreso" : category!.label,
+          date: result.date,
+          balanceBefore: result.balanceBefore,
+          balanceAfter: result.balanceAfter,
+          effect: result.effect,
           currency: context.workspace.currencyCode,
         };
       },
@@ -865,17 +1077,39 @@ export function createFinancialTools(context: WorkspaceContext) {
       inputSchema: z.object({
         eventId: z.string().min(1).describe("ID exacto del evento programado."),
         title: z.string().min(1).describe("Nombre visible del pago para la tarjeta de confirmación."),
-        amount: z.number().positive().optional().describe("Monto realmente pagado; omitir si coincide con lo programado."),
+        amount: z.number().positive().describe("Monto que se confirmará."),
+        accountName: z.string().min(1).describe("Cuenta asociada devuelta por get_obligations."),
+        balanceBefore: z.number().min(0).describe("Saldo de esa cuenta devuelto por get_obligations."),
       }),
-      execute: async ({ eventId, title, amount }) => {
+      execute: async ({ eventId, title, amount, accountName, balanceBefore }) => {
+        const [obligations, options] = await Promise.all([
+          loadObligationsViewModel(context),
+          loadRegisterViewModel(context),
+        ]);
+        const event = obligations.items.find((item) => item.id === eventId);
+        if (!event) throw new Error("La obligación ya no está pendiente.");
+        const account = event.accountId ? options.accounts.find((item) => item.id === event.accountId) : null;
+        if (!account) throw new Error("La obligación no tiene una cuenta activa asociada.");
+        if (normalize(event.name) !== normalize(title) || normalize(account.label) !== normalize(accountName) || (account.amount ?? 0) !== balanceBefore) {
+          throw new Error("La obligación, la cuenta o el saldo cambió; vuelve a consultar antes de confirmar.");
+        }
         const result = await confirmScheduledEventNow(eventId, amount);
+        if ("alreadyConfirmed" in result && result.alreadyConfirmed) {
+          return { success: true, action: "obligation_paid", title, alreadyConfirmed: true, currency: context.workspace.currencyCode };
+        }
         return {
           success: true,
           action: "obligation_paid",
           title,
-          amount: amount ?? null,
+          amount: "amount" in result ? result.amount : amount ?? null,
           transactionId: "transactionId" in result ? result.transactionId : null,
-          alreadyConfirmed: "alreadyConfirmed" in result ? result.alreadyConfirmed : false,
+          accountName: "accountName" in result ? result.accountName : null,
+          category: "category" in result ? result.category : "expense",
+          date: "date" in result ? result.date : dateInBogota(),
+          balanceBefore: "balanceBefore" in result ? result.balanceBefore : null,
+          balanceAfter: "balanceAfter" in result ? result.balanceAfter : null,
+          effect: "effect" in result ? result.effect : null,
+          alreadyConfirmed: false,
           currency: context.workspace.currencyCode,
         };
       },
@@ -932,7 +1166,7 @@ export function createFinancialTools(context: WorkspaceContext) {
     schedule_expected_income: tool({
       title: "Programar ingreso",
       description:
-        "Crea un ingreso esperado de una sola vez. Úsala cuando el usuario quiera recordar o proyectar dinero que recibirá próximamente.",
+        "Crea un ingreso esperado único o recurrente. Consulta get_financial_action_options y usa una fuente existente para recurrencias.",
       needsApproval: true,
       inputSchema: z.object({
         title: z.string().min(2).describe("Concepto del ingreso."),
@@ -942,11 +1176,20 @@ export function createFinancialTools(context: WorkspaceContext) {
         accountName: z.string().min(1).describe("Nombre visible de la cuenta destino."),
         unit: z.string().optional().describe("Key de Personal o de un proyecto devuelto por get_financial_action_options. Omitir para usar Personal."),
         sourceId: z.string().optional().describe("Fuente de ingreso existente, si aplica."),
+        sourceName: z.string().optional().describe("Nombre visible de la fuente de ingreso seleccionada."),
+        recurrenceMode: z.enum(["once", "daily", "weekly", "biweekly", "semimonthly", "monthly"]).default("once"),
+        recurrenceDays: z.array(z.number().int().min(1).max(31)).optional().describe("Días del mes: dos para quincenal, uno o más para mensual."),
+        recurrenceEndMode: z.enum(["indefinite", "until_date", "count"]).default("indefinite"),
+        recurrenceEndDate: z.string().nullable().optional().describe("Fecha final YYYY-MM-DD cuando termina en una fecha."),
+        recurrenceCount: z.number().int().min(1).max(1000).nullable().optional().describe("Cantidad total de cobros cuando termina por cantidad."),
       }),
       execute: async (input) => {
         const options = await loadRegisterViewModel(context);
         const account = options.accounts.find((item) => item.id === input.accountId);
         if (!account) throw new Error("La cuenta destino ya no está disponible.");
+        if (normalize(account.label) !== normalize(input.accountName)) {
+          throw new Error("La cuenta destino cambió; vuelve a consultar las opciones.");
+        }
 
         const personalKey = options.units.find(isPersonalUnit)?.value ?? "general";
         const unit = input.unit
@@ -954,14 +1197,39 @@ export function createFinancialTools(context: WorkspaceContext) {
           : personalKey;
         if (!unit) throw new Error("El proyecto seleccionado no existe en Arca.");
 
+        const source = input.sourceId
+          ? options.incomeSources.find((item) => item.id === input.sourceId)
+          : null;
+        if (input.sourceId && !source) throw new Error("La fuente de ingreso ya no está disponible.");
+        if (source && input.sourceName && normalize(source.label) !== normalize(input.sourceName)) {
+          throw new Error("El concepto de ingreso cambió; vuelve a consultar las opciones.");
+        }
+        if (input.recurrenceMode !== "once" && !source) {
+          throw new Error("Los ingresos recurrentes necesitan un concepto de ingreso existente.");
+        }
+
+        const recurrence = input.recurrenceMode === "once" ? null : summarizeRecurrence({
+          frequency: input.recurrenceMode,
+          startDate: input.dueDate,
+          recurrenceDays: input.recurrenceDays,
+          endMode: input.recurrenceEndMode,
+          endDate: input.recurrenceEndDate,
+          occurrenceCount: input.recurrenceCount,
+          occurrenceNoun: { singular: "cobro", plural: "cobros" },
+        });
+
         await createExpectedIncome({
           title: input.title,
           amount: input.amount,
           dueDate: input.dueDate,
           accountId: account.id,
           unit,
-          sourceId: input.sourceId,
-          recurrenceMode: "once",
+          sourceId: source?.id,
+          recurrenceMode: input.recurrenceMode,
+          recurrenceDays: input.recurrenceDays,
+          recurrenceEndMode: input.recurrenceEndMode,
+          recurrenceEndDate: input.recurrenceEndDate,
+          recurrenceCount: input.recurrenceCount,
         });
 
         return {
@@ -971,6 +1239,13 @@ export function createFinancialTools(context: WorkspaceContext) {
           amount: input.amount,
           dueDate: input.dueDate,
           accountName: account.label,
+          sourceName: source?.label ?? null,
+          recurrenceMode: input.recurrenceMode,
+          recurrenceDays: input.recurrenceDays ?? [],
+          recurrenceEndMode: input.recurrenceEndMode,
+          recurrenceEndDate: input.recurrenceEndDate ?? null,
+          recurrenceCount: input.recurrenceCount ?? null,
+          recurrenceSummary: recurrence?.summary ?? null,
           currency: context.workspace.currencyCode,
         };
       },

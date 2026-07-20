@@ -44,7 +44,7 @@ Para cerrar una tarea debe quedar:
 
 **Referencia:** incluido en `bf3e1bf`.
 
-### 4. 🟠 Cambiar “Más” para no confundirlo con el botón `+`
+### 4. ✅ Cambiar “Más” para no confundirlo con el botón `+`
 
 **Hecho localmente:**
 
@@ -53,7 +53,7 @@ Para cerrar una tarea debe quedar:
 - La pantalla ahora se titula “Herramientas”.
 - Las etiquetas de navegación dicen “Volver al menú”.
 
-**Falta:** commit, push y validación visual en el celular.
+**Publicado:** incluido en `04e2a27` y desplegado en `main`. Queda únicamente la validación visual continua en celulares reales.
 
 ### 5. ✅ Hacer funcionar la IA en producción
 
@@ -63,7 +63,7 @@ Para cerrar una tarea debe quedar:
 
 **Referencia:** commit `3463eca` (`feat: include Nova in the free plan`).
 
-### 6. 🟠 Hacer más intuitivas las unidades de negocio
+### 6. ✅ Hacer más intuitivas las unidades de negocio
 
 **Problema:** un usuario personal no entiende qué es una unidad, cuándo debe crearla ni si es obligatoria.
 
@@ -77,7 +77,7 @@ Para cerrar una tarea debe quedar:
 - El onboarding pregunta si la persona usará solo finanzas personales o también proyectos, y puede crear el primero.
 - Se añadió una migración de archivado seguro en `supabase/arca-business-units-archive.sql`.
 
-**Falta:** aplicar el SQL en Supabase, validar visualmente en celular, commit y push.
+**Publicado:** incluido en `04e2a27` y desplegado en `main`. La migración de archivado seguro debe permanecer aplicada en Supabase.
 
 ### 7. 🟡 Gestionar más elementos desde Configuración
 
@@ -87,7 +87,7 @@ Para cerrar una tarea debe quedar:
 
 **Falta:** administrar préstamos entre personas, ahorros y otros datos estructurales desde Configuración.
 
-### 8. 🟠 Corregir completamente el botón Atrás en Configuración
+### 8. ✅ Corregir completamente el botón Atrás en Configuración
 
 **Hecho localmente:** Configuración vuelve exactamente una entrada del historial. Si fue la primera pantalla interna, regresa a Menú mediante reemplazo de estado, sin crear el ciclo Configuración → Menú → Configuración. La navegación también limpia marcadores residuales de overlays.
 
@@ -95,49 +95,79 @@ Para cerrar una tarea debe quedar:
 
 **Falta:** validación física en Android/PWA del botón de cabecera y del botón Atrás del dispositivo.
 
-### 9. 🟠 Agregar más temas y elegirlos desde el onboarding
+### 9. ✅ Agregar más temas y elegirlos desde el onboarding
 
 **Implementado:** los temas viven en una fuente compartida para Configuración y onboarding. Se conservaron Bronce, Neón, Océano y Claro, y se añadieron Bosque y Reserva.
 
 **Experiencia:** el onboarding ahora incluye un paso visual con vista previa, aplica el tema al instante y conserva la preferencia para el resto de la app.
 
-### 10. 🟠 Agregar accesos rápidos para pagos e ingresos futuros
+### 10. ✅ Agregar accesos rápidos para pagos e ingresos futuros
 
 **Ya existe:** selector desde Agenda con “Programar gasto” y “Programar ingreso”.
 
 **Implementado:** el FAB principal abre un menú breve con tres caminos: registrar algo ocurrido, programar un gasto y programar un ingreso. Los accesos futuros abren directamente el formulario y estado correctos, y explican que el saldo no cambia hasta confirmar la operación.
 
-### 11. 🟠 Agregar recurrencias diarias, semanales y quincenales
+**Referencia:** commit `6366c15` (`feat: add future actions and flexible recurrences`).
+
+### 11. ✅ Agregar recurrencias diarias, semanales y quincenales
 
 **Implementado:** los ingresos esperados aceptan una sola vez, diario, semanal, cada dos semanas, quincenal o mensual. Diario, semanal y cada dos semanas usan la fecha inicial como ancla; quincenal exige dos días del mes y mensual permite uno o varios.
 
 **Compatibilidad:** las recurrencias mensuales existentes conservan su frecuencia y sus días de pago. Las nuevas reglas se guardan en la misma plantilla y generan eventos futuros hasta su fecha final, cantidad de cobros o ventana de proyección.
 
-### 12. 🟠 Aclarar y calcular correctamente el número de repeticiones
+### 12. ✅ Aclarar y calcular correctamente el número de repeticiones
 
 **Implementado:** el formulario habla de cantidad de cobros y muestra un resumen antes de guardar con frecuencia, número real de ocurrencias y duración estimada.
 
 **Ejemplo:** 24 cobros cada dos semanas se presentan como 24 ocurrencias y aproximadamente 11 meses, porque la duración va desde el primer cobro hasta el último.
 
-### 13. 🟡 Permitir que Nova gestione toda la estructura financiera
+### 13. 🟠 Permitir que Nova gestione toda la estructura financiera
 
 **Ya existe:** Nova consulta saldos, movimientos, obligaciones y panorama financiero; también puede preparar movimientos, pagos e ingresos programados mediante herramientas con confirmación. Localmente ya puede consultar, crear, editar y archivar proyectos, cuentas, tarjetas y créditos bancarios mediante tarjetas visuales con aprobación humana.
 
-**Falta:** herramientas para crear y administrar categorías, conceptos de ingreso, préstamos entre personas y otras estructuras. Cada escritura debe conservar confirmación humana y validación de permisos.
+**Implementado en este bloque:** Nova puede crear, editar y eliminar categorías y conceptos de ingreso; registrar préstamos entregados o recibidos; transferir entre cuentas; crear metas de ahorro y programar ingresos con las recurrencias de los puntos 11 y 12. Se suma al CRUD ya existente de proyectos, cuentas, tarjetas y créditos.
 
-### 14. 🟡 Mejorar las tarjetas de acciones de Nova
+**Seguridad:** todas las escrituras requieren aprobación. Las herramientas vuelven a validar workspace, IDs, nombres visibles y saldos vigentes antes de ejecutar para no actuar sobre datos desactualizados.
+
+**Feedback que debe quedar cubierto:**
+
+- Nova no debe responder que “no tiene permiso” cuando la acción sí existe en Arca y el usuario tiene acceso a su propio espacio.
+- Debe consultar primero las opciones válidas y trabajar con identificadores reales sin pedirle IDs técnicos al usuario.
+- Crear, editar o eliminar categorías y conceptos de ingreso debe poder hacerse desde el chat.
+- Los préstamos entre personas, transferencias, ahorros y estructuras nuevas deben incorporarse por bloques, conservando las mismas reglas del formulario manual.
+- Toda escritura debe presentar confirmación humana, estado de procesamiento, resultado explícito y actualización de las vistas relacionadas.
+
+### 14. 🟠 Mejorar las tarjetas de acciones de Nova
 
 **Ya existe:** tarjeta visual para confirmar algunas acciones financieras.
 
-**Falta:** mostrar cuenta utilizada, saldo anterior, valor de la operación, saldo resultante, categoría, fecha y efecto financiero antes de confirmar.
+**Implementado:** movimientos, pagos, transferencias y préstamos muestran cuenta, valor, saldo anterior, saldo resultante, fecha, categoría y efecto cuando esos datos existen. Los resultados reales de la herramienta tienen prioridad sobre lo solicitado inicialmente.
 
-### 15. ⬜ Crear tarjetas específicas para cada acción de Nova
+**Criterios de cierre:**
 
-**Pendiente:** tarjetas para categoría creada, cuenta creada, ingreso programado, gasto programado, pago confirmado, transferencia y demás acciones relevantes.
+- La tarjeta previa a confirmar explica qué cambiará y qué no cambiará.
+- Después de ejecutar, utiliza la salida real de la herramienta para mostrar el resultado; no repite únicamente los datos solicitados.
+- Para gastos, ingresos, pagos y transferencias muestra el efecto en la cuenta cuando el backend pueda calcularlo con datos reales.
+- Si un dato no está disponible, se omite en lugar de inventarlo.
 
-### 16. ⬜ Hacer que Nova responda de forma más corta
+### 15. 🟠 Crear tarjetas específicas para cada acción de Nova
 
-**Pendiente:** reducir el texto por defecto, priorizar conclusión y siguiente acción, y dejar explicaciones extensas únicamente cuando el usuario las solicite.
+**Implementado:** se añadieron tarjetas específicas para categorías, conceptos de ingreso, préstamos personales, transferencias y metas de ahorro, además de las ya existentes para movimientos, pagos, programación, proyectos, cuentas, tarjetas y créditos.
+
+**Inventario mínimo solicitado:** categoría de gasto, concepto de ingreso, proyecto, cuenta, tarjeta, crédito, préstamo personal, movimiento, obligación futura, ingreso esperado, pago y transferencia.
+
+**Estados comunes:** preparando, pendiente de confirmación, procesando, completado, cancelado y error. Cada estado debe ser visualmente reconocible sin depender de un párrafo largo de Nova.
+
+### 16. 🟠 Hacer que Nova responda de forma más corta
+
+**Implementado:** el prompt prioriza respuestas de una a tres frases, una sola línea después de una acción exitosa y evita repetir la información que ya aparece en la tarjeta. Solo amplía cuando el usuario pide explicación, comparación o análisis.
+
+**Criterios de cierre:**
+
+- Respuesta normal de una a cuatro líneas en móvil.
+- Cuando exista una tarjeta, el texto no repite todos sus campos; confirma el resultado y propone como máximo un siguiente paso.
+- Los análisis extensos solo aparecen cuando el usuario pide explicación, comparación o diagnóstico detallado.
+- Evitar introducciones, disculpas y cierres genéricos que no aportan una decisión.
 
 ### 17. ⬜ Agregar loader y confirmación a las acciones de SuperAdmin
 
@@ -189,4 +219,4 @@ Para cerrar una tarea debe quedar:
 
 ## Punto actual
 
-Los puntos **4** y **6** quedaron guardados en el commit `04e2a27`. El punto **7** está en curso: cuentas quedaron en `707b9c8`, tarjetas en `71cc3ee` y créditos bancarios están terminados localmente; el siguiente subbloque es préstamos entre personas.
+Los puntos **13, 14, 15 y 16** están terminados localmente y pendientes de commit, despliegue y prueba conversacional en producción. El punto **7** continúa parcialmente abierto para administrar préstamos entre personas, ahorros y otras estructuras desde Configuración, aunque Nova ya puede crear los registros principales.

@@ -72,7 +72,7 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
 
   const { data: account, error: accountError } = await admin
     .from("accounts")
-    .select("id, balance, workspace_id")
+    .select("id, name, balance, workspace_id")
     .eq("id", event.account_id)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -143,7 +143,18 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
   }
 
   revalidatePath("/app");
-  return { ok: true, transactionId: String(transaction.id) };
+  return {
+    ok: true,
+    transactionId: String(transaction.id),
+    accountId: String(account.id),
+    accountName: String(account.name),
+    amount,
+    balanceBefore: currentBalance,
+    balanceAfter: nextBalance,
+    effect: delta,
+    date: today,
+    category: kind,
+  };
 }
 
 export async function adjustAndConfirmScheduledEvent(input: {
@@ -887,7 +898,16 @@ export async function createMovement(input: {
   }
 
   revalidatePath("/app");
-  return { ok: true, transactionId: String(transaction.id) };
+  return {
+    ok: true,
+    transactionId: String(transaction.id),
+    accountId: String(account.id),
+    accountName: String(account.name),
+    balanceBefore: currentBalance,
+    balanceAfter: nextBalance,
+    effect: delta,
+    date,
+  };
 }
 
 export async function createExpectedIncome(input: {
@@ -1456,6 +1476,16 @@ export async function createExpenseCategory(input: {
   const name = input.name.trim();
   if (!name) throw new Error("El nombre de la categoría es requerido.");
 
+  if (input.parentId) {
+    const { data: parent, error: parentError } = await admin
+      .from("expense_categories")
+      .select("id")
+      .eq("id", input.parentId)
+      .eq("workspace_id", context.workspace.id)
+      .maybeSingle();
+    if (parentError || !parent) throw new Error("La categoría principal no existe en este espacio.");
+  }
+
   const { data, error } = await admin
     .from("expense_categories")
     .insert({
@@ -1489,6 +1519,24 @@ export async function updateExpenseCategory(input: {
   const name = input.name.trim();
   if (!name) throw new Error("El nombre de la categoría es requerido.");
   if (input.parentId === input.id) throw new Error("Una categoría no puede depender de sí misma.");
+
+  const { data: category, error: categoryError } = await admin
+    .from("expense_categories")
+    .select("id")
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id)
+    .maybeSingle();
+  if (categoryError || !category) throw new Error("La categoría no existe en este espacio.");
+
+  if (input.parentId) {
+    const { data: parent, error: parentError } = await admin
+      .from("expense_categories")
+      .select("id")
+      .eq("id", input.parentId)
+      .eq("workspace_id", context.workspace.id)
+      .maybeSingle();
+    if (parentError || !parent) throw new Error("La categoría principal no existe en este espacio.");
+  }
 
   const { error } = await admin
     .from("expense_categories")
@@ -1524,19 +1572,30 @@ export async function createIncomeSource(input: {
   if (!businessUnitKey) throw new Error("Debes elegir Personal o un proyecto.");
   if (!defaultAccountId) throw new Error("Debes elegir la cuenta destino por defecto.");
 
-  const { error } = await admin.from("income_sources").insert({
-    workspace_id: context.workspace.id,
-    name,
-    business_unit_key: businessUnitKey,
-    default_account_id: defaultAccountId,
-    type: "manual",
-    active: true,
-  });
+  const [accountResult, unitResult] = await Promise.all([
+    admin.from("accounts").select("id").eq("id", defaultAccountId).eq("workspace_id", context.workspace.id).eq("active", true).maybeSingle(),
+    admin.from("business_units").select("key").eq("key", businessUnitKey).eq("workspace_id", context.workspace.id).maybeSingle(),
+  ]);
+  if (accountResult.error || !accountResult.data) throw new Error("La cuenta destino no existe en este espacio.");
+  if (unitResult.error || !unitResult.data) throw new Error("El espacio o proyecto no existe.");
 
-  if (error) throw new Error(`No se pudo crear la fuente de ingreso: ${error.message}`);
+  const { data: source, error } = await admin
+    .from("income_sources")
+    .insert({
+      workspace_id: context.workspace.id,
+      name,
+      business_unit_key: businessUnitKey,
+      default_account_id: defaultAccountId,
+      type: "manual",
+      active: true,
+    })
+    .select("id")
+    .single();
+
+  if (error || !source) throw new Error(`No se pudo crear la fuente de ingreso: ${error?.message ?? "sin respuesta"}`);
 
   revalidatePath("/app");
-  return { ok: true };
+  return { ok: true, sourceId: String(source.id) };
 }
 
 export async function updateIncomeSource(input: {
@@ -1557,6 +1616,15 @@ export async function updateIncomeSource(input: {
   if (!name) throw new Error("La fuente necesita un nombre.");
   if (!businessUnitKey) throw new Error("Debes elegir Personal o un proyecto.");
   if (!defaultAccountId) throw new Error("Debes elegir la cuenta destino por defecto.");
+
+  const [sourceResult, accountResult, unitResult] = await Promise.all([
+    admin.from("income_sources").select("id").eq("id", input.id).eq("workspace_id", context.workspace.id).maybeSingle(),
+    admin.from("accounts").select("id").eq("id", defaultAccountId).eq("workspace_id", context.workspace.id).eq("active", true).maybeSingle(),
+    admin.from("business_units").select("key").eq("key", businessUnitKey).eq("workspace_id", context.workspace.id).maybeSingle(),
+  ]);
+  if (sourceResult.error || !sourceResult.data) throw new Error("La fuente de ingreso no existe en este espacio.");
+  if (accountResult.error || !accountResult.data) throw new Error("La cuenta destino no existe en este espacio.");
+  if (unitResult.error || !unitResult.data) throw new Error("El espacio o proyecto no existe.");
 
   const { error } = await admin
     .from("income_sources")
@@ -3108,7 +3176,21 @@ export async function createTransfer(input: {
   }
 
   revalidatePath("/app");
-  return { ok: true };
+  return {
+    ok: true,
+    transferKey,
+    concept,
+    date: input.date,
+    amount: input.amount,
+    fromAccountId: String(fromAccount.id),
+    fromAccountName: String(fromAccount.name),
+    fromBalanceBefore: fromBalance,
+    fromBalanceAfter: fromBalance - input.amount,
+    toAccountId: String(toAccount.id),
+    toAccountName: String(toAccount.name),
+    toBalanceBefore: toBalance,
+    toBalanceAfter: toBalance + input.amount,
+  };
 }
 
 

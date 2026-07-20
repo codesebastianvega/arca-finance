@@ -5,15 +5,19 @@ import {
   Archive,
   BadgeDollarSign,
   CalendarPlus,
+  ArrowLeftRight,
   ArrowRight,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
   CreditCard,
   FolderPlus,
+  HandCoins,
   Pencil,
   ReceiptText,
   ShieldCheck,
+  Tags,
+  Target,
   WalletCards,
   XCircle,
 } from 'lucide-react';
@@ -27,12 +31,22 @@ import {
   ConfirmationTitle,
 } from '@/src/components/ai-elements/confirmation';
 import type { ConfirmationProps } from '@/src/components/ai-elements/confirmation';
+import { summarizeRecurrence } from '@/src/lib/recurrence-summary';
 
 const ACTION_TYPES = new Set([
   'tool-record_transaction',
   'tool-confirm_obligation_payment',
   'tool-schedule_obligation',
   'tool-schedule_expected_income',
+  'tool-create_expense_category',
+  'tool-update_expense_category',
+  'tool-delete_expense_category',
+  'tool-create_income_source',
+  'tool-update_income_source',
+  'tool-delete_income_source',
+  'tool-create_personal_loan',
+  'tool-transfer_between_accounts',
+  'tool-create_savings_goal',
   'tool-create_project',
   'tool-update_project',
   'tool-archive_project',
@@ -69,6 +83,7 @@ function safeCurrency(currencyCode: string) {
 }
 
 function formatMoney(value: unknown, currencyCode: string) {
+  if (value === null || value === undefined || value === '') return null;
   const amount = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(amount)) return null;
   return new Intl.NumberFormat('es-CO', {
@@ -83,40 +98,295 @@ function value(input: Record<string, unknown>, key: string) {
   return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
 }
 
+function numericValue(input: Record<string, unknown>, key: string) {
+  const raw = input[key];
+  if (raw === null || raw === undefined || raw === '') return null;
+  const parsed = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function firstText(
+  output: Record<string, unknown>,
+  input: Record<string, unknown>,
+  ...keys: string[]
+) {
+  for (const source of [output, input]) {
+    for (const key of keys) {
+      const result = value(source, key);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
+function firstNumber(
+  output: Record<string, unknown>,
+  input: Record<string, unknown>,
+  ...keys: string[]
+) {
+  for (const source of [output, input]) {
+    for (const key of keys) {
+      const result = numericValue(source, key);
+      if (result !== null) return result;
+    }
+  }
+  return null;
+}
+
+function moneyDetail(
+  output: Record<string, unknown>,
+  input: Record<string, unknown>,
+  currencyCode: string,
+  ...keys: string[]
+) {
+  return formatMoney(firstNumber(output, input, ...keys), currencyCode);
+}
+
+function transactionBalances(
+  output: Record<string, unknown>,
+  input: Record<string, unknown>,
+  currencyCode: string,
+) {
+  const amount = firstNumber(output, input, 'amount');
+  const before = firstNumber(output, input, 'balanceBefore', 'previousBalance', 'accountBalanceBefore');
+  const explicitAfter = firstNumber(output, input, 'balanceAfter', 'resultingBalance', 'accountBalanceAfter');
+  const isIncome = input.kind === 'income' || output.kind === 'income';
+  const after = explicitAfter ?? (before !== null && amount !== null ? before + (isIncome ? amount : -amount) : null);
+
+  return {
+    before: formatMoney(before, currencyCode),
+    after: formatMoney(after, currencyCode),
+  };
+}
+
+function recurrenceLabel(value: unknown) {
+  const labels: Record<string, string> = {
+    once: 'Una vez',
+    daily: 'Diario',
+    weekly: 'Semanal',
+    biweekly: 'Cada 2 semanas',
+    semimonthly: 'Quincenal',
+    monthly: 'Mensual',
+  };
+  return labels[String(value ?? '')] ?? null;
+}
+
+function recurrenceSummaryFromInput(input: Record<string, unknown>) {
+  const frequency = String(input.recurrenceMode ?? 'once');
+  if (frequency === 'once') return null;
+  try {
+    return summarizeRecurrence({
+      frequency: frequency as 'daily' | 'weekly' | 'biweekly' | 'semimonthly' | 'monthly',
+      startDate: String(input.dueDate ?? ''),
+      recurrenceDays: Array.isArray(input.recurrenceDays)
+        ? input.recurrenceDays.map(Number)
+        : undefined,
+      endMode: String(input.recurrenceEndMode ?? 'indefinite') as 'indefinite' | 'until_date' | 'count',
+      endDate: typeof input.recurrenceEndDate === 'string' ? input.recurrenceEndDate : null,
+      occurrenceCount: typeof input.recurrenceCount === 'number' ? input.recurrenceCount : null,
+      occurrenceNoun: { singular: 'cobro', plural: 'cobros' },
+    }).summary;
+  } catch {
+    return null;
+  }
+}
+
 function actionPresentation(part: FinancialActionPart, currencyCode: string) {
   const input = part.input ?? {};
+  const output = part.output ?? {};
 
   if (part.type === 'tool-record_transaction') {
-    const isIncome = input.kind === 'income';
+    const isIncome = input.kind === 'income' || output.kind === 'income';
+    const balances = transactionBalances(output, input, currencyCode);
     return {
       icon: ReceiptText,
       eyebrow: isIncome ? 'Nuevo ingreso' : 'Nuevo gasto',
-      title: value(input, 'concept') ?? 'Registrar movimiento',
+      title: firstText(output, input, 'concept') ?? 'Registrar movimiento',
       details: [
-        ['Cuenta', value(input, 'accountName')],
-        ['Categoría', value(input, 'category')],
-        ['Fecha', value(input, 'date') ?? 'Hoy'],
+        ['Cuenta', firstText(output, input, 'accountName')],
+        ['Saldo anterior', balances.before],
+        ['Valor', moneyDetail(output, input, currencyCode, 'amount')],
+        ['Saldo resultante', balances.after],
+        ['Categoría', firstText(output, input, 'category')],
+        ['Fecha', firstText(output, input, 'date') ?? 'Hoy'],
+        ['Efecto', isIncome ? 'Aumenta el saldo disponible' : 'Reduce el saldo disponible'],
       ],
     };
   }
 
   if (part.type === 'tool-confirm_obligation_payment') {
+    const balances = transactionBalances(output, { ...input, kind: 'expense' }, currencyCode);
     return {
       icon: CircleDollarSign,
       eyebrow: 'Confirmar pago',
-      title: value(input, 'title') ?? 'Obligación pendiente',
-      details: [['Fecha', 'Hoy']],
+      title: firstText(output, input, 'title') ?? 'Obligación pendiente',
+      details: [
+        ['Cuenta', firstText(output, input, 'accountName')],
+        ['Saldo anterior', balances.before],
+        ['Valor pagado', moneyDetail(output, input, currencyCode, 'amount')],
+        ['Saldo resultante', balances.after],
+        ['Fecha', firstText(output, input, 'date') ?? 'Hoy'],
+        ['Efecto', 'Paga la obligación y reduce el saldo de la cuenta'],
+      ],
     };
   }
 
   if (part.type === 'tool-schedule_expected_income') {
+    const recurrenceMode = output.recurrenceMode ?? input.recurrenceMode ?? 'once';
+    const recurrenceEndMode = output.recurrenceEndMode ?? input.recurrenceEndMode;
+    const recurrenceEnd = recurrenceEndMode === 'count'
+      ? `${firstNumber(output, input, 'recurrenceCount') ?? '—'} cobros`
+      : recurrenceEndMode === 'until_date'
+        ? firstText(output, input, 'recurrenceEndDate')
+        : recurrenceMode === 'once' ? null : 'Sin fecha final';
     return {
       icon: CalendarPlus,
       eyebrow: 'Programar ingreso',
-      title: value(input, 'title') ?? 'Ingreso esperado',
+      title: firstText(output, input, 'title') ?? 'Ingreso esperado',
       details: [
-        ['Cuenta destino', value(input, 'accountName')],
-        ['Fecha esperada', value(input, 'dueDate')],
+        ['Cuenta destino', firstText(output, input, 'accountName')],
+        ['Concepto de ingreso', firstText(output, input, 'sourceName')],
+        ['Valor esperado', moneyDetail(output, input, currencyCode, 'amount')],
+        ['Fecha esperada', firstText(output, input, 'dueDate')],
+        ['Frecuencia', recurrenceLabel(recurrenceMode)],
+        ['Finaliza', recurrenceEnd],
+        ['Duración', firstText(output, input, 'recurrenceSummary') ?? recurrenceSummaryFromInput(input)],
+        ['Efecto', 'Se proyecta; no cambia el saldo disponible hoy'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-create_expense_category') {
+    return {
+      icon: Tags,
+      eyebrow: 'Nueva categoría',
+      title: firstText(output, input, 'name') ?? 'Crear categoría de gasto',
+      details: [
+        ['Categoría principal', firstText(output, input, 'parentCategory', 'parentCategoryName') ?? 'Sin categoría principal'],
+        ['Efecto', 'Estará disponible para clasificar nuevos gastos'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-update_expense_category') {
+    return {
+      icon: Pencil,
+      eyebrow: 'Editar categoría',
+      title: firstText(output, input, 'name') ?? 'Actualizar categoría de gasto',
+      details: [
+        ['Nombre anterior', firstText(output, input, 'previousName', 'currentName')],
+        ['Categoría principal', firstText(output, input, 'parentCategory', 'parentCategoryName') ?? 'Sin categoría principal'],
+        ['Efecto', 'Actualiza la clasificación sin crear un movimiento'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-delete_expense_category') {
+    return {
+      icon: Archive,
+      eyebrow: 'Eliminar categoría',
+      title: firstText(output, input, 'name') ?? 'Categoría de gasto',
+      details: [['Efecto', 'Dejará de estar disponible para nuevos gastos']],
+    };
+  }
+
+  if (part.type === 'tool-create_income_source') {
+    return {
+      icon: BadgeDollarSign,
+      eyebrow: 'Nuevo concepto de ingreso',
+      title: firstText(output, input, 'name') ?? 'Crear concepto de ingreso',
+      details: [
+        ['Cuenta destino', firstText(output, input, 'accountName')],
+        ['Espacio', firstText(output, input, 'unitName')],
+        ['Efecto', 'Quedará disponible al registrar ingresos'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-update_income_source') {
+    return {
+      icon: Pencil,
+      eyebrow: 'Editar concepto de ingreso',
+      title: firstText(output, input, 'name') ?? 'Actualizar concepto de ingreso',
+      details: [
+        ['Nombre anterior', firstText(output, input, 'previousName', 'currentName')],
+        ['Cuenta destino', firstText(output, input, 'accountName')],
+        ['Espacio', firstText(output, input, 'unitName')],
+        ['Efecto', 'Cambia la configuración de los próximos ingresos'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-delete_income_source') {
+    return {
+      icon: Archive,
+      eyebrow: 'Eliminar concepto de ingreso',
+      title: firstText(output, input, 'name') ?? 'Concepto de ingreso',
+      details: [['Efecto', 'Dejará de estar disponible para nuevos ingresos']],
+    };
+  }
+
+  if (part.type === 'tool-create_personal_loan') {
+    const isLent = input.direction === 'lent' || output.action === 'personal_loan_lent';
+    const amountValue = firstNumber(output, input, 'amount');
+    const balanceBeforeValue = firstNumber(output, input, 'balanceBefore', 'accountBalanceBefore');
+    const explicitBalanceAfter = firstNumber(output, input, 'balanceAfter', 'resultingBalance');
+    const balanceAfterValue = explicitBalanceAfter
+      ?? (balanceBeforeValue !== null && amountValue !== null
+        ? balanceBeforeValue + (isLent ? -amountValue : amountValue)
+        : null);
+    return {
+      icon: HandCoins,
+      eyebrow: isLent ? 'Dinero prestado' : 'Préstamo recibido',
+      title: firstText(output, input, 'title') ?? (isLent ? 'Registrar dinero prestado' : 'Registrar préstamo recibido'),
+      details: [
+        ['Persona', firstText(output, input, 'personName')],
+        ['Cuenta', firstText(output, input, 'accountName')],
+        ['Valor', moneyDetail(output, input, currencyCode, 'amount')],
+        ['Saldo anterior', formatMoney(balanceBeforeValue, currencyCode)],
+        ['Saldo resultante', formatMoney(balanceAfterValue, currencyCode)],
+        ['Fecha acordada', firstText(output, input, 'dueDate') ?? 'Sin fecha definida'],
+        ['Efecto', isLent ? 'Reduce el saldo y crea una cuenta por cobrar' : 'Aumenta el saldo y crea una deuda por pagar'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-transfer_between_accounts') {
+    const amountValue = firstNumber(output, input, 'amount');
+    const fromBefore = firstNumber(output, input, 'fromBalanceBefore');
+    const toBefore = firstNumber(output, input, 'toBalanceBefore');
+    const fromAfter = firstNumber(output, input, 'fromBalanceAfter')
+      ?? (fromBefore !== null && amountValue !== null ? fromBefore - amountValue : null);
+    const toAfter = firstNumber(output, input, 'toBalanceAfter')
+      ?? (toBefore !== null && amountValue !== null ? toBefore + amountValue : null);
+    return {
+      icon: ArrowLeftRight,
+      eyebrow: 'Transferencia entre cuentas',
+      title: firstText(output, input, 'concept', 'title') ?? 'Mover dinero',
+      details: [
+        ['Desde', firstText(output, input, 'sourceAccountName', 'fromAccountName')],
+        ['Hacia', firstText(output, input, 'destinationAccountName', 'toAccountName')],
+        ['Valor', moneyDetail(output, input, currencyCode, 'amount')],
+        ['Origen antes', formatMoney(fromBefore, currencyCode)],
+        ['Origen después', formatMoney(fromAfter, currencyCode)],
+        ['Destino antes', formatMoney(toBefore, currencyCode)],
+        ['Destino después', formatMoney(toAfter, currencyCode)],
+        ['Fecha', firstText(output, input, 'date') ?? 'Hoy'],
+        ['Efecto', 'Mueve dinero entre cuentas sin cambiar el balance total'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-create_savings_goal') {
+    return {
+      icon: Target,
+      eyebrow: 'Nueva meta de ahorro',
+      title: firstText(output, input, 'name', 'title') ?? 'Crear meta de ahorro',
+      details: [
+        ['Objetivo', moneyDetail(output, input, currencyCode, 'target', 'targetAmount', 'amount')],
+        ['Ahorrado', moneyDetail(output, input, currencyCode, 'current', 'currentAmount', 'savedAmount')],
+        ['Fecha objetivo', firstText(output, input, 'targetDate', 'dueDate')],
+        ['Efecto', 'Organiza el ahorro; no mueve dinero automáticamente'],
       ],
     };
   }
@@ -269,13 +539,51 @@ function actionPresentation(part: FinancialActionPart, currencyCode: string) {
   return {
     icon: CalendarPlus,
     eyebrow: 'Programar pago',
-    title: value(input, 'title') ?? 'Próxima obligación',
+    title: firstText(output, input, 'title') ?? 'Próxima obligación',
     details: [
-      ['Cuenta sugerida', value(input, 'accountName') ?? 'Sin cuenta asignada'],
-      ['Vencimiento', value(input, 'dueDate')],
-      ['Frecuencia', value(input, 'frequency') ?? 'Una vez'],
+      ['Cuenta sugerida', firstText(output, input, 'accountName') ?? 'Sin cuenta asignada'],
+      ['Valor esperado', moneyDetail(output, input, currencyCode, 'amount')],
+      ['Vencimiento', firstText(output, input, 'dueDate')],
+      ['Frecuencia', firstText(output, input, 'frequency') ?? 'Una vez'],
+      ['Efecto', 'Se agenda; no descuenta dinero hasta confirmar el pago'],
     ],
   };
+}
+
+function completionMessage(part: FinancialActionPart) {
+  const output = part.output ?? {};
+  const action = value(output, 'action');
+
+  const messages: Record<string, string> = {
+    transaction_recorded: output.kind === 'income' ? 'Ingreso registrado' : 'Gasto registrado',
+    obligation_paid: 'Pago confirmado',
+    obligation_scheduled: 'Pago programado',
+    income_scheduled: 'Ingreso programado',
+    expense_category_created: 'Categoría creada',
+    expense_category_updated: 'Categoría actualizada',
+    expense_category_deleted: 'Categoría eliminada',
+    income_source_created: 'Concepto de ingreso creado',
+    income_source_updated: 'Concepto de ingreso actualizado',
+    income_source_deleted: 'Concepto de ingreso eliminado',
+    personal_loan_lent: 'Préstamo por cobrar registrado',
+    personal_loan_borrowed: 'Préstamo por pagar registrado',
+    account_transfer_created: 'Transferencia completada',
+    savings_goal_created: 'Meta de ahorro creada',
+    project_created: 'Proyecto creado',
+    project_updated: 'Proyecto actualizado',
+    project_archived: 'Proyecto archivado',
+    account_created: 'Cuenta creada',
+    account_updated: 'Cuenta actualizada',
+    account_archived: 'Cuenta archivada',
+    credit_card_created: 'Tarjeta creada',
+    credit_card_updated: 'Tarjeta actualizada',
+    credit_card_archived: 'Tarjeta archivada',
+    bank_credit_created: 'Crédito creado',
+    bank_credit_updated: 'Crédito actualizado',
+    bank_credit_archived: 'Crédito archivado',
+  };
+
+  return (action && messages[action]) ?? 'Acción completada';
 }
 
 export function FinancialActionCard({
@@ -292,9 +600,10 @@ export function FinancialActionCard({
   onViewChanges?: () => void;
 }) {
   const input = part.input ?? {};
+  const output = part.output ?? {};
   const presentation = actionPresentation(part, currencyCode);
   const Icon = presentation.icon;
-  const amount = formatMoney(input.amount ?? input.initialBalance, currencyCode);
+  const amount = moneyDetail(output, input, currencyCode, 'amount', 'initialBalance');
 
   if (part.state === 'input-streaming' || part.state === 'input-available') {
     return (
@@ -367,7 +676,7 @@ export function FinancialActionCard({
         <div className="border-t border-arca-border px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-arca-positive">
             <CheckCircle2 size={18} />
-            <span>{part.state === 'output-available' ? 'Acción completada' : 'Aprobado, procesando…'}</span>
+            <span>{part.state === 'output-available' ? completionMessage(part) : 'Aprobado, procesando…'}</span>
           </div>
           {part.state === 'output-available' && (
             <div className="mt-3 grid grid-cols-2 gap-2">
