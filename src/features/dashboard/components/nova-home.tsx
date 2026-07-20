@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
   CalendarClock,
   CircleDollarSign,
+  Lightbulb,
   Plus,
   ReceiptText,
   Send,
   Sparkles,
   WalletCards,
+  X,
 } from "lucide-react";
 import type { TodayViewModel } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
@@ -38,6 +41,14 @@ type NovaHomeProps = {
   onOpenSummary: () => void;
 };
 
+const NOVA_EXAMPLES = [
+  { emoji: "📊", label: "Revisa mis gastos del mes", prompt: "Revisa mis gastos del mes y dime cómo voy" },
+  { emoji: "💰", label: "¿Cuánto puedo gastar esta semana?", prompt: "¿Cuánto puedo gastar esta semana sin afectar mis pagos?" },
+  { emoji: "📅", label: "¿Qué pagos tengo pendientes?", prompt: "¿Qué pagos tengo pendientes?" },
+  { emoji: "🏦", label: "Programa un pago nuevo", prompt: "Quiero programar un pago" },
+  { emoji: "📈", label: "Analiza mis ingresos vs gastos", prompt: "Analiza mis ingresos vs mis gastos de este mes" },
+];
+
 export default function NovaHome({
   data,
   currency,
@@ -47,6 +58,7 @@ export default function NovaHome({
   onOpenSummary,
 }: NovaHomeProps) {
   const [prompt, setPrompt] = useState("");
+  const [showExamples, setShowExamples] = useState(false);
   const overduePayments = data.criticalPayments.filter((payment) => payment.status === "overdue");
   const upcomingPayments = data.criticalPayments.filter((payment) => payment.status !== "overdue");
   const nextPayment = upcomingPayments[0] ?? null;
@@ -87,37 +99,33 @@ export default function NovaHome({
         </button>
       </header>
 
+      {/* --- MAIN FINANCIAL CARD (Simplified) --- */}
       <section className="relative overflow-hidden rounded-[30px] border border-arca-border-strong bg-arca-surface-1 p-5 shadow-[0_20px_55px_-32px_rgba(0,0,0,0.85)] light:border-arca-light-border light:bg-arca-light-surface-1">
         <div className="absolute -right-14 -top-16 h-36 w-36 rounded-full bg-arca-accent/[0.07] blur-3xl" />
         <div className="relative">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent">
-                <Sparkles size={17} />
-              </span>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-arca-accent">Nova</p>
-                <p className="text-xs font-semibold text-arca-text-secondary">Resumen de hoy</p>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent">
+              <Sparkles size={17} />
+            </span>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-arca-accent">Nova</p>
+              <p className="text-xs font-semibold text-arca-text-secondary">Tu resumen de hoy</p>
             </div>
-            <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${overduePayments.length > 0 ? "bg-arca-alert/10 text-arca-alert" : "bg-arca-positive/10 text-arca-positive"}`}>
+            <span className={`ml-auto rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${overduePayments.length > 0 ? "bg-arca-alert/10 text-arca-alert" : "bg-arca-positive/10 text-arca-positive"}`}>
               {overduePayments.length > 0 ? `${overduePayments.length} vencidos` : "Al día"}
             </span>
           </div>
 
-          <div className="mt-7">
+          <div className="mt-6">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-arca-text-dim">
               Disponible ahora
             </p>
             <p className="mt-1.5 text-[42px] font-black leading-none tracking-[-0.055em] text-arca-text-primary light:text-arca-light-text-primary">
               {formatMoney(data.cash.safeToSpend, currency)}
             </p>
-            <p className="mt-2 text-xs text-arca-text-secondary">
-              Saldo disponible en tus cuentas activas
-            </p>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-2.5">
+          <div className="mt-5 grid grid-cols-2 gap-2.5">
             <div className="rounded-2xl border border-arca-border bg-arca-surface-2/70 p-3.5">
               <div className="flex items-center gap-2 text-arca-text-dim">
                 <CalendarClock size={14} />
@@ -142,6 +150,7 @@ export default function NovaHome({
             </div>
           </div>
 
+          {/* Context alert (overdue / next payment / all clear) */}
           <div className="mt-3 rounded-2xl border border-arca-border bg-arca-base/35 p-4 light:border-arca-light-border light:bg-arca-light-base/60">
             {overduePayments.length > 0 ? (
               <div className="flex items-start gap-3">
@@ -151,7 +160,7 @@ export default function NovaHome({
                     Tienes {overduePayments.length} {overduePayments.length === 1 ? "pago vencido" : "pagos vencidos"}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-arca-text-secondary light:text-arca-light-text-secondary">
-                    Suman {formatMoney(overdueTotal, currency)}. Puedo priorizarlos según tu saldo disponible.
+                    Suman {formatMoney(overdueTotal, currency)}.
                   </p>
                 </div>
               </div>
@@ -175,24 +184,26 @@ export default function NovaHome({
                     Tu semana está bajo control
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-arca-text-secondary light:text-arca-light-text-secondary">
-                    Puedes preguntarme cómo distribuir tu dinero o preparar el resto del mes.
+                    No tienes compromisos pendientes.
                   </p>
                 </div>
               </div>
             )}
           </div>
 
+          {/* --- PRIMARY CTA: Pídele algo a Nova (Points 22 + 24) --- */}
           <button
             type="button"
-            onClick={() => onOpenNova("Revisa mi situación financiera y ayúdame a organizar lo más importante de esta semana")}
+            onClick={() => { haptics.medium(); setShowExamples(true); }}
             className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent px-4 text-sm font-black text-[#15110c] shadow-[0_10px_24px_-14px_rgba(198,138,69,0.8)] transition-transform active:scale-[0.98]"
           >
-            Organizar mi semana
-            <ArrowRight size={17} />
+            <Lightbulb size={17} />
+            Pídele algo a Nova
           </button>
         </div>
       </section>
 
+      {/* --- SUMMARY ACCESS (Point 24) --- */}
       <button
         type="button"
         onClick={onOpenSummary}
@@ -208,15 +219,13 @@ export default function NovaHome({
           <span className="mt-0.5 block text-base font-black text-arca-text-primary light:text-arca-light-text-primary">
             Ver resumen financiero
           </span>
-          <span className="mt-1 block text-[11px] leading-relaxed text-arca-text-secondary light:text-arca-light-text-secondary">
-            Presupuesto, pagos, ingresos, cobros y movimientos del mes.
-          </span>
         </span>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-arca-border bg-arca-surface-2 text-arca-accent transition-transform group-hover:translate-x-0.5">
           <ArrowRight size={17} />
         </span>
       </button>
 
+      {/* --- NOVA PROMPT INPUT --- */}
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -242,6 +251,7 @@ export default function NovaHome({
         </button>
       </form>
 
+      {/* --- SUGGESTION CHIPS --- */}
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         {[
           "¿Qué pagos tengo pendientes?",
@@ -259,6 +269,7 @@ export default function NovaHome({
         ))}
       </div>
 
+      {/* --- QUICK ACTIONS --- */}
       <section>
         <h2 className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-arca-text-secondary light:text-arca-light-text-secondary">
           Acciones rápidas
@@ -279,6 +290,63 @@ export default function NovaHome({
           </button>
         </div>
       </section>
+
+      {/* --- NOVA EXAMPLES MODAL (Point 23) --- */}
+      <AnimatePresence>
+        {showExamples && (
+          <motion.div
+            key="nova-examples-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[5000] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowExamples(false)}
+          >
+            <motion.div
+              key="nova-examples-modal"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-t-[30px] border border-b-0 border-arca-border bg-arca-bg px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-5"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-arca-accent">Nova</p>
+                  <h3 className="mt-0.5 text-lg font-black text-arca-text-primary">¿Qué puedo hacer por ti?</h3>
+                </div>
+                <button
+                  onClick={() => setShowExamples(false)}
+                  aria-label="Cerrar"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-arca-surface-2 text-arca-text-dim"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-arca-text-dim">Toca una sugerencia para preguntarme directamente, o escribe lo que necesites en la barra de arriba.</p>
+              <div className="mt-5 space-y-2">
+                {NOVA_EXAMPLES.map((example) => (
+                  <button
+                    key={example.prompt}
+                    type="button"
+                    onClick={() => {
+                      setShowExamples(false);
+                      haptics.medium();
+                      onOpenNova(example.prompt);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-arca-border bg-arca-surface-1 p-4 text-left transition-colors hover:bg-arca-surface-2 active:scale-[0.99]"
+                  >
+                    <span className="text-lg">{example.emoji}</span>
+                    <span className="flex-1 text-sm font-bold text-arca-text-primary">{example.label}</span>
+                    <ArrowRight size={16} className="shrink-0 text-arca-text-dim" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

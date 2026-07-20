@@ -117,6 +117,7 @@ export default function App({
     if (screen === 'obligaciones') setObligationsInitialFilter('todo');
     currentScreenRef.current = screen;
     setCurrentScreenState(screen);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
   const setCurrentScreen = useCallback((screen: Screen) => {

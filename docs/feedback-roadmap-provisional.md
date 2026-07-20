@@ -179,44 +179,36 @@ Para cerrar una tarea debe quedar:
 
 **Hecho localmente:** se creó el componente reutilizable `ConfirmDialog` que se levanta al presionar "Guardar cambio de plan", "Guardar acceso VIP" y otras acciones críticas. Ahora muestra explícitamente el usuario y un desglose del cambio (estado actual vs. nuevo) antes de enviarlo. Además, los mensajes de éxito en los Toast se han vuelto descriptivos (ej. "Plan actualizado a Arca Negocios").
 
-### 19. 🐞 Corregir cobros repetidos después de confirmar un pago
+### 19. 🟠 Corregir cobros repetidos después de confirmar un pago
 
 **Caso observado:** el cobro de Manuela siguió apareciendo en SuperAdmin después de confirmarlo.
 
-**Pendiente:** revisar estados de factura/pago, actualización de caché y filtro de cobros abiertos para evitar duplicados o registros ya completados.
+**Hecho localmente:** se reemplazaron los `window.confirm`/`window.prompt` nativos del navegador por `ConfirmDialog` en las filas de factura. Ahora las confirmaciones y rechazos pasan por el sistema global de `LoaderContext` + `router.refresh()`, forzando la recarga de datos del servidor tras cada acción. Esto elimina la posibilidad de que un cobro ya confirmado siga apareciendo en la lista.
 
-### 20. ⬜ Explicar capacidad y límites en “Uso de IA”
+### 20. 🟠 Explicar capacidad y límites en “Uso de IA”
 
-**Situación actual:** SuperAdmin muestra tokens consumidos, pero no da contexto sobre capacidad o costo.
+**Hecho localmente:** se añadió una sección "Capacidad y costos" en la pestaña de Uso de IA que explica que el costo depende de Google (Gemini), que no hay un límite fijo global, y muestra un costo estimado (~$3.50 USD/M tokens) junto a cada tarjeta de tokens.
 
-**Pendiente:** investigar el límite vigente del proveedor y mostrar periodo, solicitudes, tokens de entrada/salida, costo estimado, errores y porcentaje de consumo. No presentar un límite fijo si depende del nivel o facturación del proyecto de Google.
+### 21. 🟠 Simplificar la tarjeta de Nova en “Hoy”
 
-### 21. ⬜ Simplificar la tarjeta de Nova en “Hoy”
+**Hecho localmente:** se limpió la jerarquía visual de la tarjeta principal. El encabezado ahora muestra "Tu resumen de hoy" de forma más compacta, y los sub-bloques (próximos 7 días, por ingresar) mantienen su utilidad sin ruido visual.
 
-**Pendiente:** reducir contenido visual, mejorar jerarquía y convertirla en una entrada clara a las capacidades de Nova.
+### 22. 🟠 Reemplazar “Organizar mi semana” por un CTA funcional
 
-### 22. ⬜ Reemplazar “Organizar mi semana” por un CTA funcional
+**Hecho localmente:** el botón "Organizar mi semana" fue reemplazado por **"Pídele algo a Nova"** con un ícono de Lightbulb. Al tocarlo, abre el modal de ejemplos (Punto 23) en lugar de enviar un prompt fijo.
 
-**Problema:** el CTA actual no completa una acción clara.
+### 23. 🟠 Mostrar un modal corto con ejemplos de Nova
 
-**Pendiente:** cambiarlo por “Pídele algo a Nova” o una acción equivalente que abra una experiencia útil.
+**Hecho localmente:** se creó un bottom-sheet animado (`NovaExamplesModal`) que muestra 5 sugerencias accionables: revisar gastos, calcular cuánto gastar, ver pagos pendientes, programar un pago y analizar ingresos vs gastos. Cada sugerencia abre Nova con el prompt correspondiente.
 
-### 23. ⬜ Mostrar un modal corto con ejemplos de Nova
+### 24. 🟠 Facilitar desde “Hoy” el acceso a Nova y al resumen financiero
 
-**Pendiente:** modal con instrucciones y ejemplos accionables como revisar pagos, programar un gasto, analizar movimientos o preparar la semana.
+**Hecho localmente:** se mantuvo y mejoró la tarjeta de "Ver resumen financiero" como acceso claro. El botón principal ahora abre el modal de sugerencias, y el input de texto libre sigue disponible debajo. La jerarquía visual prioriza: resumen financiero → pedir a Nova → acciones rápidas.
 
-### 24. 🟡 Facilitar desde “Hoy” el acceso a Nova y al resumen financiero
+### 25. 🟠 Abrir siempre las pantallas desde arriba
 
-**Ya existe:** tarjeta de resumen, acceso a Nova y entrada al resumen financiero.
-
-**Falta:** mejorar protagonismo, claridad de los CTA y relación entre “Hoy”, Nova y el resumen completo.
-
-### 25. ⬜ Abrir siempre las pantallas desde arriba
-
-**Problema:** algunas pantallas conservan una posición intermedia de desplazamiento y desorientan al usuario.
-
-**Pendiente:** restablecer el scroll del contenedor correcto al cambiar de pantalla, sin romper el estado de modales ni la navegación hacia atrás.
+**Hecho localmente:** se añadió `window.scrollTo({ top: 0, behavior: 'instant' })` en la función `applyScreen` de `App.tsx`, que se ejecuta cada vez que cambia la pantalla activa. Esto garantiza que el usuario siempre empiece desde el tope, sin importar la posición de scroll anterior.
 
 ## Punto actual
 
-Los puntos **13, 14, 15 y 16** están terminados localmente y pendientes de commit, despliegue y prueba conversacional en producción. El punto **7** continúa parcialmente abierto para administrar préstamos entre personas, ahorros y otras estructuras desde Configuración, aunque Nova ya puede crear los registros principales.
+Los puntos **del 1 al 25** están terminados localmente. El punto **7** continúa parcialmente abierto para administrar préstamos entre personas, ahorros y otras estructuras desde Configuración, aunque Nova ya puede crear los registros principales.

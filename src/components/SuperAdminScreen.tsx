@@ -202,19 +202,81 @@ function BillingTab({ invoices, pending, onRun }: { invoices: AdminSubscriptionI
   );
 }
 
-function InvoiceRow({ invoice, pending, onRun }: { invoice: AdminSubscriptionInvoice; pending: boolean; onRun: (operation: Promise<unknown>) => void }) {
+function InvoiceRow({ invoice, pending, onRun }: { invoice: AdminSubscriptionInvoice; pending: boolean; onRun: (operation: Promise<unknown>, successMessage?: string) => void }) {
   const isOpen = invoice.status === 'pending' || invoice.status === 'overdue';
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description?: string;
+    summaryData?: Array<{ label: string; value: React.ReactNode }>;
+    onConfirm: () => void;
+    confirmVariant?: 'primary' | 'danger';
+  }>({ isOpen: false, title: '', onConfirm: () => {} });
+
   const confirmPayment = () => {
-    if (!window.confirm(`¿Confirmar el pago de ${formatCop(invoice.amountCop)} de ${invoice.clientName}?`)) return;
-    const reference = window.prompt('Referencia del comprobante (opcional)') ?? '';
-    onRun(adminConfirmSubscriptionPayment({ invoiceId: invoice.id, reference }));
+    setConfirmState({
+      isOpen: true,
+      title: 'Confirmar Pago',
+      description: `¿Confirmar el pago de ${formatCop(invoice.amountCop)} de ${invoice.clientName}?`,
+      summaryData: [
+        { label: 'Cliente', value: invoice.clientName },
+        { label: 'Plan', value: PLAN_LABELS[invoice.planCode] },
+        { label: 'Monto', value: formatCop(invoice.amountCop) },
+      ],
+      onConfirm: () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        onRun(adminConfirmSubscriptionPayment({ invoiceId: invoice.id, reference: '' }), `Pago de ${invoice.clientName} confirmado`);
+      },
+    });
   };
+
   const rejectPayment = () => {
-    const note = window.prompt('Motivo del rechazo') ?? '';
-    if (!note.trim()) return;
-    onRun(adminRejectSubscriptionPayment({ invoiceId: invoice.id, note }));
+    setConfirmState({
+      isOpen: true,
+      title: 'Rechazar Comprobante',
+      description: `¿Rechazar el comprobante de ${invoice.clientName}?`,
+      summaryData: [
+        { label: 'Cliente', value: invoice.clientName },
+        { label: 'Monto', value: formatCop(invoice.amountCop) },
+      ],
+      confirmVariant: 'danger',
+      onConfirm: () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        onRun(adminRejectSubscriptionPayment({ invoiceId: invoice.id, note: 'Rechazado desde panel' }), `Comprobante de ${invoice.clientName} rechazado`);
+      },
+    });
   };
-  return <div className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-arca-text-primary">{invoice.clientName}</p><p className="mt-0.5 truncate text-[9px] text-arca-text-dim">{invoice.clientEmail} · {PLAN_LABELS[invoice.planCode]}</p><p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-arca-text-dim">Solicitud {invoice.id.slice(0, 8)} · {formatDate(invoice.createdAt)}</p></div><div className="shrink-0 text-right"><p className="text-sm font-black text-arca-text-primary">{formatCop(invoice.amountCop)}</p><p className={`text-[8px] font-black uppercase ${invoice.status === 'paid' ? 'text-arca-success' : 'text-arca-accent'}`}>{invoice.status === 'paid' ? 'Confirmado' : 'Por validar'}</p></div></div>{isOpen ? <div className="mt-3 grid grid-cols-2 gap-2"><button disabled={pending} onClick={rejectPayment} className="rounded-xl border border-arca-alert/25 py-2.5 text-[9px] font-black uppercase text-arca-alert disabled:opacity-40">Rechazar</button><button disabled={pending} onClick={confirmPayment} className="rounded-xl bg-arca-accent py-2.5 text-[9px] font-black uppercase text-black disabled:opacity-40">Confirmar pago</button></div> : null}</div>;
+
+  return (
+    <div className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-arca-text-primary">{invoice.clientName}</p>
+          <p className="mt-0.5 truncate text-[9px] text-arca-text-dim">{invoice.clientEmail} · {PLAN_LABELS[invoice.planCode]}</p>
+          <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-arca-text-dim">Solicitud {invoice.id.slice(0, 8)} · {formatDate(invoice.createdAt)}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-black text-arca-text-primary">{formatCop(invoice.amountCop)}</p>
+          <p className={`text-[8px] font-black uppercase ${invoice.status === 'paid' ? 'text-arca-success' : 'text-arca-accent'}`}>{invoice.status === 'paid' ? 'Confirmado' : 'Por validar'}</p>
+        </div>
+      </div>
+      {isOpen ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button disabled={pending} onClick={rejectPayment} className="rounded-xl border border-arca-alert/25 py-2.5 text-[9px] font-black uppercase text-arca-alert disabled:opacity-40">Rechazar</button>
+          <button disabled={pending} onClick={confirmPayment} className="rounded-xl bg-arca-accent py-2.5 text-[9px] font-black uppercase text-black disabled:opacity-40">Confirmar pago</button>
+        </div>
+      ) : null}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        description={confirmState.description}
+        summaryData={confirmState.summaryData}
+        confirmVariant={confirmState.confirmVariant}
+        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmState.onConfirm}
+      />
+    </div>
+  );
 }
 
 function PlansTab({ plans, clients, pending, onRun }: { plans: BillingPlan[]; clients: SuperAdminClient[]; pending: boolean; onRun: (operation: Promise<unknown>) => void }) {
@@ -274,14 +336,24 @@ function ClientsTab({ clients, search, onSearch, onSelect }: { clients: SuperAdm
 
 function AiUsageTab({ data, onSelect }: { data: SuperAdminViewModel; onSelect: (client: SuperAdminClient) => void }) {
   const topClients = [...data.clients].sort((left, right) => right.aiRequests - left.aiRequests).slice(0, 6);
+  const estimatedCostUsd = ((data.summary.aiTokens30d / 1_000_000) * 3.5).toFixed(2);
   return (
     <div className="space-y-4">
       <section className="grid grid-cols-2 gap-3">
         <MetricCard icon={Sparkles} label="Solicitudes" value={data.summary.aiRequests30d} helper="Últimos 30 días" tone="accent" />
-        <MetricCard icon={Bot} label="Tokens" value={formatCompact(data.summary.aiTokens30d)} helper="Costo pendiente" tone="neutral" />
+        <MetricCard icon={Bot} label="Tokens" value={formatCompact(data.summary.aiTokens30d)} helper={`~$${estimatedCostUsd} USD est.`} tone="neutral" />
         <MetricCard icon={CircleAlert} label="Errores" value={data.summary.aiErrors30d} helper="Solicitudes fallidas" tone="alert" />
         <MetricCard icon={Clock3} label="Tiempo en Arca" value={`${formatCompact(data.summary.activeMinutes30d)}m`} helper="Actividad medida" tone="positive" />
       </section>
+
+      <section className="rounded-2xl border border-arca-accent/25 bg-arca-accent/[0.06] p-4">
+        <p className="text-xs font-bold text-arca-text-primary">Capacidad y costos</p>
+        <p className="mt-1.5 text-[10px] leading-relaxed text-arca-text-dim">
+          El costo depende del volumen de tokens procesados por Google (Gemini). No hay un límite fijo mensual global; 
+          cada plan define un máximo de acciones Nova por usuario. El costo estimado se calcula a ~$3.50 USD por millón de tokens.
+        </p>
+      </section>
+
       <section className="rounded-3xl border border-arca-border bg-arca-surface-1 p-4">
         <p className="text-[9px] font-black uppercase tracking-[0.18em] text-arca-text-dim">Mayor uso de Nova</p>
         <div className="mt-3 divide-y divide-arca-border">
