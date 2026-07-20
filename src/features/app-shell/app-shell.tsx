@@ -24,10 +24,12 @@ interface AppShellProps {
   registerData: RegisterViewModel;
   currencyCode: string;
   canUseNova: boolean;
+  novaMonthlyLimit: number | null;
+  novaUsed: number;
   billingNotice: BillingNotice | null;
 }
 
-export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode, canUseNova, billingNotice }: AppShellProps) {
+export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode, canUseNova, novaMonthlyLimit, novaUsed, billingNotice }: AppShellProps) {
   const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
@@ -180,6 +182,12 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
         initialPrompt={novaInitialPrompt}
         onInitialPromptConsumed={() => setNovaInitialPrompt(null)}
         currencyCode={currencyCode}
+        monthlyLimit={novaMonthlyLimit}
+        initialUsed={novaUsed}
+        onViewPlans={() => {
+          closeOverlay('nova');
+          window.setTimeout(() => setCurrentScreen('configuracion'), 0);
+        }}
         onViewChanges={() => {
           closeOverlay('nova');
           window.setTimeout(() => setCurrentScreen('resumen'), 0);

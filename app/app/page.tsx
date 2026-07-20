@@ -13,7 +13,7 @@ import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadSubscriptionsViewModel } from "@/src/lib/subscriptions-data";
 import { loadAnalyticsViewModel } from "@/src/lib/analytics-data";
 import { loadSuperAdminViewModel } from "@/src/lib/superadmin-data";
-import { loadBillingNotice, loadBillingPlans } from "@/src/lib/billing-data";
+import { loadBillingNotice, loadBillingPlans, loadNovaAllowance } from "@/src/lib/billing-data";
 
 export default async function AuthenticatedAppPage() {
   const context = await requireWorkspaceContext();
@@ -65,8 +65,8 @@ export default async function AuthenticatedAppPage() {
     : null;
   const hasVipAccess = Boolean(context.subscription?.metadata?.vip_full_access)
     && (!vipExpiresAt || vipExpiresAt > Date.now());
-  const hasActiveSubscription = context.subscription?.status === "active" || context.subscription?.status === "trialing";
-  const canUseNova = context.profile.isSuperAdmin || hasVipAccess || Boolean(hasActiveSubscription && context.subscription?.planCode !== "free");
+  const canUseNova = true;
+  const novaAllowance = await loadNovaAllowance(context, initialBillingPlans);
 
   return (
     <App
@@ -95,6 +95,8 @@ export default async function AuthenticatedAppPage() {
         isSuperAdmin: context.profile.isSuperAdmin,
         hasVipAccess,
         canUseNova,
+        novaMonthlyLimit: novaAllowance.monthlyLimit,
+        novaUsed: novaAllowance.used,
       }}
     />
   );

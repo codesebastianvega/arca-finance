@@ -48,6 +48,8 @@ export type AppUserSummary = {
   isSuperAdmin: boolean;
   hasVipAccess: boolean;
   canUseNova: boolean;
+  novaMonthlyLimit: number | null;
+  novaUsed: number;
 };
 
 const APP_SCREENS: Screen[] = [
@@ -285,7 +287,7 @@ export default function App({
 
   return (
     <>
-      <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData} canUseNova={userSummary.canUseNova} billingNotice={initialBillingNotice}>
+      <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData} canUseNova={userSummary.canUseNova} novaMonthlyLimit={userSummary.novaMonthlyLimit} novaUsed={userSummary.novaUsed} billingNotice={initialBillingNotice}>
         {renderScreen()}
       </AppShell>
       {showOnboarding ? (

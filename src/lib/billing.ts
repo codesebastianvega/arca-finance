@@ -16,9 +16,9 @@ export const DEFAULT_BILLING_PLANS: BillingPlan[] = [
     name: 'Arca Gratis',
     monthlyPriceCop: 0,
     active: true,
-    aiMonthlyLimit: 0,
-    description: 'Control financiero esencial y registro manual.',
-    features: ['Hasta 2 cuentas', 'Movimientos manuales', 'Agenda y presupuesto básico', 'Sin Nova'],
+    aiMonthlyLimit: 20,
+    description: 'Control financiero esencial con una primera ayuda de Nova.',
+    features: ['Hasta 2 cuentas', 'Movimientos manuales', 'Agenda y presupuesto básico', '20 consultas de Nova al mes'],
   },
   {
     code: 'personal_pro',
@@ -59,7 +59,9 @@ export function normalizeBillingPlan(row: Record<string, unknown>): BillingPlan 
     name: typeof row.name === 'string' && row.name ? row.name : fallback.name,
     monthlyPriceCop: usesLegacyPlaceholderPrice ? fallback.monthlyPriceCop : storedPrice,
     active: row.active !== false,
-    aiMonthlyLimit: Math.max(0, Number(metadata.ai_monthly_limit ?? fallback.aiMonthlyLimit)),
+    aiMonthlyLimit: code === 'free'
+      ? Math.max(20, Number(metadata.ai_monthly_limit ?? fallback.aiMonthlyLimit))
+      : Math.max(0, Number(metadata.ai_monthly_limit ?? fallback.aiMonthlyLimit)),
     description: typeof metadata.description === 'string' ? metadata.description : fallback.description,
     features: Array.isArray(metadata.features) ? metadata.features.filter((feature): feature is string => typeof feature === 'string') : fallback.features,
   };

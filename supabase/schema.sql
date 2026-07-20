@@ -83,13 +83,13 @@ set
 
 update public.subscription_plans
 set metadata = case code
-  when 'free' then jsonb_build_object('catalog_version', 1, 'ai_monthly_limit', 0, 'description', 'Control financiero esencial y registro manual.', 'features', jsonb_build_array('Hasta 2 cuentas', 'Movimientos manuales', 'Agenda y presupuesto básico', 'Sin Nova'))
-  when 'personal_pro' then jsonb_build_object('catalog_version', 1, 'ai_monthly_limit', 150, 'description', 'Tu dinero organizado y acompañado por Nova.', 'features', jsonb_build_array('Cuentas ilimitadas', 'Nova y automatizaciones', 'Planeación y proyección', 'Metas y recordatorios'))
-  when 'business' then jsonb_build_object('catalog_version', 1, 'ai_monthly_limit', 500, 'description', 'Control personal y operativo para proyectos y negocios.', 'features', jsonb_build_array('Todo Arca Personal', 'Unidades de negocio', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación'))
+  when 'free' then jsonb_build_object('catalog_version', 2, 'ai_monthly_limit', 20, 'description', 'Control financiero esencial con una primera ayuda de Nova.', 'features', jsonb_build_array('Hasta 2 cuentas', 'Movimientos manuales', 'Agenda y presupuesto básico', '20 consultas de Nova al mes'))
+  when 'personal_pro' then jsonb_build_object('catalog_version', 2, 'ai_monthly_limit', 150, 'description', 'Tu dinero organizado y acompañado por Nova.', 'features', jsonb_build_array('Cuentas ilimitadas', 'Nova y automatizaciones', 'Planeación y proyección', 'Metas y recordatorios'))
+  when 'business' then jsonb_build_object('catalog_version', 2, 'ai_monthly_limit', 500, 'description', 'Control personal y operativo para proyectos y negocios.', 'features', jsonb_build_array('Todo Arca Personal', 'Unidades de negocio', 'Contratos, facturas y cobros', 'Métricas por proyecto y exportación'))
   else metadata
 end
 where code in ('free', 'personal_pro', 'business')
-  and coalesce((metadata ->> 'catalog_version')::integer, 0) < 1;
+  and coalesce((metadata ->> 'catalog_version')::integer, 0) < 2;
 
 create table if not exists public.accounts (
   id uuid primary key default gen_random_uuid(),

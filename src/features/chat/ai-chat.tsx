@@ -5,7 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Sparkles, User, Bot } from 'lucide-react';
+import { X, Send, Sparkles, User, Bot, ArrowRight, Check } from 'lucide-react';
 import { MessageResponse } from '@/src/components/ai-elements/message';
 import {
   FinancialActionCard,
@@ -34,12 +34,21 @@ const novaChatTransport = new DefaultChatTransport({
   },
 });
 
+const PERSONAL_PLAN_FEATURES = [
+  '150 consultas de Nova al mes',
+  'Planeación y proyecciones',
+  'Automatizaciones y recordatorios',
+] as const;
+
 export default function AiChat({
   isOpen,
   onClose,
   initialPrompt,
   onInitialPromptConsumed,
   currencyCode,
+  monthlyLimit,
+  initialUsed,
+  onViewPlans,
   onViewChanges,
 }: {
   isOpen: boolean;
@@ -47,17 +56,34 @@ export default function AiChat({
   initialPrompt?: string | null;
   onInitialPromptConsumed?: () => void;
   currencyCode: string;
+  monthlyLimit: number | null;
+  initialUsed: number;
+  onViewPlans?: () => void;
   onViewChanges?: () => void;
 }) {
   const router = useRouter();
   const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [used, setUsed] = useState(initialUsed);
+  const [quotaReached, setQuotaReached] = useState(
+    monthlyLimit !== null && initialUsed >= monthlyLimit,
+  );
+
+  const remaining = monthlyLimit === null ? null : Math.max(0, monthlyLimit - used);
+  const isFreeAllowance = monthlyLimit !== null && monthlyLimit <= 20;
 
   const { messages, sendMessage, status, addToolApprovalResponse } = useChat({
     transport: novaChatTransport,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onError: (error) => {
       console.error('Chat error:', error);
-      setErrorToast("Los servidores de Google están ocupados, intenta de nuevo.");
+      const isQuotaError = error.message.toLowerCase().includes('alcanzaste')
+        || error.message.toLowerCase().includes('mensuales de nova');
+      if (isQuotaError) {
+        setQuotaReached(true);
+        if (monthlyLimit !== null) setUsed(monthlyLimit);
+        return;
+      }
+      setErrorToast("Nova no pudo responder ahora. Intenta de nuevo en un momento.");
       setTimeout(() => setErrorToast(null), 5000);
     }
   });
@@ -94,17 +120,32 @@ export default function AiChat({
   }, [messages, router]);
 
   useEffect(() => {
+    setUsed(initialUsed);
+    setQuotaReached(monthlyLimit !== null && initialUsed >= monthlyLimit);
+  }, [initialUsed, monthlyLimit]);
+
+  useEffect(() => {
     const prompt = initialPrompt?.trim();
     if (!isOpen || !prompt || isLoading) return;
 
     onInitialPromptConsumed?.();
+    if (remaining === 0) {
+      setQuotaReached(true);
+      return;
+    }
     void sendMessage({ text: prompt });
-  }, [initialPrompt, isLoading, isOpen, onInitialPromptConsumed, sendMessage]);
+    setUsed((current) => current + 1);
+  }, [initialPrompt, isLoading, isOpen, onInitialPromptConsumed, remaining, sendMessage]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading) return;
+    if (remaining === 0) {
+      setQuotaReached(true);
+      return;
+    }
     sendMessage({ text: inputValue });
+    setUsed((current) => current + 1);
     setInputValue('');
   };
 
@@ -140,7 +181,9 @@ export default function AiChat({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-arca-text-primary tracking-wide">Nova</h3>
-                  <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-[0.16em]">Agente financiera</p>
+                  <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-[0.16em]">
+                    {remaining === null ? 'Acceso completo' : `${remaining} de ${monthlyLimit} consultas disponibles`}
+                  </p>
                 </div>
               </div>
               <button
@@ -164,6 +207,42 @@ export default function AiChat({
                   <span>{errorToast}</span>
                 </motion.div>
               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {quotaReached ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-40 flex items-end justify-center bg-black/70 p-4 pb-safe backdrop-blur-sm"
+                >
+                  <motion.section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="nova-quota-title"
+                    initial={{ y: 30, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 30, opacity: 0 }}
+                    className="w-full max-w-md rounded-[28px] border border-arca-accent/35 bg-arca-surface-1 p-5 shadow-2xl"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-arca-accent/12 text-arca-accent"><Sparkles size={22} /></span>
+                      <button type="button" onClick={() => setQuotaReached(false)} aria-label="Cerrar aviso" className="flex h-9 w-9 items-center justify-center rounded-full bg-arca-surface-2 text-arca-text-dim"><X size={17} /></button>
+                    </div>
+                    <p className="mt-5 text-[9px] font-black uppercase tracking-[0.18em] text-arca-accent">{isFreeAllowance ? 'Tus consultas gratuitas' : 'Uso mensual de Nova'}</p>
+                    <h4 id="nova-quota-title" className="mt-2 text-2xl font-black leading-tight text-arca-text-primary">{isFreeAllowance ? `Nova te acompañó en tus primeras ${monthlyLimit ?? 20}` : 'Alcanzaste el límite de tu plan'}</h4>
+                    <p className="mt-3 text-sm leading-6 text-arca-text-secondary">Tus consultas se renovarán el primer día del próximo mes. {isFreeAllowance ? 'Si quieres seguir ahora, Arca Personal amplía tu acceso.' : 'Puedes revisar los planes disponibles para ampliar tu acceso.'}</p>
+                    <div className="mt-5 space-y-2 rounded-2xl bg-arca-surface-2 p-4">
+                      {PERSONAL_PLAN_FEATURES.map((feature) => (
+                        <p key={feature} className="flex items-center gap-2 text-xs font-semibold text-arca-text-secondary"><Check size={14} className="text-arca-success" />{feature}</p>
+                      ))}
+                    </div>
+                    <button type="button" onClick={onViewPlans} className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-black">{isFreeAllowance ? 'Conocer Arca Personal' : 'Revisar planes'} <ArrowRight size={17} /></button>
+                    <button type="button" onClick={() => { setQuotaReached(false); onClose(); }} className="mt-2 h-11 w-full text-xs font-bold text-arca-text-dim">Seguir con Arca Gratis</button>
+                  </motion.section>
+                </motion.div>
+              ) : null}
             </AnimatePresence>
 
             {/* Messages */}

@@ -49,18 +49,15 @@ export async function POST(req: Request) {
       && (context.subscription.status === 'active' || context.subscription.status === 'trialing'),
     );
 
-    if (!context.profile.isSuperAdmin && !hasVipAccess && !hasPaidAccess) {
-      return new Response('Nova está disponible en los planes Arca Personal y Arca Negocios.', { status: 403 });
-    }
-
-    if (!context.profile.isSuperAdmin && !hasVipAccess && context.subscription) {
+    if (!context.profile.isSuperAdmin && !hasVipAccess) {
       const admin = getSupabaseAdminClient();
       if (admin) {
-        const fallbackPlan = DEFAULT_BILLING_PLANS.find((plan) => plan.code === context.subscription?.planCode);
+        const effectivePlanCode = hasPaidAccess ? context.subscription!.planCode : 'free';
+        const fallbackPlan = DEFAULT_BILLING_PLANS.find((plan) => plan.code === effectivePlanCode);
         const planResult = await admin
           .from('subscription_plans')
           .select('code, name, monthly_price_cop, active, metadata')
-          .eq('code', context.subscription.planCode)
+          .eq('code', effectivePlanCode)
           .maybeSingle();
         const configuredPlan = planResult.data ? normalizeBillingPlan(planResult.data) : fallbackPlan;
         const monthlyLimit = configuredPlan?.aiMonthlyLimit ?? fallbackPlan?.aiMonthlyLimit ?? 0;
