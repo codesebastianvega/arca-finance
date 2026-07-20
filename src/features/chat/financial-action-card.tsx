@@ -3,6 +3,7 @@
 import type { ToolUIPart } from 'ai';
 import {
   Archive,
+  BadgeDollarSign,
   CalendarPlus,
   ArrowRight,
   CheckCircle2,
@@ -41,6 +42,9 @@ const ACTION_TYPES = new Set([
   'tool-create_credit_card',
   'tool-update_credit_card',
   'tool-archive_credit_card',
+  'tool-create_bank_credit',
+  'tool-update_bank_credit',
+  'tool-archive_bank_credit',
 ]);
 
 export type FinancialActionPart = {
@@ -216,6 +220,47 @@ function actionPresentation(part: FinancialActionPart, currencyCode: string) {
       title: value(input, 'name') ?? 'Tarjeta de crédito',
       details: [
         ['Condición', 'Deuda en $0'],
+        ['Historial', 'Se conservará'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-create_bank_credit') {
+    return {
+      icon: BadgeDollarSign,
+      eyebrow: 'Nuevo crédito',
+      title: value(input, 'name') ?? 'Crear crédito bancario',
+      details: [
+        ['Monto original', formatMoney(input.totalAmount, currencyCode)],
+        ['Saldo pendiente', formatMoney(input.currentBalance, currencyCode)],
+        ['Cuota', formatMoney(input.monthlyPayment, currencyCode)],
+        ['Progreso', `${input.paidInstallments ?? 0} de ${input.totalInstallments ?? '—'} cuotas`],
+        ['Pago', `Día ${input.payDueDay ?? '—'}`],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-update_bank_credit') {
+    return {
+      icon: Pencil,
+      eyebrow: 'Editar crédito',
+      title: value(input, 'name') ?? 'Actualizar crédito',
+      details: [
+        ['Monto original', formatMoney(input.totalAmount, currencyCode)],
+        ['Nueva cuota', formatMoney(input.monthlyPayment, currencyCode)],
+        ['Saldo y progreso', 'No se modificarán'],
+        ['Pago', `Día ${input.payDueDay ?? '—'}`],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-archive_bank_credit') {
+    return {
+      icon: Archive,
+      eyebrow: 'Archivar crédito',
+      title: value(input, 'name') ?? 'Crédito bancario',
+      details: [
+        ['Condición', 'Saldo pendiente en $0'],
         ['Historial', 'Se conservará'],
       ],
     };

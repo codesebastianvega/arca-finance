@@ -230,6 +230,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .from("bank_credits")
       .select("id, name, total_amount, current_balance, monthly_payment, interest_rate, total_installments, paid_installments, pay_due_date, notes, status, brand_color, text_color")
       .eq("workspace_id", workspaceId)
+      .neq("status", "archived")
       .order("created_at", { ascending: true }),
     supabase
       .from("monthly_budgets")

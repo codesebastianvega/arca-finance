@@ -11,10 +11,12 @@ import { loadMonthViewModel } from "@/src/lib/month-data";
 import {
   archiveAccount,
   archiveCreditCard,
+  archiveBankCredit,
   archiveBusinessUnit,
   confirmScheduledEventNow,
   createAccount,
   createCreditCard,
+  createBankCredit,
   createBusinessUnit,
   createExpectedIncome,
   createMovement,
@@ -22,6 +24,7 @@ import {
   saveMonthlyPlan,
   updateAccountDetails,
   updateCreditCardDetails,
+  updateBankCreditDetails,
   updateBusinessUnit,
 } from "@/app/actions";
 
@@ -115,6 +118,18 @@ export function createFinancialTools(context: WorkspaceContext) {
             payDueDay: card.payDueDay,
             paymentStrategy: card.paymentStrategy,
             notes: card.notes,
+          })),
+          bankCredits: options.bankCredits.map((credit) => ({
+            id: credit.id,
+            name: credit.name,
+            totalAmount: credit.totalAmount,
+            currentBalance: credit.currentBalance,
+            monthlyPayment: credit.monthlyPayment,
+            interestRate: credit.interestRate,
+            totalInstallments: credit.totalInstallments,
+            paidInstallments: credit.paidInstallments,
+            payDueDay: credit.payDueDay,
+            notes: credit.notes,
           })),
           categories: options.categories.map((category) => ({
             id: category.id,
@@ -400,6 +415,89 @@ export function createFinancialTools(context: WorkspaceContext) {
         if (!card) throw new Error("La tarjeta ya no está disponible.");
         const result = await archiveCreditCard(card.id);
         return { success: result.ok, action: "credit_card_archived", cardId: result.cardId, name: result.name };
+      },
+    }),
+
+    create_bank_credit: tool({
+      title: "Crear crédito bancario",
+      description:
+        "Registra un préstamo o crédito bancario con su saldo actual y plan de cuotas. El saldo inicial es un punto de partida, no un gasto nuevo.",
+      needsApproval: true,
+      inputSchema: z.object({
+        name: z.string().min(2),
+        totalAmount: z.number().positive().describe("Monto original del crédito."),
+        currentBalance: z.number().min(0).describe("Saldo pendiente actual."),
+        monthlyPayment: z.number().min(0).describe("Valor de la cuota periódica."),
+        interestRate: z.number().min(0).nullable().optional(),
+        totalInstallments: z.number().int().positive(),
+        paidInstallments: z.number().int().min(0).default(0),
+        payDueDay: z.number().int().min(1).max(31),
+        notes: z.string().optional(),
+      }),
+      execute: async ({ name, totalAmount, currentBalance, monthlyPayment, interestRate, totalInstallments, paidInstallments, payDueDay, notes }) => {
+        const result = await createBankCredit({
+          name,
+          totalAmount,
+          currentBalance,
+          monthlyPayment,
+          interestRate: interestRate ?? null,
+          totalInstallments,
+          paidInstallments,
+          payDueDate: payDueDay,
+          notes,
+        });
+        return { success: result.ok, action: "bank_credit_created", ...result, currency: context.workspace.currencyCode };
+      },
+    }),
+
+    update_bank_credit: tool({
+      title: "Editar crédito bancario",
+      description:
+        "Actualiza nombre, monto original, cuota, tasa, total de cuotas o día de pago sin modificar saldo ni progreso. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        creditId: z.string().min(1),
+        name: z.string().min(2),
+        totalAmount: z.number().positive(),
+        monthlyPayment: z.number().min(0),
+        interestRate: z.number().min(0).nullable().optional(),
+        totalInstallments: z.number().int().positive(),
+        payDueDay: z.number().int().min(1).max(31),
+        notes: z.string().optional(),
+      }),
+      execute: async ({ creditId, name, totalAmount, monthlyPayment, interestRate, totalInstallments, payDueDay, notes }) => {
+        const options = await loadRegisterViewModel(context);
+        const credit = options.bankCredits.find((item) => item.id === creditId);
+        if (!credit) throw new Error("El crédito ya no está disponible.");
+        const result = await updateBankCreditDetails({
+          id: credit.id,
+          name,
+          totalAmount,
+          monthlyPayment,
+          interestRate: interestRate ?? null,
+          totalInstallments,
+          payDueDate: payDueDay,
+          notes: notes ?? credit.notes,
+        });
+        return { success: result.ok, action: "bank_credit_updated", previousName: credit.name, ...result, currency: context.workspace.currencyCode };
+      },
+    }),
+
+    archive_bank_credit: tool({
+      title: "Archivar crédito bancario",
+      description:
+        "Archiva un crédito conservando su historial. Solo se permite cuando el saldo pendiente es cero. Consulta primero get_financial_action_options.",
+      needsApproval: true,
+      inputSchema: z.object({
+        creditId: z.string().min(1),
+        name: z.string().min(1),
+      }),
+      execute: async ({ creditId }) => {
+        const options = await loadRegisterViewModel(context);
+        const credit = options.bankCredits.find((item) => item.id === creditId);
+        if (!credit) throw new Error("El crédito ya no está disponible.");
+        const result = await archiveBankCredit(credit.id);
+        return { success: result.ok, action: "bank_credit_archived", ...result };
       },
     }),
 

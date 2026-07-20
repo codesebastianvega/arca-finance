@@ -51,10 +51,12 @@ import type { RegisterOption, RegisterViewModel } from '../lib/register-data';
 import {
   archiveAccount,
   archiveCreditCard,
+  archiveBankCredit,
   archiveBusinessUnit,
   createAccount,
   createBusinessUnit,
   createCreditCard,
+  createBankCredit,
   createExpenseCategory,
   createIncomeSource,
   deleteExpenseCategory,
@@ -62,6 +64,7 @@ import {
   updateBusinessUnit,
   updateAccountDetails,
   updateCreditCardDetails,
+  updateBankCreditDetails,
   updateExpenseCategory,
   updateIncomeSource,
 } from '@/app/actions';
@@ -138,7 +141,7 @@ const THEMES: { id: ThemeId; name: string; description: string; colors: [string,
   },
 ];
 
-type ManagerView = 'accounts' | 'cards' | 'units' | 'income' | 'categories' | null;
+type ManagerView = 'accounts' | 'cards' | 'credits' | 'units' | 'income' | 'categories' | null;
 type EditorState = {
   id?: string;
   name: string;
@@ -162,6 +165,12 @@ type EditorState = {
   estimatedTotalPayment: string;
   paymentStrategy: string;
   notes: string;
+  totalAmount: string;
+  currentBalance: string;
+  monthlyPayment: string;
+  interestRate: string;
+  totalInstallments: string;
+  paidInstallments: string;
 };
 
 const EMPTY_EDITOR: EditorState = {
@@ -186,6 +195,12 @@ const EMPTY_EDITOR: EditorState = {
   estimatedTotalPayment: '',
   paymentStrategy: 'minimum',
   notes: '',
+  totalAmount: '0',
+  currentBalance: '0',
+  monthlyPayment: '0',
+  interestRate: '',
+  totalInstallments: '1',
+  paidInstallments: '0',
 };
 
 export default function ConfiguracionScreen({ onBack, theme, setTheme, data, user, plans }: { onBack: () => void; theme: ThemeId; setTheme: (t: ThemeId) => void; data: RegisterViewModel; user: AppUserSummary; plans: BillingPlan[] }) {
@@ -256,6 +271,16 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     });
   };
 
+  const handleArchiveCredit = (id: string) => {
+    if (!window.confirm("¿Quieres archivar este crédito? Solo se puede hacer cuando su saldo pendiente esté en $0.")) return;
+    haptics.medium();
+    startTransition(() => {
+      void archiveBankCredit(id)
+        .then(() => router.refresh())
+        .catch((error: Error) => alert(error.message || "No se pudo archivar el crédito."));
+    });
+  };
+
   const handleDeleteSource = (id: string) => {
     if (!window.confirm("¿Estás seguro de eliminar este concepto de ingreso?")) return;
     haptics.medium();
@@ -307,6 +332,29 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
                 paymentStrategy: editor.paymentStrategy,
                 notes: editor.notes,
               })
+          : managerView === 'credits'
+            ? editor.id
+              ? updateBankCreditDetails({
+                  id: editor.id,
+                  name: editor.name,
+                  totalAmount: Number(editor.totalAmount || 0),
+                  monthlyPayment: Number(editor.monthlyPayment || 0),
+                  interestRate: editor.interestRate ? Number(editor.interestRate) : null,
+                  totalInstallments: Number(editor.totalInstallments || 1),
+                  payDueDate: Number(editor.payDueDate || 1),
+                  notes: editor.notes,
+                })
+              : createBankCredit({
+                  name: editor.name,
+                  totalAmount: Number(editor.totalAmount || 0),
+                  currentBalance: Number(editor.currentBalance || 0),
+                  monthlyPayment: Number(editor.monthlyPayment || 0),
+                  interestRate: editor.interestRate ? Number(editor.interestRate) : null,
+                  totalInstallments: Number(editor.totalInstallments || 1),
+                  paidInstallments: Number(editor.paidInstallments || 0),
+                  payDueDate: Number(editor.payDueDate || 1),
+                  notes: editor.notes,
+                })
           : managerView === 'units'
             ? editor.id
               ? updateBusinessUnit({ id: editor.id, name: editor.name, key: editor.key })
@@ -382,6 +430,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
       ? 'Cuentas y efectivo'
     : managerView === 'cards'
       ? 'Tarjetas de crédito'
+    : managerView === 'credits'
+      ? 'Créditos y préstamos bancarios'
     : managerView === 'income'
       ? 'Conceptos de ingreso'
       : 'Categorías de gasto';
@@ -543,6 +593,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
         <div className="overflow-hidden rounded-2xl border border-arca-border divide-y divide-arca-border">
           <ManagerRow icon={Wallet} label="Cuentas y efectivo" description="Bancos, billeteras y dinero disponible" count={data.accounts.length} onClick={() => openManager('accounts')} />
           <ManagerRow icon={CreditCard} label="Tarjetas de crédito" description="Cupo, deuda, corte y pago mínimo" count={data.creditCards.length} onClick={() => openManager('cards')} />
+          <ManagerRow icon={BadgeDollarSign} label="Créditos bancarios" description="Saldo, cuotas, tasa y fecha de pago" count={data.bankCredits.length} onClick={() => openManager('credits')} />
           <ManagerRow icon={Briefcase} label="Proyectos y actividades" description="Separa trabajo o negocios de tus finanzas personales" count={projectUnits.length} onClick={() => openManager('units')} />
           <ManagerRow icon={Wallet} label="Conceptos de ingreso" description="Nómina, contratos y otros cobros" count={data.incomeSources.length} onClick={() => openManager('income')} />
           <ManagerRow icon={Settings2} label="Categorías de gasto" description="Clasifica en qué sale tu dinero" count={dbCategories.length} onClick={() => openManager('categories')} />
@@ -617,6 +668,7 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
 
               {!editor && managerView === 'accounts' && <ManagerList empty="Aún no tienes cuentas activas.">{data.accounts.map((account) => <ManagerItem archive key={account.id} title={account.label} subtitle={`${account.entity || account.meta || 'Cuenta'} · ${formatAccountBalance(account.amount ?? 0)}`} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: account.id, name: account.label, entity: account.entity ?? '', type: normalizeAccountType(account.meta), balance: String(account.amount ?? 0), color: account.color ?? '#C68A45' })} onDelete={() => handleArchiveAccount(account.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'cards' && <ManagerList empty="Aún no tienes tarjetas registradas.">{data.creditCards.map((card) => <ManagerItem archive key={card.id} title={card.name} subtitle={`${card.issuer} · deuda ${formatAccountBalance(card.used)} de ${formatAccountBalance(card.limit)}`} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: card.id, name: card.name, issuer: card.issuer, limitValue: String(card.limit), used: String(card.used), cutOffDate: String(card.cutOffDay), payDueDate: String(card.payDueDay), minimumPayment: String(card.minimumPayment), annualInterestRate: card.annualInterestRate == null ? '' : String(card.annualInterestRate), interestType: card.interestType, estimatedPayoffMonths: card.estimatedPayoffMonths == null ? '' : String(card.estimatedPayoffMonths), estimatedTotalPayment: card.estimatedTotalPayment == null ? '' : String(card.estimatedTotalPayment), paymentStrategy: card.paymentStrategy, notes: card.notes })} onDelete={() => handleArchiveCard(card.id)} disabled={isPending} />)}</ManagerList>}
+              {!editor && managerView === 'credits' && <ManagerList empty="Aún no tienes créditos bancarios.">{data.bankCredits.map((credit) => <ManagerItem archive key={credit.id} title={credit.name} subtitle={`${formatAccountBalance(credit.currentBalance)} pendientes · ${credit.paidInstallments} de ${credit.totalInstallments} cuotas`} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: credit.id, name: credit.name, totalAmount: String(credit.totalAmount), currentBalance: String(credit.currentBalance), monthlyPayment: String(credit.monthlyPayment), interestRate: credit.interestRate == null ? '' : String(credit.interestRate), totalInstallments: String(credit.totalInstallments), paidInstallments: String(credit.paidInstallments), payDueDate: String(credit.payDueDay), notes: credit.notes })} onDelete={() => handleArchiveCredit(credit.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'units' && <ManagerList empty="Aún no tienes proyectos. Tus registros seguirán en Personal.">{projectUnits.map((unit) => <ManagerItem archive key={unit.id} title={unit.label} subtitle="Proyecto o actividad" onEdit={() => setEditor({ ...EMPTY_EDITOR, id: unit.id, name: unit.label, key: unit.value })} onDelete={() => handleDeleteUnit(unit.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'income' && <ManagerList empty="No tienes conceptos de ingreso registrados.">{data.incomeSources.map((source) => <ManagerItem key={source.id} title={source.label} subtitle={source.unitKey} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: source.id, name: source.label, unitKey: source.unitKey, accountId: source.defaultAccountId ?? '' })} onDelete={() => handleDeleteSource(source.id)} disabled={isPending} />)}</ManagerList>}
               {!editor && managerView === 'categories' && <ManagerList empty="No tienes categorías personalizadas.">{dbCategories.map((category) => <ManagerItem key={category.id} title={category.label} onEdit={() => setEditor({ ...EMPTY_EDITOR, id: category.id, name: category.label, parentId: category.parentId })} onDelete={() => handleDeleteCategory(category.id)} disabled={isPending} />)}</ManagerList>}
@@ -741,7 +793,7 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
         <p className="text-xs font-bold text-arca-text-primary">{value.id ? 'Editar elemento' : 'Nuevo elemento'}</p>
         <p className="mt-1 text-[9px] text-arca-text-dim">Los cambios se reflejarán en registros, filtros y reportes.</p>
       </div>
-      <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'accounts' ? 'Ej. Cuenta principal' : view === 'cards' ? 'Ej. Visa principal' : view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
+      <label className="block"><span className={labelClass}>Nombre</span><input autoFocus required value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} className={inputClass} placeholder={view === 'accounts' ? 'Ej. Cuenta principal' : view === 'cards' ? 'Ej. Visa principal' : view === 'credits' ? 'Ej. Crédito de libre inversión' : view === 'units' ? 'Ej. SIE Travel' : view === 'income' ? 'Ej. Nómina' : 'Ej. Alimentación'} /></label>
       {view === 'accounts' && (
         <>
           <label className="block"><span className={labelClass}>Banco o entidad</span><input value={value.entity} onChange={(event) => onChange({ ...value, entity: event.target.value })} className={inputClass} placeholder="Ej. Nu, Nequi, Bancolombia o Efectivo" /></label>
@@ -768,6 +820,25 @@ function OrganizationEditor({ view, value, units, accounts, categories, pending,
           </div>
           <label className="block"><span className={labelClass}>Estrategia de pago</span><select value={value.paymentStrategy} onChange={(event) => onChange({ ...value, paymentStrategy: event.target.value })} className={inputClass}><option value="minimum">Pago mínimo</option><option value="fixed">Cuota fija</option><option value="full">Pago total</option></select></label>
           <label className="block"><span className={labelClass}>Notas</span><textarea value={value.notes} onChange={(event) => onChange({ ...value, notes: event.target.value })} className={`${inputClass} min-h-20 resize-none`} placeholder="Beneficios, condiciones o recordatorios" /></label>
+        </>
+      )}
+      {view === 'credits' && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block"><span className={labelClass}>Monto original</span><input required inputMode="numeric" value={value.totalAmount} onChange={(event) => onChange({ ...value, totalAmount: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /></label>
+            {!value.id ? <label className="block"><span className={labelClass}>Saldo pendiente</span><input required inputMode="numeric" value={value.currentBalance} onChange={(event) => onChange({ ...value, currentBalance: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /></label> : <div><span className={labelClass}>Saldo pendiente</span><p className={`${inputClass} cursor-not-allowed opacity-70`}>{formatAccountBalance(Number(value.currentBalance || 0))}</p></div>}
+          </div>
+          {value.id ? <p className="rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-2 text-[9px] leading-4 text-arca-text-dim">El saldo y las cuotas pagadas cambian al registrar pagos, no al editar el crédito.</p> : null}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block"><span className={labelClass}>Cuota mensual</span><input required inputMode="numeric" value={value.monthlyPayment} onChange={(event) => onChange({ ...value, monthlyPayment: event.target.value.replace(/[^0-9]/g, '') })} className={inputClass} placeholder="0" /></label>
+            <label className="block"><span className={labelClass}>Día de pago</span><input required type="number" min="1" max="31" value={value.payDueDate} onChange={(event) => onChange({ ...value, payDueDate: event.target.value })} className={inputClass} /></label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block"><span className={labelClass}>Total de cuotas</span><input required type="number" min="1" value={value.totalInstallments} onChange={(event) => onChange({ ...value, totalInstallments: event.target.value })} className={inputClass} /></label>
+            {!value.id ? <label className="block"><span className={labelClass}>Cuotas pagadas</span><input required type="number" min="0" value={value.paidInstallments} onChange={(event) => onChange({ ...value, paidInstallments: event.target.value })} className={inputClass} /></label> : <div><span className={labelClass}>Cuotas pagadas</span><p className={`${inputClass} cursor-not-allowed opacity-70`}>{value.paidInstallments}</p></div>}
+          </div>
+          <label className="block"><span className={labelClass}>Tasa de interés (%)</span><input inputMode="decimal" value={value.interestRate} onChange={(event) => onChange({ ...value, interestRate: event.target.value.replace(/[^0-9.,]/g, '').replace(',', '.') })} className={inputClass} placeholder="Opcional" /></label>
+          <label className="block"><span className={labelClass}>Notas</span><textarea value={value.notes} onChange={(event) => onChange({ ...value, notes: event.target.value })} className={`${inputClass} min-h-20 resize-none`} placeholder="Entidad, condiciones o recordatorios" /></label>
         </>
       )}
       {view === 'income' && (

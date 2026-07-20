@@ -81,11 +81,11 @@ Para cerrar una tarea debe quedar:
 
 ### 7. 🟡 Gestionar más elementos desde Configuración
 
-**Ya existe:** administración de proyectos, conceptos de ingreso y categorías de gasto. Localmente también se agregó gestión de cuentas, efectivo y tarjetas de crédito: crear, editar datos y archivar de forma segura.
+**Ya existe:** administración de proyectos, conceptos de ingreso y categorías de gasto. Localmente también se agregó gestión de cuentas, efectivo, tarjetas de crédito y créditos bancarios: crear, editar datos y archivar de forma segura.
 
-**Seguridad aplicada:** editar una cuenta no altera su saldo; archivar exige saldo en cero y conservar al menos otra cuenta activa. En tarjetas, editar condiciones no cambia la deuda utilizada y archivar exige deuda en cero. El flujo antiguo de Dinero también usa archivado seguro en lugar de eliminación física.
+**Seguridad aplicada:** editar una cuenta no altera su saldo; archivar exige saldo en cero y conservar al menos otra cuenta activa. En tarjetas, editar condiciones no cambia la deuda utilizada y archivar exige deuda en cero. En créditos, editar condiciones no cambia el saldo pendiente ni las cuotas pagadas y solo se archivan créditos saldados. El flujo antiguo de Dinero también usa archivado seguro en lugar de eliminación física.
 
-**Falta:** administrar créditos, préstamos, ahorros y otros datos estructurales desde Configuración.
+**Falta:** administrar préstamos entre personas, ahorros y otros datos estructurales desde Configuración.
 
 ### 8. 🟡 Corregir completamente el botón Atrás en Configuración
 
@@ -121,9 +121,9 @@ Para cerrar una tarea debe quedar:
 
 ### 13. 🟡 Permitir que Nova gestione toda la estructura financiera
 
-**Ya existe:** Nova consulta saldos, movimientos, obligaciones y panorama financiero; también puede preparar movimientos, pagos e ingresos programados mediante herramientas con confirmación. Localmente ya puede consultar, crear, editar y archivar proyectos, cuentas y tarjetas de crédito mediante tarjetas visuales con aprobación humana.
+**Ya existe:** Nova consulta saldos, movimientos, obligaciones y panorama financiero; también puede preparar movimientos, pagos e ingresos programados mediante herramientas con confirmación. Localmente ya puede consultar, crear, editar y archivar proyectos, cuentas, tarjetas y créditos bancarios mediante tarjetas visuales con aprobación humana.
 
-**Falta:** herramientas para crear y administrar categorías, conceptos de ingreso, créditos y otras estructuras. Cada escritura debe conservar confirmación humana y validación de permisos.
+**Falta:** herramientas para crear y administrar categorías, conceptos de ingreso, préstamos entre personas y otras estructuras. Cada escritura debe conservar confirmación humana y validación de permisos.
 
 ### 14. 🟡 Mejorar las tarjetas de acciones de Nova
 
@@ -189,4 +189,4 @@ Para cerrar una tarea debe quedar:
 
 ## Punto actual
 
-Los puntos **4** y **6** quedaron guardados en el commit `04e2a27`. El punto **7** está en curso: cuentas quedaron en `707b9c8` y tarjetas están terminadas localmente; el siguiente subbloque es créditos y préstamos.
+Los puntos **4** y **6** quedaron guardados en el commit `04e2a27`. El punto **7** está en curso: cuentas quedaron en `707b9c8`, tarjetas en `71cc3ee` y créditos bancarios están terminados localmente; el siguiente subbloque es préstamos entre personas.

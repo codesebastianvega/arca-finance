@@ -31,6 +31,18 @@ export type RegisterViewModel = {
     cutOffDay: number;
     payDueDay: number;
   }>;
+  bankCredits: Array<{
+    id: string;
+    name: string;
+    totalAmount: number;
+    currentBalance: number;
+    monthlyPayment: number;
+    interestRate: number | null;
+    totalInstallments: number;
+    paidInstallments: number;
+    payDueDay: number;
+    notes: string;
+  }>;
   categories: RegisterOption[];
   units: RegisterOption[];
   incomeSources: Array<{
@@ -133,13 +145,19 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
   const sourcesPromise = loadIncomeSourcesForRegister(workspaceId, supabase);
   const unitsPromise = loadBusinessUnitsForRegister(workspaceId, supabase);
 
-  const [accountsResult, cardsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
+  const [accountsResult, creditsResult, cardsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, name, entity, type, balance, color")
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .eq("archived", false)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("bank_credits")
+      .select("id, name, total_amount, current_balance, monthly_payment, interest_rate, total_installments, paid_installments, pay_due_date, notes")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "archived")
       .order("created_at", { ascending: true }),
     supabase
       .from("credit_cards")
@@ -162,6 +180,9 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
   }
   if (cardsResult.error) {
     throw new Error(`No se pudieron leer las tarjetas para registrar: ${cardsResult.error.message}`);
+  }
+  if (creditsResult.error) {
+    throw new Error(`No se pudieron leer los créditos para registrar: ${creditsResult.error.message}`);
   }
   if (categoriesResult.error) {
     throw new Error(`No se pudieron leer las categorias para registrar: ${categoriesResult.error.message}`);
@@ -198,6 +219,18 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       notes: String(row.notes ?? ""),
       cutOffDay: Number(row.cut_off_date ?? 1),
       payDueDay: Number(row.pay_due_date ?? 1),
+    })),
+    bankCredits: (creditsResult.data ?? []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      totalAmount: Number(row.total_amount ?? 0),
+      currentBalance: Number(row.current_balance ?? 0),
+      monthlyPayment: Number(row.monthly_payment ?? 0),
+      interestRate: row.interest_rate == null ? null : Number(row.interest_rate),
+      totalInstallments: Number(row.total_installments ?? 0),
+      paidInstallments: Number(row.paid_installments ?? 0),
+      payDueDay: Number(row.pay_due_date ?? 1),
+      notes: String(row.notes ?? ""),
     })),
     categories: (categoriesResult.data ?? []).map((row) => ({
       id: String(row.id),

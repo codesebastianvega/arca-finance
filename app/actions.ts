@@ -2002,6 +2002,11 @@ export async function createBankCredit(input: {
   if (!name) throw new Error("El crédito necesita un nombre.");
   if (!Number.isFinite(input.totalAmount) || input.totalAmount <= 0) throw new Error("El monto total debe ser válido.");
   if (!Number.isFinite(input.currentBalance) || input.currentBalance < 0) throw new Error("El saldo actual debe ser válido.");
+  if (!Number.isFinite(input.monthlyPayment) || input.monthlyPayment < 0) throw new Error("La cuota mensual debe ser válida.");
+  if (!Number.isInteger(input.totalInstallments) || input.totalInstallments < 1) throw new Error("El total de cuotas debe ser válido.");
+  if (!Number.isInteger(input.paidInstallments) || input.paidInstallments < 0 || input.paidInstallments > input.totalInstallments) {
+    throw new Error("Las cuotas pagadas deben estar entre cero y el total de cuotas.");
+  }
   
   const payDueDate = Math.min(31, Math.max(1, Math.trunc(input.payDueDate || 1)));
 
@@ -2055,7 +2060,138 @@ export async function createBankCredit(input: {
   }
 
   revalidatePath("/app");
-  return { ok: true, id: credit.id };
+  return {
+    ok: true,
+    creditId: String(credit.id),
+    name,
+    totalAmount: input.totalAmount,
+    currentBalance: input.currentBalance,
+    monthlyPayment: input.monthlyPayment,
+    totalInstallments: input.totalInstallments,
+    paidInstallments: input.paidInstallments,
+    payDueDate,
+  };
+}
+
+export async function updateBankCreditDetails(input: {
+  id: string;
+  name: string;
+  totalAmount: number;
+  monthlyPayment: number;
+  interestRate?: number | null;
+  totalInstallments: number;
+  payDueDate: number;
+  notes?: string | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { data: credit, error: creditError } = await admin
+    .from("bank_credits")
+    .select("id, name, current_balance, paid_installments")
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id)
+    .neq("status", "archived")
+    .maybeSingle();
+
+  if (creditError) throw new Error(`No se pudo consultar el crédito: ${creditError.message}`);
+  if (!credit) throw new Error("El crédito ya no está disponible.");
+
+  const name = input.name.trim();
+  const totalAmount = Number(input.totalAmount);
+  const monthlyPayment = Number(input.monthlyPayment);
+  const totalInstallments = Math.max(1, Math.trunc(input.totalInstallments));
+  const paidInstallments = Number(credit.paid_installments ?? 0);
+  const payDueDate = Math.min(31, Math.max(1, Math.trunc(input.payDueDate || 1)));
+
+  if (!name) throw new Error("El crédito necesita un nombre.");
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0) throw new Error("El monto total debe ser válido.");
+  if (!Number.isFinite(monthlyPayment) || monthlyPayment < 0) throw new Error("La cuota mensual debe ser válida.");
+  if (totalInstallments < paidInstallments) throw new Error("El total de cuotas no puede ser menor que las ya pagadas.");
+
+  const { error } = await admin
+    .from("bank_credits")
+    .update({
+      name,
+      total_amount: totalAmount,
+      monthly_payment: monthlyPayment,
+      interest_rate: input.interestRate == null || Number.isNaN(input.interestRate) ? null : Math.max(0, input.interestRate),
+      total_installments: totalInstallments,
+      pay_due_date: payDueDate,
+      notes: input.notes?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) throw new Error(`No se pudo actualizar el crédito: ${error.message}`);
+
+  const { error: eventError } = await admin
+    .from("scheduled_events")
+    .update({ title: `Pago Cuota ${name}`, amount: monthlyPayment })
+    .eq("workspace_id", context.workspace.id)
+    .eq("linked_entity_type", "bank_credit")
+    .eq("linked_entity_id", input.id)
+    .in("status", ["scheduled", "pending", "overdue"]);
+
+  if (eventError) console.error("No se pudieron sincronizar las cuotas programadas del crédito:", eventError);
+
+  revalidatePath("/app");
+  return {
+    ok: true,
+    creditId: String(credit.id),
+    name,
+    totalAmount,
+    currentBalance: Number(credit.current_balance ?? 0),
+    monthlyPayment,
+    totalInstallments,
+    paidInstallments,
+    payDueDate,
+  };
+}
+
+export async function archiveBankCredit(creditId: string) {
+  const context = await requireWorkspaceContext();
+  const admin = getSupabaseAdminClient();
+
+  if (!admin) throw new Error("Supabase admin client no disponible.");
+
+  const { data: credit, error: creditError } = await admin
+    .from("bank_credits")
+    .select("id, name, current_balance")
+    .eq("id", creditId)
+    .eq("workspace_id", context.workspace.id)
+    .neq("status", "archived")
+    .maybeSingle();
+
+  if (creditError) throw new Error(`No se pudo consultar el crédito: ${creditError.message}`);
+  if (!credit) throw new Error("El crédito ya no está disponible.");
+  if (Number(credit.current_balance ?? 0) > 0) {
+    throw new Error("No puedes archivar un crédito con saldo pendiente.");
+  }
+
+  const { error } = await admin
+    .from("bank_credits")
+    .update({ status: "archived", updated_at: new Date().toISOString() })
+    .eq("id", creditId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) throw new Error(`No se pudo archivar el crédito: ${error.message}`);
+
+  const { error: eventError } = await admin
+    .from("scheduled_events")
+    .update({ status: "cancelled" })
+    .eq("workspace_id", context.workspace.id)
+    .eq("linked_entity_type", "bank_credit")
+    .eq("linked_entity_id", creditId)
+    .in("status", ["scheduled", "pending", "overdue"]);
+
+  if (eventError) console.error("No se pudieron cancelar las cuotas programadas del crédito:", eventError);
+
+  revalidatePath("/app");
+  return { ok: true, creditId: String(credit.id), name: String(credit.name) };
 }
 
 export async function updateSavingsGoal(input: { id: string; name: string; current: number; dueDate?: string | null }) {
