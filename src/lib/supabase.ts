@@ -65,6 +65,12 @@ export async function createSupabaseServerComponentClient() {
   });
 }
 
+/**
+ * ⚠️ ADVERTENCIA DE SEGURIDAD ⚠️
+ * Este cliente usa el SERVICE_ROLE_KEY, por lo que **IGNORA TODAS LAS POLÍTICAS DE RLS**.
+ * NO USAR ESTE CLIENTE EN SERVER ACTIONS A MENOS QUE SEA ESTRICTAMENTE NECESARIO (ej. Webhooks, Cron Jobs).
+ * Para cualquier acción de usuario, utiliza `createSupabaseServerComponentClient()`.
+ */
 export function getSupabaseAdminClient() {
   const url = getSupabaseUrl();
   const serviceRoleKey = getSupabaseServiceRoleKey();

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireWorkspaceContext } from "@/src/lib/auth";
-import { getSupabaseAdminClient } from "@/src/lib/supabase";
+import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 import {
   generateIncomeOccurrenceDates,
   normalizeRecurrenceDays,
@@ -37,10 +37,10 @@ function transactionDelta(kind: string, amount: number) {
 
 export async function confirmScheduledEventNow(eventId: string, overrideAmount?: number) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
   if (!admin) {
-    throw new Error("Supabase admin client no disponible.");
+    throw new Error("Supabase client no disponible.");
   }
 
   const { data: event, error: eventError } = await admin
@@ -72,7 +72,7 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
 
   const { data: account, error: accountError } = await admin
     .from("accounts")
-    .select("id, name, balance, workspace_id")
+    .select("id, name, workspace_id")
     .eq("id", event.account_id)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -81,11 +81,18 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
     throw new Error(`No se pudo leer la cuenta del evento: ${accountError?.message ?? "sin respuesta"}`);
   }
 
-  const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-  const nextBalance = currentBalance + delta;
+  // @ts-expect-error - RPC is not in generated types yet
+  const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
+    p_account_id: event.account_id,
+    p_amount: delta,
+    p_allow_negative: false
+  });
 
-  if (!isIncome && nextBalance < 0) {
-    throw new Error("La cuenta no tiene saldo suficiente para confirmar este movimiento.");
+  if (accountUpdateError) {
+    if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
+      throw new Error("La cuenta no tiene saldo suficiente para confirmar este movimiento.");
+    }
+    throw new Error(`No se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   const { data: transaction, error: transactionError } = await admin
@@ -113,17 +120,9 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
     .single();
 
   if (transactionError || !transaction) {
+    // @ts-expect-error - RPC is not in generated types yet
+    await admin.rpc("increment_account_balance", { p_account_id: event.account_id, p_amount: -delta, p_allow_negative: true });
     throw new Error(`No se pudo crear la transacción: ${transactionError?.message ?? "sin respuesta"}`);
-  }
-
-  const { error: accountUpdateError } = await admin
-    .from("accounts")
-    .update({ balance: nextBalance })
-    .eq("id", event.account_id)
-    .eq("workspace_id", context.workspace.id);
-
-  if (accountUpdateError) {
-    throw new Error(`Se creó la transacción, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   const timingStatus = timingStatusFromDates(String(event.due_date), today);
@@ -139,6 +138,9 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
     .eq("workspace_id", context.workspace.id);
 
   if (eventUpdateError) {
+    // @ts-expect-error - RPC is not in generated types yet
+    await admin.rpc("increment_account_balance", { p_account_id: event.account_id, p_amount: -delta, p_allow_negative: true });
+    await admin.from("transactions").delete().eq("id", transaction.id).eq("workspace_id", context.workspace.id);
     throw new Error(`Se creó la transacción, pero no se pudo cerrar el evento: ${eventUpdateError.message}`);
   }
 
@@ -149,8 +151,6 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
     accountId: String(account.id),
     accountName: String(account.name),
     amount,
-    balanceBefore: currentBalance,
-    balanceAfter: nextBalance,
     effect: delta,
     date: today,
     category: kind,
@@ -164,10 +164,10 @@ export async function adjustAndConfirmScheduledEvent(input: {
   accountId?: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
   if (!admin) {
-    throw new Error("Supabase admin client no disponible.");
+    throw new Error("Supabase client no disponible.");
   }
 
   const { data: event, error: eventError } = await admin
@@ -287,9 +287,9 @@ export async function adjustAndConfirmScheduledEvent(input: {
 
 export async function updateAccount(input: { id: string; name: string; entity?: string | null; balance: number; type: string; color: string }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   // 1. Fetch current balance to compute difference
   const { data: currentAccount, error: fetchError } = await admin
@@ -363,8 +363,8 @@ export async function updateAccountDetails(input: {
   color?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const entity = input.entity?.trim() || null;
@@ -402,9 +402,9 @@ export async function updateAccountDetails(input: {
 
 export async function deleteAccount(accountId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error } = await admin
     .from("accounts")
@@ -426,9 +426,9 @@ export async function createAccount(input: {
   color: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const entity = input.entity?.trim() || null;
@@ -538,9 +538,9 @@ export async function saveMonthlyPlan(input: {
   allocations: MonthlyPlanAllocationInput[];
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
   if (!/^\d{4}-\d{2}-01$/.test(input.month)) throw new Error("El mes del plan no es válido.");
 
   const plannedIncome = Number(input.plannedIncome);
@@ -614,9 +614,9 @@ export async function completeFirstRunSetup(input: {
   initialProjectName?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const accountName = input.accountName.trim();
   const entity = input.entity?.trim() || null;
@@ -787,7 +787,7 @@ import type { TransactionItem } from "@/src/types";
 
 export async function createMovement(input: {
   kind: "income" | "expense";
-  amount: number;
+  amount: number | string;
   concept: string;
   accountId: string;
   category: string;
@@ -798,9 +798,9 @@ export async function createMovement(input: {
   items?: Partial<TransactionItem>[];
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const kind = input.kind;
   const amount = Number(input.amount ?? 0);
@@ -819,7 +819,7 @@ export async function createMovement(input: {
 
   const { data: account, error: accountError } = await admin
     .from("accounts")
-    .select("id, name, balance, workspace_id")
+    .select("id, name, workspace_id")
     .eq("id", accountId)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -828,12 +828,20 @@ export async function createMovement(input: {
     throw new Error(`No se pudo leer la cuenta del movimiento: ${accountError?.message ?? "sin respuesta"}`);
   }
 
-  const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
   const delta = kind === "income" ? amount : -amount;
-  const nextBalance = currentBalance + delta;
 
-  if (kind === "expense" && nextBalance < 0) {
-    throw new Error("La cuenta elegida no tiene saldo suficiente.");
+  // @ts-expect-error - RPC is not in generated types yet
+  const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
+    p_account_id: accountId,
+    p_amount: delta,
+    p_allow_negative: false
+  });
+
+  if (accountUpdateError) {
+    if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
+      throw new Error("La cuenta elegida no tiene saldo suficiente.");
+    }
+    throw new Error(`No se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   const { data: transaction, error: transactionError } = await admin
@@ -860,6 +868,8 @@ export async function createMovement(input: {
     .single();
 
   if (transactionError || !transaction) {
+    // @ts-expect-error - RPC is not in generated types yet
+    await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -delta, p_allow_negative: true });
     throw new Error(`No se pudo crear el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
   }
 
@@ -880,21 +890,7 @@ export async function createMovement(input: {
 
     if (itemsError) {
       console.error("Error inserting transaction items:", itemsError);
-      // We don't fail the whole transaction for this MVP but log it
     }
-  }
-
-  const { error: accountUpdateError } = await admin
-    .from("accounts")
-    .update({
-      balance: nextBalance,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", accountId)
-    .eq("workspace_id", context.workspace.id);
-
-  if (accountUpdateError) {
-    throw new Error(`Se creo el movimiento, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   revalidatePath("/app");
@@ -903,8 +899,8 @@ export async function createMovement(input: {
     transactionId: String(transaction.id),
     accountId: String(account.id),
     accountName: String(account.name),
-    balanceBefore: currentBalance,
-    balanceAfter: nextBalance,
+    balanceBefore: (nextBalance as number) - delta,
+    balanceAfter: nextBalance as number,
     effect: delta,
     date,
   };
@@ -924,9 +920,9 @@ export async function createExpectedIncome(input: {
   recurrenceCount?: number | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const title = input.title.trim();
   const amount = Number(input.amount ?? 0);
@@ -1062,9 +1058,9 @@ export async function createScheduledObligation(input: {
   frequency?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const title = input.title.trim();
   const amount = Number(input.amount ?? 0);
@@ -1219,9 +1215,9 @@ export async function createReceivableLoan(input: {
   notes?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const debtorName = input.debtorName.trim();
   const requestedTitle = input.title?.trim() || "";
@@ -1321,9 +1317,9 @@ export async function createReceivableLoan(input: {
 
 export async function archiveAccount(accountId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: account, error: accountError } = await admin
     .from("accounts")
@@ -1371,9 +1367,9 @@ export async function archiveAccount(accountId: string) {
 
 export async function createBusinessUnit(input: { name: string; key: string }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const key = input.key.trim().toLowerCase().replace(/\s+/g, "-");
@@ -1402,9 +1398,9 @@ export async function createBusinessUnit(input: { name: string; key: string }) {
 
 export async function updateBusinessUnit(input: { id: string; name: string; key: string }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const key = input.key.trim().toLowerCase().replace(/\s+/g, "-");
@@ -1432,8 +1428,8 @@ export async function updateBusinessUnit(input: { id: string; name: string; key:
 
 export async function archiveBusinessUnit(id: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: unit, error: unitError } = await admin
     .from("business_units")
@@ -1469,9 +1465,9 @@ export async function createExpenseCategory(input: {
   icon?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   if (!name) throw new Error("El nombre de la categoría es requerido.");
@@ -1512,9 +1508,9 @@ export async function updateExpenseCategory(input: {
   icon?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   if (!name) throw new Error("El nombre de la categoría es requerido.");
@@ -1560,9 +1556,9 @@ export async function createIncomeSource(input: {
   defaultAccountId: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const businessUnitKey = input.businessUnitKey.trim();
@@ -1605,9 +1601,9 @@ export async function updateIncomeSource(input: {
   defaultAccountId: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const businessUnitKey = input.businessUnitKey.trim();
@@ -1645,9 +1641,9 @@ export async function updateIncomeSource(input: {
 
 export async function updateCreditCard(input: { id: string; name: string; used: number }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error } = await admin
     .from("credit_cards")
@@ -1707,9 +1703,9 @@ export async function updateCreditCardFull(input: {
   notes: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const issuer = input.issuer.trim();
@@ -1781,9 +1777,9 @@ export async function updateCreditCardDetails(input: {
   notes: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: currentCard, error: currentError } = await admin
     .from("credit_cards")
@@ -1858,9 +1854,9 @@ export async function updateCreditCardDetails(input: {
 
 export async function archiveCreditCard(cardId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: card, error: cardError } = await admin
     .from("credit_cards")
@@ -1917,9 +1913,9 @@ export async function createCreditCard(input: {
   notes: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
   const issuer = input.issuer.trim();
@@ -2031,9 +2027,9 @@ export async function createBankCredit(input: {
   textColor?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
 
@@ -2122,9 +2118,9 @@ export async function updateBankCreditDetails(input: {
   notes?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: credit, error: creditError } = await admin
     .from("bank_credits")
@@ -2192,9 +2188,9 @@ export async function updateBankCreditDetails(input: {
 
 export async function archiveBankCredit(creditId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: credit, error: creditError } = await admin
     .from("bank_credits")
@@ -2234,9 +2230,9 @@ export async function archiveBankCredit(creditId: string) {
 
 export async function updateSavingsGoal(input: { id: string; name: string; current: number; dueDate?: string | null }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error } = await admin
     .from("savings_goals")
@@ -2257,9 +2253,9 @@ export async function updateSavingsGoal(input: { id: string; name: string; curre
 
 export async function archiveSavingsGoal(goalId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error } = await admin
     .from("savings_goals")
@@ -2279,9 +2275,9 @@ export async function archiveSavingsGoal(goalId: string) {
 
 export async function releasePocket(input: { goalId: string }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   // 1. Obtener el bolsillo y su cuenta asociada
   const { data: goal, error: goalError } = await admin
@@ -2303,19 +2299,18 @@ export async function releasePocket(input: { goalId: string }) {
 
   // 2. Si hay dinero, lo devolvemos a la cuenta origen del bolsillo
   if (amountToRelease > 0) {
-    const { data: account, error: accountError } = await admin
-      .from("accounts")
-      .select("id, name, balance, workspace_id")
-      .eq("id", goal.account_id)
-      .eq("workspace_id", context.workspace.id)
-      .maybeSingle();
-
-    if (accountError || !account) {
-      throw new Error(`No se pudo leer la cuenta de destino: ${accountError?.message ?? "sin respuesta"}`);
-    }
-
-    const accountBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
     const today = todayDateInBogota();
+
+    // @ts-expect-error
+    const { error: balanceError } = await admin.rpc("increment_account_balance", {
+      p_account_id: goal.account_id,
+      p_amount: amountToRelease,
+      p_allow_negative: true
+    });
+      
+    if (balanceError) {
+      throw new Error(`Error al actualizar el saldo de la cuenta: ${balanceError.message}`);
+    }
 
     // Crear la transacción de ingreso a la cuenta
     const { error: movementError } = await admin
@@ -2338,19 +2333,9 @@ export async function releasePocket(input: { goalId: string }) {
       });
 
     if (movementError) {
+      // @ts-expect-error
+      await admin.rpc("increment_account_balance", { p_account_id: goal.account_id, p_amount: -amountToRelease, p_allow_negative: true });
       throw new Error(`No se pudo registrar la devolución del dinero: ${movementError.message}`);
-    }
-    
-    // Incrementar el balance en la cuenta real
-    // En una DB real deberíamos usar RPC para atomicidad, pero por ahora lo calculamos
-    const { error: balanceError } = await admin
-      .from("accounts")
-      .update({ balance: accountBalance + amountToRelease })
-      .eq("id", account.id)
-      .eq("workspace_id", context.workspace.id);
-      
-    if (balanceError) {
-      throw new Error(`Error al actualizar el saldo de la cuenta: ${balanceError.message}`);
     }
   }
 
@@ -2375,9 +2360,9 @@ export async function releasePocket(input: { goalId: string }) {
 
 export async function createSavingsContribution(input: { goalId: string; amount: number; accountId: string }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   if (!input.accountId) {
     throw new Error("Debes elegir la cuenta de origen.");
@@ -2398,28 +2383,21 @@ export async function createSavingsContribution(input: { goalId: string; amount:
     throw new Error(`No se pudo leer la meta: ${goalError?.message ?? "sin respuesta"}`);
   }
 
-  const current = typeof goal.current === "number" ? goal.current : Number(goal.current ?? 0);
-  const nextCurrent = current + input.amount;
   const today = todayDateInBogota();
 
-  const { data: account, error: accountError } = await admin
-    .from("accounts")
-    .select("id, name, balance, workspace_id")
-    .eq("id", input.accountId)
-    .eq("workspace_id", context.workspace.id)
-    .maybeSingle();
+  // @ts-expect-error
+  const { error: accountUpdateError } = await admin.rpc("increment_account_balance", {
+    p_account_id: input.accountId,
+    p_amount: -input.amount,
+    p_allow_negative: false
+  });
 
-  if (accountError || !account) {
-    throw new Error(`No se pudo leer la cuenta origen: ${accountError?.message ?? "sin respuesta"}`);
+  if (accountUpdateError) {
+    if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
+      throw new Error("La cuenta elegida no tiene saldo suficiente.");
+    }
+    throw new Error(`No se pudo descontar de la cuenta origen: ${accountUpdateError.message}`);
   }
-
-  const accountBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-
-  if (accountBalance < input.amount) {
-    throw new Error("La cuenta elegida no tiene saldo suficiente.");
-  }
-
-  const nextBalance = accountBalance - input.amount;
 
   const { data: movement, error: movementError } = await admin
     .from("transactions")
@@ -2437,13 +2415,14 @@ export async function createSavingsContribution(input: { goalId: string; amount:
       source_type: "manual",
       metadata: {
         savings_goal_id: input.goalId,
-        account_name: account.name,
       },
     })
     .select("id")
     .single();
 
   if (movementError || !movement) {
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: input.accountId, p_amount: input.amount, p_allow_negative: true });
     throw new Error(`No se pudo registrar el movimiento del aporte: ${movementError?.message ?? "sin respuesta"}`);
   }
 
@@ -2459,32 +2438,20 @@ export async function createSavingsContribution(input: { goalId: string; amount:
   });
 
   if (transactionError) {
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: input.accountId, p_amount: input.amount, p_allow_negative: true });
     throw new Error(`No se pudo registrar el aporte: ${transactionError.message}`);
   }
 
-  const { error: accountUpdateError } = await admin
-    .from("accounts")
-    .update({
-      balance: nextBalance,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.accountId)
-    .eq("workspace_id", context.workspace.id);
-
-  if (accountUpdateError) {
-    throw new Error(`Se registró el aporte, pero no se pudo descontar la cuenta: ${accountUpdateError.message}`);
-  }
-
-  const { error: updateError } = await admin
-    .from("savings_goals")
-    .update({
-      current: nextCurrent,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.goalId)
-    .eq("workspace_id", context.workspace.id);
+  // @ts-expect-error
+  const { error: updateError } = await admin.rpc("increment_savings_goal_current", {
+    p_goal_id: input.goalId,
+    p_amount: input.amount
+  });
 
   if (updateError) {
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: input.accountId, p_amount: input.amount, p_allow_negative: true });
     throw new Error(`Se registró el aporte, pero no se pudo actualizar la meta: ${updateError.message}`);
   }
 
@@ -2495,31 +2462,30 @@ export async function createSavingsContribution(input: { goalId: string; amount:
 export async function createSavingsGoal(input: {
   name: string;
   target: number;
-  current?: number;
+  current: number;
   dueDate?: string | null;
-  goalType?: "goal" | "pocket";
+  goalType?: "saving" | "pocket";
   color?: string;
   sourceAccountId?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const name = input.name.trim();
+  const target = Number(input.target ?? 0);
   const current = Number(input.current ?? 0);
-  // For pockets: target = current (the amount they're protecting right now)
-  // For goals: target is the final goal amount
-  const target = input.goalType === "pocket" ? current : Number(input.target ?? 0);
-  const goalType = input.goalType === "pocket" ? "pocket" : "goal";
+  const dueDate = input.dueDate?.trim() || null;
+  const goalType = input.goalType ?? "saving";
   const color = input.color?.trim() || (goalType === "pocket" ? "#8FA66A" : "#16735b");
-  const dueDate = input.dueDate?.trim() ? `${input.dueDate}T00:00:00-05:00` : null;
 
   if (!name) throw new Error("El ahorro necesita un nombre.");
-  if (!Number.isFinite(current) || current < 0) throw new Error("El monto debe ser válido.");
+  if (target <= 0) throw new Error("El monto objetivo debe ser mayor a cero.");
+  if (current < 0) throw new Error("El monto actual no puede ser negativo.");
 
   if (goalType === "pocket" && !input.sourceAccountId) {
-    throw new Error("Debes seleccionar una cuenta para este bolsillo.");
+    throw new Error("Los bolsillos requieren una cuenta de origen.");
   }
 
   const { data: goal, error } = await admin
@@ -2552,28 +2518,28 @@ export async function createSavingsGoal(input: {
       date: todayDateInBogota(),
       notes: goalType === "pocket" ? "Monto inicial del bolsillo" : "Saldo inicial",
     });
-    if (savTransErr) throw new Error(`Se creó el ahorro, pero no el saldo inicial: ${savTransErr.message}`);
+    
+    if (savTransErr) {
+      await admin.from("savings_goals").delete().eq("id", goal.id);
+      throw new Error(`Se creó el ahorro, pero no el saldo inicial: ${savTransErr.message}`);
+    }
 
     // For pockets with a source account: deduct from account balance + log transaction
     if (goalType === "pocket" && input.sourceAccountId) {
-      const { data: acc, error: accReadErr } = await admin
-        .from("accounts")
-        .select("balance")
-        .eq("id", input.sourceAccountId)
-        .eq("workspace_id", context.workspace.id)
-        .single();
+      // @ts-expect-error
+      const { error: accUpdateErr } = await admin.rpc("increment_account_balance", {
+        p_account_id: input.sourceAccountId,
+        p_amount: -current,
+        p_allow_negative: false
+      });
 
-      if (accReadErr || !acc) throw new Error("No se encontró la cuenta de origen.");
-
-      const newBalance = Number(acc.balance) - current;
-
-      const { error: accUpdateErr } = await admin
-        .from("accounts")
-        .update({ balance: newBalance })
-        .eq("id", input.sourceAccountId)
-        .eq("workspace_id", context.workspace.id);
-
-      if (accUpdateErr) throw new Error(`No se pudo descontar de la cuenta: ${accUpdateErr.message}`);
+      if (accUpdateErr) {
+        await admin.from("savings_goals").delete().eq("id", goal.id);
+        if (accUpdateErr.message.includes("INSUFFICIENT_FUNDS")) {
+          throw new Error("La cuenta origen no tiene saldo suficiente.");
+        }
+        throw new Error(`No se pudo descontar de la cuenta: ${accUpdateErr.message}`);
+      }
 
       // Log the deduction as a saving_contribution transaction
       await admin.from("transactions").insert({
@@ -2594,9 +2560,9 @@ export async function createSavingsGoal(input: {
 
 export async function cancelScheduledEvent(eventId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error } = await admin
     .from("scheduled_events")
@@ -2623,9 +2589,9 @@ export async function updateScheduledObligation(input: {
   notes?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: event, error: eventError } = await admin
     .from("scheduled_events")
@@ -2694,9 +2660,9 @@ export async function updateReceivable(input: {
   notes?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const debtorName = input.debtorName.trim();
   const title = input.title.trim();
@@ -2734,9 +2700,9 @@ export async function markReceivableRecovered(input: {
   receivedDate?: string | null;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: receivable, error: receivableError } = await admin
     .from("receivables")
@@ -2844,9 +2810,9 @@ export async function updateManualTransaction(input: {
   accountId: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   if (!input.accountId) throw new Error("Selecciona la cuenta o banco del movimiento.");
   if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("El valor debe ser mayor que cero.");
@@ -2971,9 +2937,9 @@ export async function updateManualTransaction(input: {
 
 export async function deleteManualTransaction(transactionId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: transaction, error: transactionError } = await admin
     .from("transactions")
@@ -2983,42 +2949,21 @@ export async function deleteManualTransaction(transactionId: string) {
     .maybeSingle();
 
   if (transactionError || !transaction) {
-    throw new Error(`No se pudo leer el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
+    throw new Error(`No se encontró el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
   }
 
-  // Permitir borrar cualquier movimiento, independientemente de su source_type.
-  // Si viene de una obligación, revertiremos el scheduled_event a pending.
-  if (transaction.source_type === "income_source") {
-    // Si queremos mantener alguna regla especial para income_source, podemos hacerlo,
-    // pero por ahora dejaremos que fluya.
-  }
+  const previousAmount = typeof transaction.amount === "number" ? transaction.amount : Number(transaction.amount ?? 0);
+  const previousDelta = transactionDelta(String(transaction.kind), previousAmount);
 
+  // 1. Revert transaction delta using RPC
   if (transaction.account_id) {
-    const { data: account, error: accountError } = await admin
-      .from("accounts")
-      .select("id, balance")
-      .eq("id", transaction.account_id)
-      .eq("workspace_id", context.workspace.id)
-      .maybeSingle();
-
-    if (accountError || !account) {
-      throw new Error(`No se pudo leer la cuenta del movimiento: ${accountError?.message ?? "sin respuesta"}`);
-    }
-
-    const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-    const amount = typeof transaction.amount === "number" ? transaction.amount : Number(transaction.amount ?? 0);
-    const delta = transactionDelta(String(transaction.kind), amount);
-    const nextBalance = currentBalance - delta;
-
-    const { error: balanceError } = await admin
-      .from("accounts")
-      .update({ balance: nextBalance, updated_at: new Date().toISOString() })
-      .eq("id", transaction.account_id)
-      .eq("workspace_id", context.workspace.id);
-
-    if (balanceError) {
-      throw new Error(`No se pudo devolver el saldo de la cuenta: ${balanceError.message}`);
-    }
+    // @ts-expect-error
+    const { error: revErr } = await admin.rpc("increment_account_balance", {
+      p_account_id: transaction.account_id,
+      p_amount: -previousDelta,
+      p_allow_negative: true
+    });
+    if (revErr) throw new Error(`No se pudo revertir el saldo de la cuenta: ${revErr.message}`);
   }
 
   const { error: deleteError } = await admin
@@ -3028,20 +2973,16 @@ export async function deleteManualTransaction(transactionId: string) {
     .eq("workspace_id", context.workspace.id);
 
   if (deleteError) {
-    throw new Error(`No se pudo borrar el movimiento: ${deleteError.message}`);
-  }
-
-  // Si este movimiento venía de una obligación o agenda, desvincularlo y volver la obligación a pendiente.
-  if (transaction.source_type === "scheduled_event") {
-    const { error: resetEventError } = await admin
-      .from("scheduled_events")
-      .update({ status: "pending", confirmed_transaction_id: null })
-      .eq("confirmed_transaction_id", transactionId)
-      .eq("workspace_id", context.workspace.id);
-      
-    if (resetEventError) {
-      console.error("Error restableciendo la obligación:", resetEventError);
+    // Re-apply delta to rollback the revert
+    if (transaction.account_id) {
+      // @ts-expect-error
+      await admin.rpc("increment_account_balance", {
+        p_account_id: transaction.account_id,
+        p_amount: previousDelta,
+        p_allow_negative: true
+      });
     }
+    throw new Error(`No se pudo eliminar el movimiento: ${deleteError.message}`);
   }
 
   revalidatePath("/app");
@@ -3056,9 +2997,9 @@ export async function createTransfer(input: {
   date: string;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   if (!input.fromAccountId || !input.toAccountId) {
     throw new Error("Debes elegir cuenta origen y cuenta destino.");
@@ -3074,7 +3015,7 @@ export async function createTransfer(input: {
 
   const { data: accounts, error: accountsError } = await admin
     .from("accounts")
-    .select("id, name, balance, workspace_id")
+    .select("id, name, workspace_id")
     .in("id", [input.fromAccountId, input.toAccountId])
     .eq("workspace_id", context.workspace.id);
 
@@ -3089,11 +3030,31 @@ export async function createTransfer(input: {
     throw new Error("No se encontraron las cuentas seleccionadas en este espacio.");
   }
 
-  const fromBalance = typeof fromAccount.balance === "number" ? fromAccount.balance : Number(fromAccount.balance ?? 0);
-  const toBalance = typeof toAccount.balance === "number" ? toAccount.balance : Number(toAccount.balance ?? 0);
+  // @ts-expect-error - RPC is not in generated types yet
+  const { data: fromNextBalance, error: debitError } = await admin.rpc("increment_account_balance", {
+    p_account_id: fromAccount.id,
+    p_amount: -input.amount,
+    p_allow_negative: false
+  });
 
-  if (fromBalance < input.amount) {
-    throw new Error("La cuenta origen no tiene saldo suficiente.");
+  if (debitError) {
+    if (debitError.message.includes("INSUFFICIENT_FUNDS")) {
+      throw new Error("La cuenta origen no tiene saldo suficiente.");
+    }
+    throw new Error(`No se pudo actualizar la cuenta origen: ${debitError.message}`);
+  }
+
+  // @ts-expect-error - RPC is not in generated types yet
+  const { data: toNextBalance, error: creditError } = await admin.rpc("increment_account_balance", {
+    p_account_id: toAccount.id,
+    p_amount: input.amount,
+    p_allow_negative: true
+  });
+
+  if (creditError) {
+    // @ts-expect-error - RPC is not in generated types yet
+    await admin.rpc("increment_account_balance", { p_account_id: fromAccount.id, p_amount: input.amount, p_allow_negative: true });
+    throw new Error(`No se pudo actualizar la cuenta destino: ${creditError.message}`);
   }
 
   const concept = input.concept.trim() || `Transferencia ${fromAccount.name} a ${toAccount.name}`;
@@ -3121,10 +3082,6 @@ export async function createTransfer(input: {
     },
   });
 
-  if (outError) {
-    throw new Error(`No se pudo registrar la salida: ${outError.message}`);
-  }
-
   const { error: inError } = await admin.from("transactions").insert({
     workspace_id: context.workspace.id,
     kind: "transfer_in",
@@ -3145,34 +3102,15 @@ export async function createTransfer(input: {
     },
   });
 
-  if (inError) {
-    throw new Error(`Se registró la salida, pero no la entrada: ${inError.message}`);
-  }
-
-  const { error: debitError } = await admin
-    .from("accounts")
-    .update({
-      balance: fromBalance - input.amount,
-      updated_at: now,
-    })
-    .eq("id", fromAccount.id)
-    .eq("workspace_id", context.workspace.id);
-
-  if (debitError) {
-    throw new Error(`No se pudo actualizar la cuenta origen: ${debitError.message}`);
-  }
-
-  const { error: creditError } = await admin
-    .from("accounts")
-    .update({
-      balance: toBalance + input.amount,
-      updated_at: now,
-    })
-    .eq("id", toAccount.id)
-    .eq("workspace_id", context.workspace.id);
-
-  if (creditError) {
-    throw new Error(`No se pudo actualizar la cuenta destino: ${creditError.message}`);
+  if (outError || inError) {
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: fromAccount.id, p_amount: input.amount, p_allow_negative: true });
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: toAccount.id, p_amount: -input.amount, p_allow_negative: true });
+    
+    // We try to clean up orphaned transactions if only one succeeded
+    await admin.from("transactions").delete().eq("metadata->>transfer_key", transferKey);
+    throw new Error(`Fallo al registrar las transacciones. El saldo fue restaurado.`);
   }
 
   revalidatePath("/app");
@@ -3184,22 +3122,22 @@ export async function createTransfer(input: {
     amount: input.amount,
     fromAccountId: String(fromAccount.id),
     fromAccountName: String(fromAccount.name),
-    fromBalanceBefore: fromBalance,
-    fromBalanceAfter: fromBalance - input.amount,
+    fromBalanceBefore: (fromNextBalance as number) + input.amount,
+    fromBalanceAfter: fromNextBalance as number,
     toAccountId: String(toAccount.id),
     toAccountName: String(toAccount.name),
-    toBalanceBefore: toBalance,
-    toBalanceAfter: toBalance + input.amount,
+    toBalanceBefore: (toNextBalance as number) - input.amount,
+    toBalanceAfter: toNextBalance as number,
   };
 }
 
 
 export async function cancelIncomeTemplate(templateId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
   if (!admin) {
-    throw new Error("Supabase admin client no disponible.");
+    throw new Error("Supabase client no disponible.");
   }
 
   // 1. Cancel the template
@@ -3231,10 +3169,10 @@ export async function cancelIncomeTemplate(templateId: string) {
 
 export async function cancelExpenseTemplate(templateId: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
   if (!admin) {
-    throw new Error("Supabase admin client no disponible.");
+    throw new Error("Supabase client no disponible.");
   }
 
   const { error: templateError } = await admin
@@ -3263,8 +3201,8 @@ export async function cancelExpenseTemplate(templateId: string) {
 }
 export async function deleteBusinessUnit(id: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
   const { data: unit, error: unitError } = await admin
     .from("business_units")
     .select("key")
@@ -3301,8 +3239,8 @@ export async function deleteBusinessUnit(id: string) {
 
 export async function deleteExpenseCategory(id: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
   const { error } = await admin
     .from("expense_categories")
     .delete()
@@ -3315,8 +3253,8 @@ export async function deleteExpenseCategory(id: string) {
 
 export async function deleteIncomeSource(id: string) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
   const { error } = await admin
     .from("income_sources")
     .delete()
@@ -3332,8 +3270,8 @@ export async function resolveReceivable(
   payload: { action: "pay" | "postpone" | "cancel"; amount?: number; accountId?: string; days?: number }
 ) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { data: rawReceivable, error: fetchError } = await admin
     .from("receivables")
@@ -3438,8 +3376,8 @@ export async function updateExpenseTemplate(input: {
   amount: number;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error: templateErr } = await admin
     .from("expense_templates")
@@ -3475,8 +3413,8 @@ export async function updateIncomeTemplate(input: {
   amount: number;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  const admin = await createSupabaseServerComponentClient();
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const { error: templateErr } = await admin
     .from("income_templates")
@@ -3516,9 +3454,9 @@ export async function createPayableLoan(input: {
   skipIncomeMovement?: boolean;
 }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   const lenderName = input.lenderName.trim();
   const requestedTitle = input.title?.trim() || "";
@@ -3615,9 +3553,9 @@ export async function createPayableLoan(input: {
 }
 export async function updateLoanDetails(input: { id: string; type: 'receivable' | 'payable'; concept: string; notes?: string }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   if (input.type === 'receivable') {
     const { error } = await admin
@@ -3651,9 +3589,9 @@ export async function updateLoanDetails(input: { id: string; type: 'receivable' 
 
 export async function archiveLoan(input: { id: string; type: 'receivable' | 'payable' }) {
   const context = await requireWorkspaceContext();
-  const admin = getSupabaseAdminClient();
+  const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase admin client no disponible.");
+  if (!admin) throw new Error("Supabase client no disponible.");
 
   if (input.type === 'receivable') {
     const { error } = await admin
