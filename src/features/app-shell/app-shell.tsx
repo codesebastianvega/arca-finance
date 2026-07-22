@@ -15,6 +15,7 @@ import AiChat from '../chat/ai-chat';
 import { recordAppUsage } from '@/app/telemetry-actions';
 import type { BillingNotice } from '@/src/lib/billing-data';
 import { PullToRefresh } from '../pwa/pull-to-refresh';
+import { ToastProvider } from '@/src/components/toast-provider';
 
 interface AppShellProps {
   currentScreen: Screen;
@@ -169,137 +170,139 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   }, [openOverlay]);
 
   return (
-    <div className="min-h-screen bg-arca-base light:bg-arca-light-base text-arca-text-primary light:text-arca-light-text-primary transition-colors duration-500 overflow-x-hidden selection:bg-arca-accent/30 selection:text-arca-accent">
-      
-      {/* Main Content Area */}
-      <PullToRefresh>
-      <main className="max-w-lg mx-auto px-6 pt-8 pb-32 min-h-screen">
-        {billingNotice && currentScreen !== 'configuracion' ? <button type="button" onClick={() => setCurrentScreen('configuracion')} className={`mb-4 flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${billingNotice.overdue ? 'border-arca-alert/30 bg-arca-alert/[0.08]' : 'border-arca-accent/30 bg-arca-accent/[0.07]'}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${billingNotice.overdue ? 'bg-arca-alert/10 text-arca-alert' : 'bg-arca-accent/10 text-arca-accent'}`}><BellRing size={18} /></span><span className="min-w-0 flex-1"><span className="block text-xs font-black text-arca-text-primary">{billingNotice.overdue ? 'Tu suscripción tiene un pago pendiente' : billingNotice.daysUntilDue <= 0 ? 'Estamos esperando tu comprobante' : `Tu suscripción vence en ${billingNotice.daysUntilDue} días`}</span><span className="mt-0.5 block text-[9px] text-arca-text-dim">{billingNotice.planName} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(billingNotice.amountCop)}</span></span><ChevronRight size={16} className="shrink-0 text-arca-text-dim" /></button> : null}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentScreen}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+    <ToastProvider>
+      <div className="min-h-screen bg-arca-base light:bg-arca-light-base text-arca-text-primary light:text-arca-light-text-primary transition-colors duration-500 overflow-x-hidden selection:bg-arca-accent/30 selection:text-arca-accent">
+        
+        {/* Main Content Area */}
+        <PullToRefresh>
+        <main className="max-w-lg mx-auto px-6 pt-8 pb-32 min-h-screen">
+          {billingNotice && currentScreen !== 'configuracion' ? <button type="button" onClick={() => setCurrentScreen('configuracion')} className={`mb-4 flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${billingNotice.overdue ? 'border-arca-alert/30 bg-arca-alert/[0.08]' : 'border-arca-accent/30 bg-arca-accent/[0.07]'}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${billingNotice.overdue ? 'bg-arca-alert/10 text-arca-alert' : 'bg-arca-accent/10 text-arca-accent'}`}><BellRing size={18} /></span><span className="min-w-0 flex-1"><span className="block text-xs font-black text-arca-text-primary">{billingNotice.overdue ? 'Tu suscripción tiene un pago pendiente' : billingNotice.daysUntilDue <= 0 ? 'Estamos esperando tu comprobante' : `Tu suscripción vence en ${billingNotice.daysUntilDue} días`}</span><span className="mt-0.5 block text-[9px] text-arca-text-dim">{billingNotice.planName} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(billingNotice.amountCop)}</span></span><ChevronRight size={16} className="shrink-0 text-arca-text-dim" /></button> : null}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentScreen}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+        </PullToRefresh>
+
+        {/* Floating Action Button for AI Chat - Mezcla de Opción 2 (Glassmorphism) y Opción 3 (Cyberpulse) */}
+        {canUseNova && currentScreen !== 'hoy' && currentScreen !== 'transferir' && currentScreen !== 'dashboard' && currentScreen !== 'movimientos' && (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              setNovaInitialPrompt(null);
+              openOverlay('nova');
+            }}
+            aria-label="Abrir Nova"
+            className="fixed bottom-[100px] right-6 w-14 h-14 rounded-full bg-arca-surface-1/90 backdrop-blur-md border border-arca-accent/40 flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.3)] z-40 text-arca-accent hover:bg-arca-surface-2 transition-colors"
           >
-            {children}
-          </motion.div>
-        </AnimatePresence>
-      </main>
-      </PullToRefresh>
+            <Wand2 size={24} />
+          </motion.button>
+        )}
 
-      {/* Floating Action Button for AI Chat - Mezcla de Opción 2 (Glassmorphism) y Opción 3 (Cyberpulse) */}
-      {canUseNova && currentScreen !== 'hoy' && currentScreen !== 'transferir' && currentScreen !== 'dashboard' && currentScreen !== 'movimientos' && (
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => {
-            setNovaInitialPrompt(null);
-            openOverlay('nova');
-          }}
-          aria-label="Abrir Nova"
-          className="fixed bottom-[100px] right-6 w-14 h-14 rounded-full bg-arca-surface-1/90 backdrop-blur-md border border-arca-accent/40 flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.3)] z-40 text-arca-accent hover:bg-arca-surface-2 transition-colors"
-        >
-          <Wand2 size={24} />
-        </motion.button>
-      )}
-
-      {/* Navigation (Mobile optimized for now as requested) */}
-      <BottomTabNavigation 
-        currentScreen={currentScreen} 
-        onScreenChange={setCurrentScreen}
-        onAddClick={() => {
-          openOverlay('quick-add');
-        }}
-      />
-
-      <BottomSheet
-        isOpen={isQuickAddOpen}
-        onClose={() => closeOverlay('quick-add')}
-        title="¿Qué quieres agregar?"
-      >
-        <div className="space-y-5 pb-2">
-          <button
-            type="button"
-            onClick={() => openRegister({ segment: 'Grid' })}
-            className="flex w-full items-center gap-3 rounded-2xl border border-arca-accent/30 bg-arca-accent/[0.08] p-4 text-left"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-arca-accent text-arca-base">
-              <ReceiptText size={20} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-black text-arca-text-primary">Registrar algo de hoy</span>
-              <span className="mt-1 block text-[10px] leading-4 text-arca-text-secondary">Movimiento, cuenta, tarjeta, ahorro u otro registro.</span>
-            </span>
-            <ChevronRight size={17} className="shrink-0 text-arca-accent" />
-          </button>
-
-          <div>
-            <div className="mb-3 flex items-center gap-2 px-1">
-              <CalendarClock size={14} className="text-arca-accent" />
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-arca-text-dim">Para una fecha futura</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <QuickAddAction
-                icon={TrendingDown}
-                title="Programar gasto"
-                description="Pago o compromiso pendiente."
-                tone="alert"
-                onClick={() => openRegister({ segment: 'Obligacion', type: 'gasto' })}
-              />
-              <QuickAddAction
-                icon={TrendingUp}
-                title="Programar ingreso"
-                description="Dinero que esperas recibir."
-                tone="positive"
-                onClick={() => openRegister({ segment: 'Movimiento', type: 'ingreso', incomeStatus: 'expected' })}
-              />
-            </div>
-            <p className="mt-3 px-1 text-[9px] leading-4 text-arca-text-dim">Lo programado aparecerá en Agenda y proyecciones. Tu saldo cambiará únicamente cuando confirmes que ocurrió.</p>
-          </div>
-        </div>
-      </BottomSheet>
-
-      {/* Register Bottom Sheet */}
-      <BottomSheet
-        isOpen={isRegisterOpen}
-        onClose={() => closeOverlay('register')}
-        title={defaultSegment === 'Obligacion' ? 'Programar gasto' : defaultType === 'ingreso' && defaultIncomeStatus === 'expected' ? 'Programar ingreso' : 'Nuevo registro'}
-      >
-        <RegisterScreen
-          key={`${defaultSegment}-${defaultType}-${defaultDate}-${defaultIncomeStatus}`}
-          data={registerData}
-          defaultSegment={defaultSegment}
-          defaultGoalType={defaultGoalType}
-          defaultType={defaultType}
-          defaultDate={defaultDate}
-          defaultIncomeStatus={defaultIncomeStatus}
-          onSuccess={() => {
-            router.refresh();
-            closeOverlay('register');
+        {/* Navigation (Mobile optimized for now as requested) */}
+        <BottomTabNavigation 
+          currentScreen={currentScreen} 
+          onScreenChange={setCurrentScreen}
+          onAddClick={() => {
+            openOverlay('quick-add');
           }}
         />
-      </BottomSheet>
 
-      {/* AI Chat Bot */}
-      {canUseNova ? <AiChat
-        isOpen={isAiChatOpen}
-        onClose={() => closeOverlay('nova')}
-        initialPrompt={novaInitialPrompt}
-        onInitialPromptConsumed={() => setNovaInitialPrompt(null)}
-        currencyCode={currencyCode}
-        monthlyLimit={novaMonthlyLimit}
-        initialUsed={novaUsed}
-        onViewPlans={() => {
-          closeOverlay('nova');
-          window.setTimeout(() => setCurrentScreen('configuracion'), 0);
-        }}
-        onViewChanges={() => {
-          closeOverlay('nova');
-          window.setTimeout(() => setCurrentScreen('resumen'), 0);
-        }}
-      /> : null}
-    </div>
+        <BottomSheet
+          isOpen={isQuickAddOpen}
+          onClose={() => closeOverlay('quick-add')}
+          title="¿Qué quieres agregar?"
+        >
+          <div className="space-y-5 pb-2">
+            <button
+              type="button"
+              onClick={() => openRegister({ segment: 'Grid' })}
+              className="flex w-full items-center gap-3 rounded-2xl border border-arca-accent/30 bg-arca-accent/[0.08] p-4 text-left"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-arca-accent text-arca-base">
+                <ReceiptText size={20} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black text-arca-text-primary">Registrar algo de hoy</span>
+                <span className="mt-1 block text-[10px] leading-4 text-arca-text-secondary">Movimiento, cuenta, tarjeta, ahorro u otro registro.</span>
+              </span>
+              <ChevronRight size={17} className="shrink-0 text-arca-accent" />
+            </button>
+
+            <div>
+              <div className="mb-3 flex items-center gap-2 px-1">
+                <CalendarClock size={14} className="text-arca-accent" />
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-arca-text-dim">Para una fecha futura</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <QuickAddAction
+                  icon={TrendingDown}
+                  title="Programar gasto"
+                  description="Pago o compromiso pendiente."
+                  tone="alert"
+                  onClick={() => openRegister({ segment: 'Obligacion', type: 'gasto' })}
+                />
+                <QuickAddAction
+                  icon={TrendingUp}
+                  title="Programar ingreso"
+                  description="Dinero que esperas recibir."
+                  tone="positive"
+                  onClick={() => openRegister({ segment: 'Movimiento', type: 'ingreso', incomeStatus: 'expected' })}
+                />
+              </div>
+              <p className="mt-3 px-1 text-[9px] leading-4 text-arca-text-dim">Lo programado aparecerá en Agenda y proyecciones. Tu saldo cambiará únicamente cuando confirmes que ocurrió.</p>
+            </div>
+          </div>
+        </BottomSheet>
+
+        {/* Register Bottom Sheet */}
+        <BottomSheet
+          isOpen={isRegisterOpen}
+          onClose={() => closeOverlay('register')}
+          title={defaultSegment === 'Obligacion' ? 'Programar gasto' : defaultType === 'ingreso' && defaultIncomeStatus === 'expected' ? 'Programar ingreso' : 'Nuevo registro'}
+        >
+          <RegisterScreen
+            key={`${defaultSegment}-${defaultType}-${defaultDate}-${defaultIncomeStatus}`}
+            data={registerData}
+            defaultSegment={defaultSegment}
+            defaultGoalType={defaultGoalType}
+            defaultType={defaultType}
+            defaultDate={defaultDate}
+            defaultIncomeStatus={defaultIncomeStatus}
+            onSuccess={() => {
+              router.refresh();
+              closeOverlay('register');
+            }}
+          />
+        </BottomSheet>
+
+        {/* AI Chat Bot */}
+        {canUseNova ? <AiChat
+          isOpen={isAiChatOpen}
+          onClose={() => closeOverlay('nova')}
+          initialPrompt={novaInitialPrompt}
+          onInitialPromptConsumed={() => setNovaInitialPrompt(null)}
+          currencyCode={currencyCode}
+          monthlyLimit={novaMonthlyLimit}
+          initialUsed={novaUsed}
+          onViewPlans={() => {
+            closeOverlay('nova');
+            window.setTimeout(() => setCurrentScreen('configuracion'), 0);
+          }}
+          onViewChanges={() => {
+            closeOverlay('nova');
+            window.setTimeout(() => setCurrentScreen('resumen'), 0);
+          }}
+        /> : null}
+      </div>
+    </ToastProvider>
   );
 }
 

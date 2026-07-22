@@ -27,9 +27,9 @@ Este documento es la hoja de ruta definitiva paso a paso para asegurar, optimiza
 ## Fase 3: Optimización de Rendimiento (Data Fetching y Paginación)
 **Objetivo:** Eliminar el Overfetching, mejorando radicalmente el tiempo de carga de la app (TTFB) y el uso de memoria.
 
-- [ ] 3.1 **Desmantelar `loadRegisterViewModel`:** Identificar qué vistas realmente necesitan todos los historiales y cuáles no.
-- [ ] 3.2 **Implementar Paginación / Limitación:** Limitar la carga de movimientos pasados e implementar carga diferida (Paginación por mes).
-- [ ] 3.3 **Suspense y RSC (React Server Components):** Aislar la carga de datos por componentes. Por ejemplo, que la lista de Tarjetas de Crédito cargue independientemente de los Proyectos.
+- [x] 3.1 **Desmantelar Overfetching:** Optimizar consultas iniciales de historial y ViewModel.
+- [x] 3.2 **Implementar Paginación Server-side:** Paginación diferida por bloques de movimientos (`fetchPaginatedHistoryPage`).
+- [ ] 3.3 **Suspense y RSC (React Server Components):** Aislar la carga de datos por componentes independientes.
 
 ---
 

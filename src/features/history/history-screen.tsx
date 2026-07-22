@@ -21,7 +21,8 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react';
-import { deleteManualTransaction, updateManualTransaction } from '@/app/actions';
+import { deleteManualTransaction, updateManualTransaction, fetchPaginatedHistoryPage } from '@/app/actions';
+import { haptics } from '@/src/lib/haptics';
 import type { HistoryItem, HistoryViewModel } from '@/src/lib/history-types';
 import { generateMonthlyReportPDF } from '@/src/lib/pdf';
 
@@ -85,13 +86,42 @@ export default function HistoryScreen({
   const [visibleCount, setVisibleCount] = useState(40);
   const [isPending, startTransition] = useTransition();
 
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>(data.items);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreServerItems, setHasMoreServerItems] = useState(true);
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore || !hasMoreServerItems) return;
+    haptics.light();
+    setIsLoadingMore(true);
+    try {
+      const res = await fetchPaginatedHistoryPage({
+        offset: historyItems.length,
+        limit: 50,
+      });
+      if (res.items.length > 0) {
+        setHistoryItems((prev) => {
+          const existingIds = new Set(prev.map((i) => i.id));
+          const newUnique = (res.items as HistoryItem[]).filter((i) => !existingIds.has(i.id));
+          return [...prev, ...newUnique];
+        });
+      }
+      setHasMoreServerItems(res.hasMore);
+      setVisibleCount((count) => count + res.items.length);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   const categories = useMemo(
-    () => Array.from(new Set(data.items.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
-    [data.items],
+    () => Array.from(new Set(historyItems.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
+    [historyItems],
   );
   const units = useMemo(
-    () => Array.from(new Set(data.items.map((item) => item.unit).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
-    [data.items],
+    () => Array.from(new Set(historyItems.map((item) => item.unit).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
+    [historyItems],
   );
 
   const filteredHistory = useMemo(() => {
@@ -100,7 +130,7 @@ export default function HistoryScreen({
     const minimum = Number(minimumAmount || 0);
     const maximum = maximumAmount ? Number(maximumAmount) : Number.POSITIVE_INFINITY;
 
-    return data.items.filter((item) => {
+    return historyItems.filter((item) => {
       const searchable = `${item.concept} ${item.category} ${item.unit} ${item.accountName ?? ''}`.toLocaleLowerCase('es-CO');
       const matchesSearch = !normalizedSearch || searchable.includes(normalizedSearch);
       const matchesPeriod = (!bounds.start || item.dateInputValue >= bounds.start) && (!bounds.end || item.dateInputValue <= bounds.end);
@@ -111,7 +141,7 @@ export default function HistoryScreen({
       const matchesAmount = item.amount >= minimum && item.amount <= maximum;
       return matchesSearch && matchesPeriod && matchesKind && matchesAccount && matchesCategory && matchesUnit && matchesAmount;
     });
-  }, [accountId, category, customEnd, customStart, data.items, kind, maximumAmount, minimumAmount, period, search, unit]);
+  }, [accountId, category, customEnd, customStart, historyItems, kind, maximumAmount, minimumAmount, period, search, unit]);
 
   const totals = useMemo(() => filteredHistory.reduce(
     (summary, item) => {
@@ -301,9 +331,14 @@ export default function HistoryScreen({
         )}
       </div>
 
-      {visibleCount < filteredHistory.length ? (
-        <button type="button" onClick={() => setVisibleCount((count) => count + 40)} className="h-12 w-full rounded-2xl border border-arca-border bg-arca-surface-1 text-xs font-black text-arca-text-primary">
-          Mostrar 40 movimientos más
+      {hasMoreServerItems || visibleCount < filteredHistory.length ? (
+        <button
+          type="button"
+          disabled={isLoadingMore}
+          onClick={handleLoadMore}
+          className="h-12 w-full rounded-2xl border border-arca-border bg-arca-surface-1 text-xs font-black text-arca-text-primary transition-all hover:bg-arca-surface-2 active:scale-[0.99] disabled:opacity-50"
+        >
+          {isLoadingMore ? "Cargando más movimientos..." : `Cargar más movimientos (${filteredHistory.length} visibles)`}
         </button>
       ) : null}
 

@@ -3629,3 +3629,74 @@ export async function archiveLoan(input: { id: string; type: 'receivable' | 'pay
   revalidatePath("/app");
   return { ok: true };
 }
+
+export async function fetchPaginatedHistoryPage(input: {
+  limit?: number;
+  offset?: number;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const context = await requireWorkspaceContext();
+  const supabase = await createSupabaseServerComponentClient();
+  if (!supabase) throw new Error("Supabase client no disponible.");
+
+  const limit = Math.min(Math.max(1, input.limit ?? 50), 200);
+  const offset = Math.max(0, input.offset ?? 0);
+
+  let query = supabase
+    .from("transactions")
+    .select("id, concept, amount, date, category, unit, kind, status, source_type, account_id, created_at, accounts(name)", { count: "exact" })
+    .eq("workspace_id", context.workspace.id)
+    .neq("status", "cancelled");
+
+  if (input.startDate) {
+    query = query.gte("date", input.startDate);
+  }
+  if (input.endDate) {
+    query = query.lte("date", input.endDate);
+  }
+
+  const { data, error, count } = await query
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw new Error(error.message);
+
+  const items = (data ?? []).map((row: Record<string, unknown>) => {
+    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount) || 0;
+    const rawAccounts = row.accounts as { name?: string | null } | Array<{ name?: string | null }> | null;
+    const accountName = Array.isArray(rawAccounts) ? rawAccounts[0]?.name ?? null : rawAccounts?.name ?? null;
+    const category = String(row.category ?? "").trim() || "general";
+    const unit = String(row.unit ?? "").trim() || "general";
+    const kind = String(row.kind ?? "");
+
+    const formattedCurrency = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(amount).replace(/\s?COP$/, "").trim();
+
+    return {
+      id: String(row.id),
+      concept: String(row.concept ?? "").trim() || "Movimiento",
+      amount,
+      amountLabel: formattedCurrency,
+      signedAmountLabel: `${(kind === "income" || kind === "transfer_in") ? "+" : "-"}${formattedCurrency}`,
+      dateLabel: new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "short", year: "numeric" }).format(new Date(String(row.date))),
+      dateInputValue: String(row.date).slice(0, 10),
+      category,
+      unit,
+      kind,
+      method: accountName ? `Cuenta · ${accountName}` : "Sin cuenta",
+      tags: [category && `#${category.toLowerCase()}`, unit && `#${unit.toLowerCase()}`].filter(Boolean).slice(0, 3) as string[],
+      accountId: row.account_id ? String(row.account_id) : null,
+      accountName,
+      status: String(row.status),
+      sourceType: row.source_type ? String(row.source_type) : null,
+      editable: true,
+    };
+  });
+
+  return {
+    items,
+    totalCount: count ?? items.length,
+    hasMore: (offset + items.length) < (count ?? items.length),
+  };
+}

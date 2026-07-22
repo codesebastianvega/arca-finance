@@ -79,7 +79,7 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
       .gte("date", historyStartDate())
       .order("date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(1000),
+      .limit(100),
     supabase
       .from("accounts")
       .select("id, name")

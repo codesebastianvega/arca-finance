@@ -1,5 +1,6 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from '@/src/components/toast-provider';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, 
@@ -226,13 +227,21 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
   const handleDeleteCategory = (id: string) => {
     if (!window.confirm("¿Estás seguro de eliminar esta categoría?")) return;
     haptics.medium();
-    startTransition(() => { void deleteExpenseCategory(id).then(() => router.refresh()).catch((error: Error) => alert(error.message || "No se pudo eliminar la categoría.")); });
+    startTransition(() => {
+      void deleteExpenseCategory(id)
+        .then(() => { toast.success("Categoría eliminada"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al eliminar", error.message || "No se pudo eliminar la categoría."));
+    });
   };
 
   const handleDeleteUnit = (id: string) => {
     if (!window.confirm("¿Quieres archivar este proyecto? Sus movimientos conservarán su historial.")) return;
     haptics.medium();
-    startTransition(() => { void archiveBusinessUnit(id).then(() => router.refresh()).catch((error: Error) => alert(error.message || "No se pudo archivar el proyecto.")); });
+    startTransition(() => {
+      void archiveBusinessUnit(id)
+        .then(() => { toast.success("Proyecto archivado"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al archivar", error.message || "No se pudo archivar el proyecto."));
+    });
   };
 
   const handleArchiveAccount = (id: string) => {
@@ -240,8 +249,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     haptics.medium();
     startTransition(() => {
       void archiveAccount(id)
-        .then(() => router.refresh())
-        .catch((error: Error) => alert(error.message || "No se pudo archivar la cuenta."));
+        .then(() => { toast.success("Cuenta archivada"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al archivar", error.message || "No se pudo archivar la cuenta."));
     });
   };
 
@@ -250,8 +259,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     haptics.medium();
     startTransition(() => {
       void archiveCreditCard(id)
-        .then(() => router.refresh())
-        .catch((error: Error) => alert(error.message || "No se pudo archivar la tarjeta."));
+        .then(() => { toast.success("Tarjeta archivada"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al archivar", error.message || "No se pudo archivar la tarjeta."));
     });
   };
 
@@ -260,8 +269,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     haptics.medium();
     startTransition(() => {
       void archiveBankCredit(id)
-        .then(() => router.refresh())
-        .catch((error: Error) => alert(error.message || "No se pudo archivar el crédito."));
+        .then(() => { toast.success("Crédito archivado"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al archivar", error.message || "No se pudo archivar el crédito."));
     });
   };
 
@@ -270,8 +279,8 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     haptics.medium();
     startTransition(() => {
       void archiveSavingsGoal(id)
-        .then(() => router.refresh())
-        .catch((error: Error) => alert(error.message || "No se pudo archivar la meta."));
+        .then(() => { toast.success("Meta archivada"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al archivar", error.message || "No se pudo archivar la meta."));
     });
   };
 
@@ -280,15 +289,19 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
     haptics.medium();
     startTransition(() => {
       void archiveLoan({ id, type })
-        .then(() => router.refresh())
-        .catch((error: Error) => alert(error.message || "No se pudo archivar el préstamo."));
+        .then(() => { toast.success("Préstamo archivado"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al archivar", error.message || "No se pudo archivar el préstamo."));
     });
   };
 
   const handleDeleteSource = (id: string) => {
     if (!window.confirm("¿Estás seguro de eliminar este concepto de ingreso?")) return;
     haptics.medium();
-    startTransition(() => { void deleteIncomeSource(id).then(() => router.refresh()).catch((error: Error) => alert(error.message || "No se pudo eliminar el concepto.")); });
+    startTransition(() => {
+      void deleteIncomeSource(id)
+        .then(() => { toast.success("Concepto eliminado"); router.refresh(); })
+        .catch((error: Error) => toast.error("Error al eliminar", error.message || "No se pudo eliminar el concepto."));
+    });
   };
 
   const openManager = (view: Exclude<ManagerView, null>) => {
