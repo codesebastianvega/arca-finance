@@ -26,10 +26,8 @@ Este documento establece la hoja de ruta para la evolución de la IA Nova, la ge
 ## Fase 3: Refactorización UI de Pantallas Monolíticas
 **Objetivo:** Descomponer vistas extensas (`ConfiguracionScreen.tsx`) en componentes reutilizables por carpeta de feature.
 
-- [ ] 3.1 **Descomponer `ConfiguracionScreen.tsx`:**
-  - Extraer `<AccountManagerView>`, `<CategoryManagerView>` y `<SavingsManagerView>` a sus respectivas carpetas en `/src/features/`.
-- [ ] 3.2 **Estandarización de Modales de Edición:**
-  - Mover los modales de creación y edición a `/src/features/[dominio]/components/`.
+- [x] 3.1 **Descomponer `ConfiguracionScreen.tsx`:** Extraídos `<AccountManagerView>`, `<CategoryManagerView>`, `<IncomeSourceManagerView>`, `<ProjectManagerView>` y `<ThemeManagerView>` en `/src/features/`.
+- [x] 3.2 **Estandarización de Modales de Edición:** Formularios y modales de edición encapsulados en sus respectivos componentes de dominio.
 
 ---
 
