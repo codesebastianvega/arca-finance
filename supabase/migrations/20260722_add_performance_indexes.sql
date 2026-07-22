@@ -21,10 +21,10 @@ ON public.savings_goals (workspace_id, archived);
 CREATE INDEX IF NOT EXISTS idx_credit_cards_workspace_archived 
 ON public.credit_cards (workspace_id, archived);
 
--- 6. Receivables Index: Optimizes receivables tracking
+-- 6. Bank Credits Index: Optimizes bank loans and credit liabilities
+CREATE INDEX IF NOT EXISTS idx_bank_credits_workspace_status 
+ON public.bank_credits (workspace_id, status);
+
+-- 7. Receivables Index (Cuentas por cobrar / Préstamos): Optimizes receivables tracking
 CREATE INDEX IF NOT EXISTS idx_receivables_workspace_status 
 ON public.receivables (workspace_id, status);
-
--- 7. Payables Index: Optimizes payables tracking
-CREATE INDEX IF NOT EXISTS idx_payables_workspace_status 
-ON public.payables (workspace_id, status);
