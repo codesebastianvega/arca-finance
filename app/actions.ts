@@ -45,7 +45,7 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
 
   const { data: event, error: eventError } = await admin
     .from("scheduled_events")
-    .select("id, workspace_id, due_date, title, amount, kind, status, business_unit_key, account_id, notes, confirmed_transaction_id")
+    .select("id, workspace_id, due_date, title, amount, kind, status, business_unit_key, account_id, notes, confirmed_transaction_id, linked_entity_type, linked_entity_id")
     .eq("id", eventId)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -172,7 +172,7 @@ export async function adjustAndConfirmScheduledEvent(input: {
 
   const { data: event, error: eventError } = await admin
     .from("scheduled_events")
-    .select("id, workspace_id, due_date, title, amount, kind, status, business_unit_key, account_id, notes, confirmed_transaction_id")
+    .select("id, workspace_id, due_date, title, amount, kind, status, business_unit_key, account_id, notes, confirmed_transaction_id, linked_entity_type, linked_entity_id")
     .eq("id", input.eventId)
     .eq("workspace_id", context.workspace.id)
     .maybeSingle();
@@ -213,11 +213,18 @@ export async function adjustAndConfirmScheduledEvent(input: {
     throw new Error(`No se pudo leer la cuenta del evento: ${accountError?.message ?? "sin respuesta"}`);
   }
 
-  const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-  const nextBalance = currentBalance + delta;
+  // @ts-expect-error - RPC is not in generated types yet
+  const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
+    p_account_id: accountId,
+    p_amount: delta,
+    p_allow_negative: false
+  });
 
-  if (!isIncome && nextBalance < 0) {
-    throw new Error("La cuenta no tiene saldo suficiente para confirmar este movimiento.");
+  if (accountUpdateError) {
+    if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
+      throw new Error("La cuenta no tiene saldo suficiente para confirmar este movimiento.");
+    }
+    throw new Error(`No se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   const { data: transaction, error: transactionError } = await admin
@@ -249,17 +256,9 @@ export async function adjustAndConfirmScheduledEvent(input: {
     .single();
 
   if (transactionError || !transaction) {
-    throw new Error(`No se pudo crear la transaccion: ${transactionError?.message ?? "sin respuesta"}`);
-  }
-
-  const { error: accountUpdateError } = await admin
-    .from("accounts")
-    .update({ balance: nextBalance, updated_at: new Date().toISOString() })
-    .eq("id", accountId)
-    .eq("workspace_id", context.workspace.id);
-
-  if (accountUpdateError) {
-    throw new Error(`Se creo la transaccion, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
+    // @ts-expect-error - RPC is not in generated types yet
+    await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -delta, p_allow_negative: true });
+    throw new Error(`No se pudo crear la transacción: ${transactionError?.message ?? "sin respuesta"}`);
   }
 
   const timingStatus = timingStatusFromDates(String(event.due_date), effectiveDate);
@@ -307,14 +306,23 @@ export async function updateAccount(input: { id: string; name: string; entity?: 
   const newBalance = Number(input.balance);
   const diff = newBalance - oldBalance;
 
-  // 2. Update the account
+  if (diff !== 0) {
+    // @ts-expect-error - RPC is not in generated types yet
+    const { error: rpcError } = await admin.rpc("increment_account_balance", {
+      p_account_id: input.id,
+      p_amount: diff,
+      p_allow_negative: true,
+    });
+    if (rpcError) throw new Error(`No se pudo actualizar el saldo de la cuenta: ${rpcError.message}`);
+  }
+
+  // Update metadata fields (name, entity, type, color)
   const { error } = await admin
     .from("accounts")
     .update({
       name: input.name.trim(),
       entity: input.entity?.trim() || null,
       type: input.type.trim(),
-      balance: newBalance,
       color: input.color.trim() || "#C68A45",
       updated_at: new Date().toISOString(),
     })
@@ -1174,11 +1182,14 @@ export async function createScheduledObligation(input: {
   }
 
   if (obligationType === "prestamo_recibido" && accountId) {
-    // Add funds immediately to the destination account
-    const { data: currentAcc } = await admin.from("accounts").select("balance").eq("id", accountId).single();
-    if (currentAcc) {
-      const currentBalance = typeof currentAcc.balance === "number" ? currentAcc.balance : Number(currentAcc.balance ?? 0);
-      await admin.from("accounts").update({ balance: currentBalance + amount }).eq("id", accountId);
+    // Add funds immediately to the destination account via atomic RPC
+    // @ts-expect-error - RPC is not in generated types yet
+    const { error: rpcError } = await admin.rpc("increment_account_balance", {
+      p_account_id: accountId,
+      p_amount: amount,
+      p_allow_negative: true,
+    });
+    if (rpcError) throw new Error(`No se pudo actualizar el saldo de la cuenta: ${rpcError.message}`);
       
       const tzDate = new Intl.DateTimeFormat("en-CA", {
         timeZone: "America/Bogota",
@@ -1199,7 +1210,6 @@ export async function createScheduledObligation(input: {
         title: `Préstamo recibido: ${title}`,
         date: tzDate,
       });
-    }
   }
 
   revalidatePath("/app");
@@ -1241,11 +1251,18 @@ export async function createReceivableLoan(input: {
     throw new Error(`No se pudo leer la cuenta del prestamo: ${accountError?.message ?? "sin respuesta"}`);
   }
 
-  const currentBalance = typeof account.balance === "number" ? account.balance : Number(account.balance ?? 0);
-  const nextBalance = currentBalance - amount;
+  // @ts-expect-error - RPC is not in generated types yet
+  const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
+    p_account_id: accountId,
+    p_amount: -amount,
+    p_allow_negative: false
+  });
 
-  if (nextBalance < 0) {
-    throw new Error("La cuenta elegida no tiene saldo suficiente para prestar ese monto.");
+  if (accountUpdateError) {
+    if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
+      throw new Error("La cuenta elegida no tiene saldo suficiente para prestar ese monto.");
+    }
+    throw new Error(`No se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   const title = requestedTitle || `Préstamo a ${debtorName}`;
@@ -1266,6 +1283,9 @@ export async function createReceivableLoan(input: {
     .single();
 
   if (receivableError || !receivable) {
+    // Rollback account balance
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: amount, p_allow_negative: true });
     throw new Error(`No se pudo crear la cuenta por cobrar: ${receivableError?.message ?? "sin respuesta"}`);
   }
 
@@ -1295,20 +1315,11 @@ export async function createReceivableLoan(input: {
     .single();
 
   if (transactionError || !transaction) {
+    // Rollback account balance & delete receivable
+    // @ts-expect-error
+    await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: amount, p_allow_negative: true });
+    await admin.from("receivables").delete().eq("id", receivable.id).eq("workspace_id", context.workspace.id);
     throw new Error(`No se pudo registrar la salida del prestamo: ${transactionError?.message ?? "sin respuesta"}`);
-  }
-
-  const { error: accountUpdateError } = await admin
-    .from("accounts")
-    .update({
-      balance: nextBalance,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", accountId)
-    .eq("workspace_id", context.workspace.id);
-
-  if (accountUpdateError) {
-    throw new Error(`Se creo el prestamo, pero no se pudo actualizar la cuenta: ${accountUpdateError.message}`);
   }
 
   revalidatePath("/app");
@@ -2111,9 +2122,11 @@ export async function updateBankCreditDetails(input: {
   id: string;
   name: string;
   totalAmount: number;
+  currentBalance?: number;
   monthlyPayment: number;
   interestRate?: number | null;
   totalInstallments: number;
+  paidInstallments?: number;
   payDueDate: number;
   notes?: string | null;
 }) {
@@ -2464,7 +2477,7 @@ export async function createSavingsGoal(input: {
   target: number;
   current: number;
   dueDate?: string | null;
-  goalType?: "saving" | "pocket";
+  goalType?: "saving" | "pocket" | "goal";
   color?: string;
   sourceAccountId?: string | null;
 }) {

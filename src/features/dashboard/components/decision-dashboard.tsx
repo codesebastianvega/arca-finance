@@ -13,6 +13,7 @@ import type { ObligationItem } from "@/src/lib/obligations-types";
 import { CalculationHelper } from "@/src/components/calculation-helper";
 import { HomeHeaderActions } from "./home-header-actions";
 import type { Screen } from "@/src/types";
+import { AnimatedNumber } from "@/src/components/animated-number";
 
 function formatCOP(amount: number | null | undefined): string {
   if (amount == null) return "$0";
@@ -273,11 +274,11 @@ export default function DecisionDashboard({
         <div className="mb-6 relative z-10">
           <div className="text-[10px] font-medium text-arca-text-secondary mb-1">Disponible para gastar</div>
           <div className={`text-4xl font-bold tracking-tight ${cash.safeToSpend > 0 ? "text-white" : "text-arca-alert"} drop-shadow-md`}>
-            {formatCOP(cash.safeToSpend)}
+            <AnimatedNumber value={cash.safeToSpend} />
           </div>
           {cash.totalLent > 0 && (
             <div className="text-[11px] text-arca-text-secondary mt-1">
-              + {formatCOP(cash.totalLent)} prestados
+              + <AnimatedNumber value={cash.totalLent} /> prestados
             </div>
           )}
         </div>
@@ -285,12 +286,12 @@ export default function DecisionDashboard({
         <div className="flex justify-between items-end border-t border-white/5 pt-3 relative z-10">
           <div className="flex flex-col gap-1">
             <span className="text-[11px] uppercase tracking-widest text-arca-text-secondary">Balance Total</span>
-            <span className="text-sm font-bold text-white/90">{formatCOP(cash.totalBalance)}</span>
+            <span className="text-sm font-bold text-white/90"><AnimatedNumber value={cash.totalBalance} /></span>
           </div>
           
           <div className="flex flex-col gap-1 items-end">
             <span className="text-[11px] uppercase tracking-widest text-arca-text-secondary">Bolsillos</span>
-            <span className="text-sm font-bold text-arca-positive">{formatCOP(cash.protectedSavings)}</span>
+            <span className="text-sm font-bold text-arca-positive"><AnimatedNumber value={cash.protectedSavings} /></span>
           </div>
         </div>
       </div>

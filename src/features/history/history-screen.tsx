@@ -48,6 +48,15 @@ const KIND_OPTIONS: Array<{ id: KindFilter; label: string }> = [
 
 const CONTROL_CLASS = 'h-11 w-full rounded-xl border border-arca-border bg-arca-surface-2 px-3 text-sm text-arca-text-primary outline-none focus:border-arca-accent';
 
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5 text-left">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-arca-text-dim">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export default function HistoryScreen({
   onBack,
   onOpenNova,

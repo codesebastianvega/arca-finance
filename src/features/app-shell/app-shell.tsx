@@ -119,6 +119,41 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
     return () => window.removeEventListener('open-nova', handleOpenNova);
   }, [canUseNova, openOverlay, setCurrentScreen]);
 
+  useEffect(() => {
+    const handleNavigate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ screen?: string }>;
+      const targetScreen = customEvent.detail?.screen?.toLowerCase();
+      if (!targetScreen) return;
+      closeOverlay('nova');
+      setCurrentScreen(targetScreen as Screen);
+    };
+
+    const handleChangeTheme = (event: Event) => {
+      const customEvent = event as CustomEvent<{ theme?: string }>;
+      const targetTheme = customEvent.detail?.theme;
+      if (targetTheme && typeof window !== 'undefined') {
+        const root = document.documentElement;
+        const themeId = targetTheme.startsWith('arca-') ? targetTheme : `arca-${targetTheme}`;
+        root.setAttribute('data-theme', themeId);
+        localStorage.setItem('arca-theme', themeId);
+        if (themeId === 'arca-light') {
+          root.classList.add('light');
+          root.classList.remove('dark');
+        } else {
+          root.classList.add('dark');
+          root.classList.remove('light');
+        }
+      }
+    };
+
+    window.addEventListener('navigate-screen', handleNavigate);
+    window.addEventListener('change-theme', handleChangeTheme);
+    return () => {
+      window.removeEventListener('navigate-screen', handleNavigate);
+      window.removeEventListener('change-theme', handleChangeTheme);
+    };
+  }, [closeOverlay, setCurrentScreen]);
+
   const openRegister = useCallback((options: {
     segment: string;
     type?: 'gasto' | 'ingreso';

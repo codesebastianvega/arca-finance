@@ -1250,5 +1250,33 @@ export function createFinancialTools(context: WorkspaceContext) {
         };
       },
     }),
+
+    navigate_to_screen: tool({
+      description: "Abre o navega a una pantalla específica de la aplicación para el usuario (ej: configuracion, movimientos, cuentas, calendario, resumen, obligaciones, negocios).",
+      inputSchema: z.object({
+        screen: z.string().describe("Nombre de la pantalla a abrir (ej: configuracion, movimientos, calendario, cuentas, resumen, obligaciones, negocios)"),
+      }),
+      execute: async ({ screen }) => {
+        return {
+          success: true,
+          action: "navigate_screen",
+          screen,
+        };
+      },
+    }),
+
+    change_app_theme: tool({
+      description: "Cambia el tema de color o apariencia visual de la aplicación entre todos los temas disponibles (ej: dark, light, emerald, cyberpunk, neon, etc.).",
+      inputSchema: z.object({
+        theme: z.string().describe("Identificador del tema deseado (ej: dark, light, emerald, cyberpunk, neon, etc.)"),
+      }),
+      execute: async ({ theme }) => {
+        return {
+          success: true,
+          action: "change_theme",
+          theme,
+        };
+      },
+    }),
   };
 }

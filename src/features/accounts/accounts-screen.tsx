@@ -30,6 +30,7 @@ import {
 } from "@/app/actions";
 import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel, BankCredit } from "@/src/lib/money-data";
 import { EditMovementModal } from "@/src/components/edit-movement-modal";
+import { AnimatedNumber } from "@/src/components/animated-number";
 import { haptics } from "../../lib/haptics";
 import { CalculationHelper } from "@/src/components/calculation-helper";
 
@@ -340,7 +341,7 @@ export default function AccountsScreen({
               <p className="text-[10px] text-arca-text-dim uppercase font-bold tracking-widest">Gastos registrados este mes</p>
               <span className="text-[9px] font-bold uppercase tracking-wider text-arca-accent">{data.spending.monthLabel}</span>
             </div>
-            <h4 className="mt-1 text-2xl font-black tracking-tight text-arca-text-primary light:text-arca-light-text-primary">{data.spending.totalLabel}</h4>
+            <h4 className="mt-1 text-2xl font-black tracking-tight text-arca-text-primary light:text-arca-light-text-primary"><AnimatedNumber value={data.spending.total} /></h4>
             <p className="mt-1 text-[9px] text-arca-text-dim">Salidas reales del mes · no es tu saldo disponible</p>
           </div>
           {data.spending.changePercent == null ? (
@@ -710,6 +711,8 @@ export default function AccountsScreen({
                         ? selectedEntity.type
                         : selectedEntity.entityType === "tarjeta"
                         ? selectedEntity.issuer
+                        : selectedEntity.entityType === "credito_bancario"
+                        ? "Crédito bancario"
                         : selectedEntity.goalType === "pocket" ? "Bolsillo · Dinero protegido" : "Meta de ahorro"}
                     </p>
                   </div>
@@ -792,7 +795,7 @@ export default function AccountsScreen({
                       </select>
                     </div>
                   </>
-                ) : selectedEntity.entityType !== "cuenta" && selectedEntity.entityType !== "tarjeta" ? (
+                ) : selectedEntity.entityType === "ahorro" ? (
                   // Goal: show editable amount
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Lo que llevas ahorrado</label>
@@ -810,7 +813,7 @@ export default function AccountsScreen({
                   // Cuenta / Tarjeta / Credito: original amount field
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
-                      {selectedEntity.entityType === "tarjeta" || selectedEntity.entityType === "credito_bancario" ? "Deuda actual" : "Saldo actual"}
+                      {selectedEntity.entityType === "tarjeta" || (selectedEntity as { entityType: string }).entityType === "credito_bancario" ? "Deuda actual" : "Saldo actual"}
                     </label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>

@@ -10,25 +10,25 @@ Este documento es la hoja de ruta definitiva paso a paso para asegurar, optimiza
 - [x] 1.1 **Auditoría de Políticas en Supabase:** Verificar o crear las políticas de RLS en todas las tablas transaccionales (`accounts`, `transactions`, `credit_cards`, `savings_goals`, etc.) para que operen en base al `user_id` asociado al `workspace_id`.
 - [x] 1.2 **Refactorización de `auth.ts` y Middleware:** Crear un cliente SSR de base de datos robusto y eliminar/deprecar `getSupabaseAdminClient()` para uso público.
 - [x] 1.3 **Migración de `actions.ts` (Lectura y Escritura):** Cambiar sistemáticamente todos los Server Actions que usan `adminClient` por el cliente SSR seguro.
-- [ ] 1.4 **Verificación de Seguridad:** Ejecutar pruebas para certificar que sin el `adminClient`, las escrituras fallan si un usuario intenta enviar un `workspace_id` ajeno (IDOR check).
+- [x] 1.4 **Verificación de Seguridad:** Ejecutar pruebas para certificar que sin el `adminClient`, las escrituras fallan si un usuario intenta enviar un `workspace_id` ajeno (IDOR check).
 
 ---
 
 ## Fase 2: Integridad Transaccional (Prevención de Race Conditions)
 **Objetivo:** Impedir la sobreescritura de saldos y asegurar la consistencia matemática ante peticiones simultáneas.
 
-- [ ] 2.1 **Creación de Funciones RPC en Supabase:** Programar procedimientos almacenados en SQL para operaciones matemáticas críticas. Ej: `increment_account_balance(account_id, amount)`.
-- [ ] 2.2 **Migración de `confirmScheduledEventNow`:** Adaptar la lógica para llamar a las funciones RPC en vez de calcular el saldo en Node.js.
-- [ ] 2.3 **Migración de Creación de Transacciones / Transferencias:** Adaptar el flujo de transferencias entre cuentas para ser transaccional (todo o nada).
-- [ ] 2.4 **Migración de Manejo de Tarjetas y Créditos:** Hacer atómicos los pagos de cuotas (modificar `used` o `paidInstallments` mediante RPC).
+- [x] 2.1 **Creación de Funciones RPC en Supabase:** Programar procedimientos almacenados en SQL para operaciones matemáticas críticas. Ej: `increment_account_balance(account_id, amount)`.
+- [x] 2.2 **Migración de `confirmScheduledEventNow`:** Adaptar la lógica para llamar a las funciones RPC en vez de calcular el saldo en Node.js.
+- [x] 2.3 **Migración de Creación de Transacciones / Transferencias:** Adaptar el flujo de transferencias entre cuentas para ser transaccional (todo o nada).
+- [x] 2.4 **Migración de Manejo de Tarjetas y Créditos:** Hacer atómicos los pagos de cuotas (modificar `used` o `paidInstallments` mediante RPC).
 
 ---
 
-## Fase 3: Optimización de Rendimiento (Data Fetching)
+## Fase 3: Optimización de Rendimiento (Data Fetching y Paginación)
 **Objetivo:** Eliminar el Overfetching, mejorando radicalmente el tiempo de carga de la app (TTFB) y el uso de memoria.
 
 - [ ] 3.1 **Desmantelar `loadRegisterViewModel`:** Identificar qué vistas realmente necesitan todos los historiales y cuáles no.
-- [ ] 3.2 **Implementar Paginación / Limitación:** Limitar la carga de movimientos pasados e implementar carga diferida (Infinite Scroll o paginación por mes).
+- [ ] 3.2 **Implementar Paginación / Limitación:** Limitar la carga de movimientos pasados e implementar carga diferida (Paginación por mes).
 - [ ] 3.3 **Suspense y RSC (React Server Components):** Aislar la carga de datos por componentes. Por ejemplo, que la lista de Tarjetas de Crédito cargue independientemente de los Proyectos.
 
 ---
@@ -49,8 +49,7 @@ Este documento es la hoja de ruta definitiva paso a paso para asegurar, optimiza
 **Objetivo:** Evitar re-renderizados innecesarios y proteger la base de datos de datos inválidos (Validación).
 
 - [ ] 5.1 **Integración de Zod:** Definir esquemas para validar todos los *Server Actions* antes de llegar a Supabase.
-- [ ] 5.2 **Integración de React Hook Form:** Cambiar los formularios controlados masivos (ej. `OrganizationEditor`) por formularios no controlados eficientes.
-- [ ] 5.3 **Manejo Centralizado de Errores (Toasts):** Reemplazar los `alert(error.message)` nativos por un sistema de notificaciones elegante (ej. Sonner) y `next-safe-action` para tipar respuestas.
+- [ ] 5.2 **Manejo Centralizado de Errores (Toasts Elegantes):** Reemplazar los `alert(error.message)` nativos por un sistema de notificaciones elegante (Sonner).
 
 ---
 

@@ -17,6 +17,7 @@ import {
   NOVA_PREFERENCES_KEY,
   normalizeNovaPreferences,
 } from '@/src/lib/nova-preferences';
+import { haptics } from '@/src/lib/haptics';
 
 const novaChatTransport = new DefaultChatTransport({
   api: '/api/chat',
@@ -165,7 +166,7 @@ export default function AiChat({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 h-[85vh] bg-arca-base/95 backdrop-blur-2xl rounded-t-[32px] z-50 flex flex-col shadow-[0_-18px_55px_rgba(0,0,0,0.65)] border-t border-arca-border-strong overflow-hidden text-arca-text-primary"
+            className="fixed inset-0 h-[100dvh] w-full bg-arca-base/98 backdrop-blur-2xl z-[5000] flex flex-col overflow-hidden text-arca-text-primary shadow-2xl"
           >
             {/* Subtle Arca ambient light */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -174,15 +175,25 @@ export default function AiChat({
             </div>
 
             {/* Header */}
-            <div className="relative z-10 flex items-center justify-between p-6 border-b border-arca-border bg-arca-surface-1/80">
+            <div className="shrink-0 relative z-10 flex items-center justify-between p-4 sm:p-5 border-b border-arca-border bg-arca-surface-1/90 backdrop-blur-md pt-[max(1rem,env(safe-area-inset-top))]">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-2xl bg-arca-accent/10 border border-arca-accent/25 flex items-center justify-center">
                   <Sparkles className="text-arca-accent" size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-arca-text-primary tracking-wide">Nova</h3>
-                  <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-[0.16em]">
-                    {remaining === null ? 'Acceso completo' : `${remaining} de ${monthlyLimit} consultas disponibles`}
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-arca-text-primary tracking-wide">Nova</h3>
+                    <span className="flex items-center gap-1.5 rounded-full bg-arca-positive/10 px-2 py-0.5 text-[9px] font-bold text-arca-positive">
+                      <span className="h-1.5 w-1.5 rounded-full bg-arca-positive animate-pulse" />
+                      En línea
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-[0.14em]">
+                    {remaining === null
+                      ? 'Acceso completo'
+                      : monthlyLimit
+                      ? `${Math.round((remaining / monthlyLimit) * 100)}% restante en tu cuota`
+                      : `${used} acciones usadas`}
                   </p>
                 </div>
               </div>
@@ -248,16 +259,45 @@ export default function AiChat({
             {/* Messages */}
             <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
               {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-70">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Sparkles size={48} className="text-arca-accent" />
-                  </motion.div>
-                  <p className="text-sm text-arca-text-secondary max-w-[250px] font-medium">
-                    Escribe algo como: "¿Cuánto me sobra este mes?"
-                  </p>
+                <div className="flex flex-col items-center justify-center h-full text-center p-4 space-y-6">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-arca-accent/10 border border-arca-accent/25 text-arca-accent shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                    <Sparkles size={28} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-black text-arca-text-primary">¿En qué te puedo ayudar hoy?</h3>
+                    <p className="text-xs text-arca-text-dim max-w-[270px] leading-relaxed">
+                      Analizo tus finanzas, organizo tus compromisos y ejecuto tus órdenes en Arca.
+                    </p>
+                  </div>
+
+                  {/* Subtle pill-shaped suggestion chips */}
+                  <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm pt-2">
+                    {[
+                      { emoji: "📊", label: "Gastos del mes", prompt: "Revisa mis gastos de este mes y dime en qué he gastado más" },
+                      { emoji: "📅", label: "Pagos próximos", prompt: "¿Qué compromisos y deudas vencen esta semana?" },
+                      { emoji: "💰", label: "Disponible libre", prompt: "¿Cuánto dinero libre tengo disponible para gastar hoy?" },
+                      { emoji: "📈", label: "Resumen de flujo", prompt: "Hazme un resumen de mis ingresos vs mis gastos actuales" },
+                    ].map((chip) => (
+                      <button
+                        type="button"
+                        key={chip.label}
+                        onClick={() => {
+                          haptics.medium();
+                          if (remaining === 0) {
+                            setQuotaReached(true);
+                            return;
+                          }
+                          sendMessage({ text: chip.prompt });
+                          setUsed((current) => current + 1);
+                        }}
+                        className="flex items-center gap-2 rounded-2xl border border-arca-border bg-arca-surface-1 p-3 text-left transition-all hover:border-arca-accent/40 hover:bg-arca-surface-2 active:scale-[0.98]"
+                      >
+                        <span className="text-base">{chip.emoji}</span>
+                        <span className="text-xs font-bold text-arca-text-primary leading-tight">{chip.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               
@@ -348,7 +388,7 @@ export default function AiChat({
             </div>
 
             {/* Input Form */}
-            <div className="relative z-10 p-4 pb-safe bg-arca-surface-1/90 backdrop-blur-xl border-t border-arca-border">
+            <div className="shrink-0 relative z-10 p-3 sm:p-4 pb-safe bg-arca-surface-1/90 backdrop-blur-xl border-t border-arca-border">
               <form onSubmit={onSubmit} className="relative flex items-center">
                 <input
                   ref={inputRef}

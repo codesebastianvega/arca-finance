@@ -20,6 +20,7 @@ import {
   Target,
   WalletCards,
   XCircle,
+  Sparkles,
 } from 'lucide-react';
 import {
   Confirmation,
@@ -59,6 +60,8 @@ const ACTION_TYPES = new Set([
   'tool-create_bank_credit',
   'tool-update_bank_credit',
   'tool-archive_bank_credit',
+  'tool-navigate_to_screen',
+  'tool-change_app_theme',
 ]);
 
 export type FinancialActionPart = {
@@ -194,6 +197,38 @@ function recurrenceSummaryFromInput(input: Record<string, unknown>) {
 function actionPresentation(part: FinancialActionPart, currencyCode: string) {
   const input = part.input ?? {};
   const output = part.output ?? {};
+
+  if (part.type === 'tool-navigate_to_screen') {
+    const screen = firstText(output, input, 'screen');
+    if (typeof window !== 'undefined' && screen) {
+      window.dispatchEvent(new CustomEvent('navigate-screen', { detail: { screen } }));
+    }
+    return {
+      icon: ArrowRight,
+      eyebrow: 'Navegación del sistema',
+      title: `Abriendo vista de ${screen ?? ''}`,
+      details: [
+        ['Pantalla', screen],
+        ['Estado', 'Navegado exitosamente'],
+      ],
+    };
+  }
+
+  if (part.type === 'tool-change_app_theme') {
+    const theme = firstText(output, input, 'theme');
+    if (typeof window !== 'undefined' && theme) {
+      window.dispatchEvent(new CustomEvent('change-theme', { detail: { theme } }));
+    }
+    return {
+      icon: Sparkles,
+      eyebrow: 'Apariencia del sistema',
+      title: `Cambiando tema a ${theme ?? ''}`,
+      details: [
+        ['Tema elegido', theme],
+        ['Estado', 'Aplicado a la app'],
+      ],
+    };
+  }
 
   if (part.type === 'tool-record_transaction') {
     const isIncome = input.kind === 'income' || output.kind === 'income';
