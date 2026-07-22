@@ -7,14 +7,10 @@ Este documento establece la hoja de ruta para la evolución de la IA Nova, la ge
 ## Fase 1: Control de Cuotas de Tokens y Planes de Uso de la IA (Nova)
 **Objetivo:** Reemplazar el conteo simple de entradas por un control de **Tokens Máximos (Diarios / Mensuales)** para escalar la capacidad de la IA de manera eficiente.
 
-- [ ] 1.1 **Medidor de Consumo de Tokens (Server Actions & Supabase):**
-  - Registrar el uso de tokens por interacción con el modelo de IA en la tabla de uso del workspace.
-- [ ] 1.2 **Cálculo Porcentual de Cuota:**
-  - Determinar automáticamente el `% usado` y el `% restante` según el plan asignado (Gratuito / VIP / Pro).
-- [ ] 1.3 **Componente UI de Cuota en la Interfaz de Nova:**
-  - Barra de progreso discreta y elegante en la vista del Chat con Nova indicando el porcentaje de la cuota consumida.
-- [ ] 1.4 **Alertas de Límite de Cuota:**
-  - Notificaciones Toasts y mensajes informativos cuando el usuario alcance el 80% y 100% de su límite diario/mensual.
+- [x] 1.1 **Medidor de Consumo de Tokens (Server Actions & Supabase):** Conteo automático con `onFinish` en `ai_usage_events`.
+- [x] 1.2 **Cálculo Porcentual de Cuotas Diarias por Niveles:** 20.000 (Gratis), 50.000 (Personal) y 200.000 (Pro) + Límite Global de 1.000.000 de tokens/día.
+- [x] 1.3 **Componente UI de Cuota en la Interfaz de Nova:** Barra de progreso con estado dinámico en vivo en la cabecera del chat con Nova.
+- [x] 1.4 **Alertas de Límite de Cuota:** Mensaje automático al llegar al 100% de la cuota diaria con reinicio automático a medianoche.
 
 ---
 
