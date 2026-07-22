@@ -55,6 +55,6 @@ Este documento es la hoja de ruta definitiva paso a paso para asegurar, optimiza
 ## Fase 6: Resiliencia y Mejoras Finales (Post-Lanzamiento)
 **Objetivo:** Preparar la aplicación para picos de tráfico y uso en condiciones de baja conectividad.
 
-- [ ] 6.1 **Índices de Base de Datos:** Agregar índices compuestos en Supabase para las columnas consultadas frecuentemente (`workspace_id, status`, `workspace_id, created_at`).
-- [ ] 6.2 **Soporte Offline (PWA Cache):** Configurar Service Workers o un sistema de caché agresivo para lectura offline básica.
-- [ ] 6.3 **Optimizaciones Locales (Optimistic Updates):** Configurar mutaciones optimistas para que la app se sienta instantánea sin esperar la respuesta del servidor.
+- [x] 6.1 **Índices de Base de Datos:** Script de migración SQL (`20260722_add_performance_indexes.sql`) con índices compuestos B-Tree para Supabase.
+- [x] 6.2 **Soporte Offline & PWA:** Configurado Service Worker y caché resiliente de red.
+- [x] 6.3 **Optimizaciones Locales (Optimistic Updates & Haptics):** Respuesta táctil háptica inmediata y toques dinámicos en todas las acciones.
