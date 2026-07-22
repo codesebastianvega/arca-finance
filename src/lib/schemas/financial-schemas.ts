@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createAccountSchema = z.object({
   name: z
-    .string({ required_error: "El nombre de la cuenta es obligatorio." })
+    .string({ message: "El nombre de la cuenta es obligatorio." })
     .trim()
     .min(1, { message: "El nombre de la cuenta no puede estar vacío." })
     .max(100, { message: "El nombre es demasiado largo." }),
@@ -16,15 +16,15 @@ export const createAccountSchema = z.object({
 
 export const createTransactionSchema = z.object({
   concept: z
-    .string({ required_error: "El concepto es obligatorio." })
+    .string({ message: "El concepto es obligatorio." })
     .trim()
     .min(1, { message: "El concepto del movimiento no puede estar vacío." }),
   amount: z
-    .number({ required_error: "El monto es obligatorio." })
+    .number({ message: "El monto es obligatorio." })
     .positive({ message: "El monto del movimiento debe ser un valor positivo mayor a 0." }),
   date: z.string().min(1, { message: "La fecha es obligatoria." }),
   kind: z.enum(["income", "expense", "transfer_in", "transfer_out", "debt_payment", "card_payment", "loan_payment", "saving", "saving_contribution"], {
-    errorMap: () => ({ message: "Tipo de movimiento no válido." }),
+    message: "Tipo de movimiento no válido.",
   }),
   category: z.string().default("general"),
   unit: z.string().default("general"),
@@ -60,7 +60,7 @@ export const createSavingsGoalSchema = z.object({
 
 export const createLoanSchema = z.object({
   counterparty: z.string().trim().min(1, { message: "El nombre del contacto o persona es obligatorio." }),
-  type: z.enum(["receivable", "payable"], { errorMap: () => ({ message: "Tipo de préstamo no válido." }) }),
+  type: z.enum(["receivable", "payable"], { message: "Tipo de préstamo no válido." }),
   totalAmount: z.number().positive({ message: "El monto prestado debe ser mayor a 0." }),
   pendingBalance: z.number().nonnegative({ message: "El saldo pendiente no puede ser negativo." }),
   dueDate: z.string().nullable().optional(),
