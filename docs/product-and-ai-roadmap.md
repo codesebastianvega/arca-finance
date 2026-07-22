@@ -17,13 +17,9 @@ Este documento establece la hoja de ruta para la evolución de la IA Nova, la ge
 ## Fase 2: Autonomía Agéntica Completa de Nova (Control Total & Navegación)
 **Objetivo:** Permitir que Nova ejecute cualquier acción administrativa en la app sin requerir que el usuario la haga manualmente.
 
-- [ ] 2.1 **Gestión Completa de Categorías y Proyectos:**
-  - Conectar herramientas a Nova para crear, renombrar, cambiar color o eliminar categorías de gastos y unidades/proyectos.
-- [ ] 2.2 **Control de Navegación y Preferencias:**
-  - Tool `navigate_to_screen`: Permitir que Nova abra la configuración, la vista de cuentas o la agenda al pedírselo.
-  - Tool `change_app_theme`: Cambiar el tema visual de la aplicación (Oscuro / Claro) mediante comandos en lenguaje natural.
-- [ ] 2.3 **Ejecución Directa con Confirmación Táctil:**
-  - Integrar tarjetas interactivas de aprobación para acciones críticas (borrado de categorías o movimientos).
+- [x] 2.1 **Gestión Completa de Categorías y Proyectos:** Herramientas activas para crear, renombrar, cambiar color o eliminar categorías de gastos y proyectos desde el chat.
+- [x] 2.2 **Control de Navegación y Preferencias:** Directiva agéntica con `navigate_to_screen` y `change_app_theme` para navegación y temas en tiempo real.
+- [x] 2.3 **Ejecución Directa con Confirmación Táctil:** Tarjetas interactivas de aprobación de 1 clic para todas las operaciones administrativas.
 
 ---
 
