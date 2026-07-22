@@ -18,6 +18,7 @@ import {
   normalizeNovaPreferences,
 } from '@/src/lib/nova-preferences';
 import { haptics } from '@/src/lib/haptics';
+import { getNovaDailyTokenQuota, type NovaQuotaInfo } from './actions';
 
 const novaChatTransport = new DefaultChatTransport({
   api: '/api/chat',
@@ -91,7 +92,14 @@ export default function AiChat({
   const isLoading = status === 'submitted' || status === 'streaming';
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [quotaInfo, setQuotaInfo] = useState<NovaQuotaInfo | null>(null);
   const refreshedToolCallsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (isOpen) {
+      getNovaDailyTokenQuota().then(setQuotaInfo).catch(console.error);
+    }
+  }, [isOpen, messages.length]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,11 +197,9 @@ export default function AiChat({
                     </span>
                   </div>
                   <p className="text-[10px] text-arca-text-dim font-bold uppercase tracking-[0.14em]">
-                    {remaining === null
-                      ? 'Acceso completo'
-                      : monthlyLimit
-                      ? `${Math.round((remaining / monthlyLimit) * 100)}% restante en tu cuota`
-                      : `${used} acciones usadas`}
+                    {quotaInfo
+                      ? `⚡ ${quotaInfo.percentageUsed}% usado hoy (${quotaInfo.usedTokens.toLocaleString()} / ${quotaInfo.limitTokens.toLocaleString()} tokens)`
+                      : 'Calculando cuota diaria…'}
                   </p>
                 </div>
               </div>
@@ -205,6 +211,22 @@ export default function AiChat({
                 <X size={20} />
               </button>
             </div>
+
+            {/* Daily Token Quota Progress Bar */}
+            {quotaInfo && (
+              <div className="w-full bg-arca-surface-2 h-1 overflow-hidden shrink-0 relative z-10">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    quotaInfo.percentageUsed > 85
+                      ? 'bg-arca-alert'
+                      : quotaInfo.percentageUsed > 60
+                      ? 'bg-amber-500'
+                      : 'bg-arca-accent'
+                  }`}
+                  style={{ width: `${quotaInfo.percentageUsed}%` }}
+                />
+              </div>
+            )}
 
             {/* Error Toast */}
             <AnimatePresence>
