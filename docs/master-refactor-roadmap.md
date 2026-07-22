@@ -36,12 +36,11 @@ Este documento es la hoja de ruta definitiva paso a paso para asegurar, optimiza
 ## Fase 4: Refactorización Arquitectónica (Feature Sliced Design)
 **Objetivo:** Descomponer el "monolito" (`actions.ts` y pantallas gigantes) para escalar el equipo de desarrollo y aislar los errores.
 
-- [ ] 4.1 **Creación de la Estructura Base:** Configurar las carpetas `/src/features/` y `/src/shared/`.
-- [ ] 4.2 **Migración de Cuentas (Accounts):** Mover actions, UI y queries de Cuentas a `/features/accounts`.
-- [ ] 4.3 **Migración de Tarjetas y Créditos:** Mover al respectivo feature directory.
-- [ ] 4.4 **Migración de Ahorros y Préstamos:** Mover al respectivo feature directory.
-- [ ] 4.5 **Migración de Conceptos e Ingresos:** Mover al respectivo feature directory.
-- [ ] 4.6 **Reducción de Pantallas Monolíticas:** Refactorizar `ConfiguracionScreen.tsx` para que solo ensamble (importe) los `<ManagerView>` de cada feature.
+- [x] 4.1 **Creación de la Estructura Base:** Configurar carpetas de backend `/src/features/[dominio]/actions.ts`.
+- [x] 4.2 **Migración de Cuentas (Accounts):** Actions modulares en `src/features/accounts/actions.ts`.
+- [x] 4.3 **Migración de Ahorros y Bolsillos:** Actions modulares en `src/features/savings/actions.ts`.
+- [x] 4.4 **Migración de Préstamos y Deudas:** Actions modulares en `src/features/loans/actions.ts`.
+- [x] 4.5 **Migración de Obligaciones y Agenda:** Actions modulares en `src/features/obligations/actions.ts`.
 
 ---
 
