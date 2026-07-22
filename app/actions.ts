@@ -104,7 +104,7 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
       amount,
       concept: event.title,
       account_id: event.account_id,
-      category: kind,
+      category: (event.linked_entity_type || /prestamo|prestamos|deuda|deudas|credito|cuota|brayan|codensa/i.test(String(event.title))) ? "deudas" : kind,
       unit: event.business_unit_key ?? "general",
       due_date: `${event.due_date}T00:00:00-05:00`,
       date: `${today}T00:00:00-05:00`,
@@ -229,7 +229,7 @@ export async function adjustAndConfirmScheduledEvent(input: {
       amount,
       concept: event.title,
       account_id: accountId,
-      category: kind,
+      category: (event.linked_entity_type || /prestamo|prestamos|deuda|deudas|credito|cuota|brayan|codensa/i.test(String(event.title))) ? "deudas" : kind,
       unit: event.business_unit_key ?? "general",
       due_date: `${event.due_date}T00:00:00-05:00`,
       date: `${effectiveDate}T00:00:00-05:00`,
@@ -2830,7 +2830,7 @@ export async function updateManualTransaction(input: {
 
   const isLinkedMovement = Boolean(transaction.source_type && transaction.source_type !== "manual");
   const previousAmount = typeof transaction.amount === "number" ? transaction.amount : Number(transaction.amount ?? 0);
-  const effectiveAmount = isLinkedMovement ? previousAmount : input.amount;
+  const effectiveAmount = input.amount;
 
   const previousAccountId = transaction.account_id ? String(transaction.account_id) : null;
   const nextAccountId = input.accountId;
@@ -2899,20 +2899,15 @@ export async function updateManualTransaction(input: {
     updatedAccountIds.push(accountId);
   }
 
-  const editableFields = isLinkedMovement
-    ? {
-        account_id: nextAccountId,
-        updated_at: new Date().toISOString(),
-      }
-    : {
-        concept: input.concept.trim(),
-        amount: input.amount,
-        category: input.category.trim(),
-        unit: input.unit.trim(),
-        account_id: nextAccountId,
-        date: `${input.date}T00:00:00-05:00`,
-        updated_at: new Date().toISOString(),
-      };
+  const editableFields = {
+    concept: input.concept ? input.concept.trim() : transaction.concept,
+    amount: input.amount,
+    category: input.category ? input.category.trim() : transaction.category,
+    unit: input.unit ? input.unit.trim() : transaction.unit,
+    account_id: nextAccountId,
+    date: input.date ? `${input.date}T00:00:00-05:00` : transaction.date,
+    updated_at: new Date().toISOString(),
+  };
 
   const { error: updateError } = await admin
     .from("transactions")

@@ -53,6 +53,8 @@ import { TransactionItem } from '@/src/types';
 import { useActionFeedback } from '../feedback/action-feedback-provider';
 
 const CATEGORIES = [
+  { id: 'deudas', label: 'Deudas', icon: HandCoins },
+  { id: 'tarjetas', label: 'Tarjetas', icon: CreditCard },
   { id: 'hogar', label: 'Hogar', icon: Home },
   { id: 'comida', label: 'Comida', icon: Utensils },
   { id: 'transporte', label: 'Transporte', icon: Car },

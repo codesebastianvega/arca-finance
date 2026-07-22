@@ -25,9 +25,11 @@ import {
   createSavingsContribution,
   updateAccount,
   updateCreditCardFull,
+  updateBankCreditDetails,
   updateSavingsGoal,
 } from "@/app/actions";
-import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel } from "@/src/lib/money-data";
+import type { MoneyAccount, MoneyCard, MoneySaving, MoneyViewModel, BankCredit } from "@/src/lib/money-data";
+import { EditMovementModal } from "@/src/components/edit-movement-modal";
 import { haptics } from "../../lib/haptics";
 import { CalculationHelper } from "@/src/components/calculation-helper";
 
@@ -60,7 +62,8 @@ type TabId = "cuentas" | "tarjetas" | "creditos" | "ahorro";
 type EditableEntity =
   | ({ entityType: "cuenta" } & MoneyAccount)
   | ({ entityType: "tarjeta" } & MoneyCard)
-  | ({ entityType: "ahorro" } & MoneySaving);
+  | ({ entityType: "ahorro" } & MoneySaving)
+  | ({ entityType: "credito_bancario" } & BankCredit);
 
 function money(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -110,6 +113,11 @@ export default function AccountsScreen({
   const [pocketReleaseDate, setPocketReleaseDate] = useState('');
   const [pocketAddAmount, setPocketAddAmount] = useState('');
   const [pocketAddAccountId, setPocketAddAccountId] = useState('');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
+  const [creditTotalInstallments, setCreditTotalInstallments] = useState("");
+  const [creditPaidInstallments, setCreditPaidInstallments] = useState("");
+  const [creditMonthlyPayment, setCreditMonthlyPayment] = useState("");
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -138,6 +146,11 @@ export default function AccountsScreen({
       setCardEstimatedTotalPayment(selectedEntity.estimatedTotalPayment == null ? "" : String(selectedEntity.estimatedTotalPayment));
       setCardPaymentStrategy(selectedEntity.paymentStrategy);
       setCardNotes(selectedEntity.notes);
+    } else if (selectedEntity.entityType === "credito_bancario") {
+      setEntityAmount(String(selectedEntity.currentBalance));
+      setCreditTotalInstallments(String(selectedEntity.totalInstallments));
+      setCreditPaidInstallments(String(selectedEntity.paidInstallments));
+      setCreditMonthlyPayment(String(selectedEntity.monthlyPayment));
     } else {
       setEntityAmount(String(selectedEntity.current));
       setPocketReleaseDate(selectedEntity.dueDate || '');
@@ -163,7 +176,21 @@ export default function AccountsScreen({
 
   const savingsForDeposit = useMemo(() => goals.length > 0 ? goals : data.savings, [goals, data.savings]);
 
+  const accountOptions = useMemo(() => {
+    return [
+      ...data.accounts.map((a) => ({ id: a.id, label: a.name })),
+      ...data.cards.map((c) => ({ id: c.id, label: c.name })),
+    ];
+  }, [data.accounts, data.cards]);
+
   const openEntity = (entity: EditableEntity) => {
+    if (entity.entityType === "credito_bancario") {
+      setEntityName(entity.name);
+      setEntityAmount(String(entity.currentBalance));
+      setCreditTotalInstallments(String(entity.totalInstallments));
+      setCreditPaidInstallments(String(entity.paidInstallments));
+      setCreditMonthlyPayment(String(entity.monthlyPayment));
+    }
     haptics.medium();
     setActionError(null);
     setSelectedEntity(entity);
@@ -208,6 +235,17 @@ export default function AccountsScreen({
             estimatedTotalPayment: cardEstimatedTotalPayment ? Number(cardEstimatedTotalPayment) : null,
             paymentStrategy: cardPaymentStrategy,
             notes: cardNotes,
+          });
+        } else if (selectedEntity.entityType === "credito_bancario") {
+          await updateBankCreditDetails({
+            id: selectedEntity.id,
+            name: entityName,
+            totalAmount: selectedEntity.totalAmount,
+            currentBalance: amount,
+            monthlyPayment: Number(creditMonthlyPayment || "0"),
+            totalInstallments: Number(creditTotalInstallments || "1"),
+            paidInstallments: Number(creditPaidInstallments || "0"),
+            payDueDate: selectedEntity.payDueDay,
           });
         } else {
           // savings goal: just update name, current, and due date
@@ -356,7 +394,13 @@ export default function AccountsScreen({
         <div className="mt-2 space-y-3">
           {data.spending.breakdown.map((item) => (
             <div key={item.name}>
-              <div className="mb-1.5 flex items-center gap-2">
+              <div
+                className="mb-1.5 flex items-center gap-2 cursor-pointer active:brightness-95 select-none"
+                onClick={() => {
+                  haptics.light();
+                  setExpandedCategory(expandedCategory === item.name ? null : item.name);
+                }}
+              >
                 <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                 <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-arca-text-secondary">{item.name}</span>
                 <span className="text-[11px] font-bold text-arca-text-primary">{money(item.value)}</span>
@@ -365,6 +409,42 @@ export default function AccountsScreen({
               <div className="ml-4 h-1.5 overflow-hidden rounded-full bg-arca-surface-2">
                 <div className="h-full rounded-full" style={{ width: `${item.percentage}%`, backgroundColor: item.color }} />
               </div>
+
+              <AnimatePresence>
+                {expandedCategory === item.name && (item as any).transactions && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="ml-4 mt-2 space-y-1.5 border-l border-arca-border/60 pl-3 py-1">
+                      {(item as any).transactions.length > 0 ? (
+                        (item as any).transactions.map((tx: any, idx: number) => {
+                          const displayLabel = tx.concept && tx.concept !== tx.category 
+                            ? (tx.concept === 'debt_payment' ? 'Pago de Deuda' : tx.concept === 'card_payment' ? 'Pago de Tarjeta' : tx.concept)
+                            : (tx.category === 'debt_payment' ? 'Pago de Deuda' : tx.category === 'card_payment' ? 'Pago de Tarjeta' : (tx.concept || tx.category || 'Movimiento'));
+                          return (
+                            <div
+                              key={`${tx.id}-${idx}`}
+                              className="flex justify-between items-center text-xs py-1.5 px-2 rounded-lg cursor-pointer hover:bg-black/10 active:bg-black/20 transition-colors"
+                              onClick={() => {
+                                haptics.light();
+                                setEditingTransaction(tx);
+                              }}
+                            >
+                              <span className="truncate pr-2 text-arca-text-primary text-[11px] font-medium">{displayLabel}</span>
+                              <span className="font-bold text-arca-text-secondary shrink-0 text-[11px]">{money(Number(tx.amount))}</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-[10px] text-arca-text-dim py-1">Sin transacciones individuales este mes</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ))}
         </div>
@@ -521,7 +601,8 @@ export default function AccountsScreen({
                     color={credit.color}
                     darkText={credit.darkText}
                     onClick={() => {
-                      // TODO: openEntity
+                      haptics.light();
+                      openEntity({ entityType: "credito_bancario", ...credit });
                     }}
                   />
                 ))}
@@ -726,10 +807,10 @@ export default function AccountsScreen({
                     </div>
                   </div>
                 ) : (
-                  // Cuenta / Tarjeta: original amount field
+                  // Cuenta / Tarjeta / Credito: original amount field
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">
-                      {selectedEntity.entityType === "tarjeta" ? "Deuda actual" : "Saldo actual"}
+                      {selectedEntity.entityType === "tarjeta" || selectedEntity.entityType === "credito_bancario" ? "Deuda actual" : "Saldo actual"}
                     </label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
@@ -742,6 +823,65 @@ export default function AccountsScreen({
                     </div>
                   </div>
                 )}
+
+                {selectedEntity.entityType === "credito_bancario" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuotas pagadas</label>
+                        <input
+                          type="number"
+                          value={creditPaidInstallments}
+                          onChange={(e) => setCreditPaidInstallments(e.target.value)}
+                          className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Cuotas totales</label>
+                        <input
+                          type="number"
+                          value={creditTotalInstallments}
+                          onChange={(e) => setCreditTotalInstallments(e.target.value)}
+                          className="w-full h-12 px-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Valor de la cuota mensual</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-arca-text-dim font-bold">$</span>
+                        <input
+                          type="number"
+                          value={creditMonthlyPayment}
+                          onChange={(e) => setCreditMonthlyPayment(e.target.value)}
+                          className="w-full h-12 pl-8 pr-4 bg-arca-surface-2 border border-arca-border rounded-xl text-sm font-bold text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          haptics.medium();
+                          const currentPaid = Number(creditPaidInstallments || "0");
+                          const currentTotal = Number(creditTotalInstallments || "1");
+                          const monthly = Number(creditMonthlyPayment || "0");
+                          const currentDebt = Number(entityAmount || "0");
+
+                          if (currentPaid < currentTotal) {
+                            setCreditPaidInstallments(String(currentPaid + 1));
+                            setEntityAmount(String(Math.max(0, currentDebt - monthly)));
+                          }
+                        }}
+                        className="w-full py-2.5 px-3 bg-arca-accent/15 hover:bg-arca-accent/25 text-arca-accent rounded-xl text-xs font-bold transition-all border border-arca-accent/30 flex items-center justify-center gap-2"
+                      >
+                        <Plus size={14} />
+                        Registrar 1 cuota pagada (Cuota {Number(creditPaidInstallments || 0) + 1} de {creditTotalInstallments || 1})
+                      </button>
+                    </div>
+                  </>
+                ) : null}
 
                 {selectedEntity.entityType === "cuenta" ? (
                   <>
@@ -1067,6 +1207,16 @@ export default function AccountsScreen({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingTransaction && (
+          <EditMovementModal
+            item={editingTransaction}
+            accountOptions={accountOptions}
+            onClose={() => setEditingTransaction(null)}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -45,6 +45,7 @@ export type MoneySpendingSlice = {
   value: number;
   color: string;
   percentage: number;
+  transactions?: any[];
 };
 
 export type MoneyAccount = {
@@ -169,12 +170,24 @@ const SPENDING_FALLBACK_COLORS = ["#D8A04D", "#5F8E89", "#C97B5B", "#8C7196", "#
 function spendingCategoryLabel(category: string) {
   const labels: Record<string, string> = {
     expense: "Gastos generales",
+    gastos_generales: "Gastos generales",
     debt_payment: "Deudas",
+    deudas: "Deudas",
     card_payment: "Tarjetas",
+    tarjetas: "Tarjetas",
     prestamo: "Préstamos",
     prestamos: "Préstamos",
+    comida: "Comida",
+    servicios: "Servicios",
+    hogar: "Hogar",
+    transporte: "Transporte",
+    ocio: "Ocio",
+    salud: "Salud",
+    educacion: "Educación",
+    otros: "Otros",
   };
-  return labels[category] ?? category.charAt(0).toUpperCase() + category.slice(1);
+  const key = String(category || "").toLowerCase();
+  return labels[key] ?? (key.charAt(0).toUpperCase() + key.slice(1));
 }
 
 function issuerVisual(issuer: string, brandColor?: string | null, textColor?: string | null) {
@@ -222,7 +235,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .order("created_at", { ascending: true }),
     supabase
       .from("transactions")
-      .select("id, kind, amount, category, date")
+      .select("id, kind, amount, category, date, concept, account_id, unit, source_type")
       .eq("workspace_id", workspaceId)
       .gte("date", `${monthBounds.previousStart}T00:00:00-05:00`)
       .lt("date", `${monthBounds.nextMonth}T00:00:00-05:00`),
@@ -324,8 +337,10 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
 
   const savings = allSavings.filter((s) => s.goalType === "goal");
 
+  // Outgoing transaction kinds
   const outgoingKinds = new Set(["expense", "debt_payment", "card_payment"]);
   const grouped = new Map<string, number>();
+  const txGrouped = new Map<string, any[]>();
   let previousTotal = 0;
 
   for (const row of transactionsResult.data ?? []) {
@@ -334,23 +349,34 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       previousTotal += toNumber(row.amount);
       continue;
     }
-    const key = String(row.category ?? "general").toLowerCase();
+    const rawKey = String(row.category ?? "general").toLowerCase();
+    const concept = String(row.concept ?? "").toLowerCase();
+    let key = rawKey === "debt_payment" ? "deudas" : rawKey === "card_payment" ? "tarjetas" : rawKey === "expense" || rawKey === "general" ? "gastos_generales" : rawKey;
+    if (key === "gastos_generales" && /prestamo|prestamos|deuda|deudas|credito|cuota|brayan|codensa/i.test(concept)) {
+      key = "deudas";
+    }
     grouped.set(key, (grouped.get(key) ?? 0) + toNumber(row.amount));
+    if (!txGrouped.has(key)) txGrouped.set(key, []);
+    txGrouped.get(key)!.push(row);
   }
 
   const spendingTotal = Array.from(grouped.values()).reduce((sum, value) => sum + value, 0);
   const sortedCategories = Array.from(grouped.entries()).sort((a, b) => b[1] - a[1]);
-  const visibleCategories = sortedCategories.slice(0, 4);
-  const hiddenTotal = sortedCategories.slice(4).reduce((sum, [, value]) => sum + value, 0);
-  if (hiddenTotal > 0) visibleCategories.push(["otros", hiddenTotal]);
 
-  const displayCategories = new Map<string, { value: number; color: string }>();
-  visibleCategories.forEach(([name, value], index) => {
+  const displayCategories = new Map<string, { value: number; color: string; transactions: any[] }>();
+  sortedCategories.forEach(([name, value], index) => {
     const label = spendingCategoryLabel(name);
+    const txs = txGrouped.get(name) ?? [];
+
     const existing = displayCategories.get(label);
+    const existingTxs = existing?.transactions ?? [];
+    const combinedTxs = [...existingTxs, ...txs];
+    const uniqueTxs = Array.from(new Map(combinedTxs.map((t) => [t.id, t])).values());
+
     displayCategories.set(label, {
       value: (existing?.value ?? 0) + value,
       color: existing?.color ?? (name === "otros" ? "#7A7064" : SPENDING_COLOR_BY_CATEGORY[name] ?? SPENDING_FALLBACK_COLORS[index % SPENDING_FALLBACK_COLORS.length]),
+      transactions: uniqueTxs,
     });
   });
 
@@ -359,6 +385,7 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
     value: entry.value,
     percentage: spendingTotal > 0 ? Math.round((entry.value / spendingTotal) * 100) : 0,
     color: entry.color,
+    transactions: entry.transactions,
   }));
   const budget = budgetResult.data ? toNumber(budgetResult.data.limit_amount) : null;
 
