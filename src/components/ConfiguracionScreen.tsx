@@ -1,4 +1,9 @@
 import { useEffect, useState, useTransition } from 'react';
+import { ThemeManagerView } from '@/src/features/settings/components/theme-manager-view';
+import { CategoryManagerView } from '@/src/features/categories/components/category-manager-view';
+import { IncomeSourceManagerView } from '@/src/features/sources/components/income-source-manager-view';
+import { ProjectManagerView } from '@/src/features/projects/components/project-manager-view';
+import { AccountManagerView } from '@/src/features/accounts/components/account-manager-view';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/src/components/toast-provider';
 import { motion, AnimatePresence } from 'motion/react';
