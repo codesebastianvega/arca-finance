@@ -48,8 +48,8 @@ Este documento es la hoja de ruta definitiva paso a paso para asegurar, optimiza
 ## Fase 5: Estabilidad y Experiencia de Usuario (UI/UX)
 **Objetivo:** Evitar re-renderizados innecesarios y proteger la base de datos de datos inválidos (Validación).
 
-- [ ] 5.1 **Integración de Zod:** Definir esquemas para validar todos los *Server Actions* antes de llegar a Supabase.
-- [ ] 5.2 **Manejo Centralizado de Errores (Toasts Elegantes):** Reemplazar los `alert(error.message)` nativos por un sistema de notificaciones elegante (Sonner).
+- [x] 5.1 **Integración de Zod:** Definir esquemas (`financial-schemas.ts`) para validar todos los Server Actions en backend antes de llegar a Supabase.
+- [x] 5.2 **Manejo Centralizado de Errores (Toasts Elegantes):** Proveedor global `ToastProvider` con animaciones de Framer Motion y notificaciones hápticas.
 
 ---
 

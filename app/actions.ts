@@ -10,6 +10,13 @@ import {
   type IncomeRecurrenceEndMode,
   type IncomeRecurrenceFrequency,
 } from "@/src/lib/income-recurrence";
+import {
+  createAccountSchema,
+  createTransactionSchema,
+  createCreditCardSchema,
+  createSavingsGoalSchema,
+  createLoanSchema,
+} from "@/src/lib/schemas/financial-schemas";
 
 function timingStatusFromDates(dueDateRaw: string, paidAtRaw: string) {
   const dueDate = new Date(`${dueDateRaw}T00:00:00-05:00`);
@@ -438,15 +445,18 @@ export async function createAccount(input: {
 
   if (!admin) throw new Error("Supabase client no disponible.");
 
+  createAccountSchema.parse({
+    name: input.name,
+    accountType: input.type,
+    balance: input.balance,
+    entity: input.entity,
+  });
+
   const name = input.name.trim();
   const entity = input.entity?.trim() || null;
   const type = input.type.trim();
   const balance = Number(input.balance ?? 0);
   const color = input.color.trim() || "#C68A45";
-
-  if (!name) throw new Error("La cuenta necesita un nombre.");
-  if (!type) throw new Error("La cuenta necesita un tipo.");
-  if (!Number.isFinite(balance) || balance < 0) throw new Error("El saldo inicial debe ser valido.");
 
   const vipExpiresAt = typeof context.subscription?.metadata?.vip_expires_at === "string"
     ? new Date(context.subscription.metadata.vip_expires_at).getTime()
@@ -809,6 +819,16 @@ export async function createMovement(input: {
   const admin = await createSupabaseServerComponentClient();
 
   if (!admin) throw new Error("Supabase client no disponible.");
+
+  createTransactionSchema.parse({
+    concept: input.concept,
+    amount: Number(input.amount ?? 0),
+    date: input.date?.trim() || todayDateInBogota(),
+    kind: input.kind,
+    category: input.category?.trim() || (input.kind === "income" ? "ingreso" : "general"),
+    unit: input.unit?.trim() || "general",
+    accountId: input.accountId,
+  });
 
   const kind = input.kind;
   const amount = Number(input.amount ?? 0);
@@ -1928,6 +1948,16 @@ export async function createCreditCard(input: {
 
   if (!admin) throw new Error("Supabase client no disponible.");
 
+  createCreditCardSchema.parse({
+    name: input.name,
+    issuer: input.issuer,
+    limit: Number(input.limitValue ?? 0),
+    used: Number(input.used ?? 0),
+    cutOffDay: Math.min(31, Math.max(1, Math.trunc(input.cutOffDate || 1))),
+    payDueDay: Math.min(31, Math.max(1, Math.trunc(input.payDueDate || 1))),
+    minimumPayment: Number(input.minimumPayment ?? 0),
+  });
+
   const name = input.name.trim();
   const issuer = input.issuer.trim();
 
@@ -2485,6 +2515,16 @@ export async function createSavingsGoal(input: {
   const admin = await createSupabaseServerComponentClient();
 
   if (!admin) throw new Error("Supabase client no disponible.");
+
+  createSavingsGoalSchema.parse({
+    name: input.name,
+    target: Number(input.target ?? 0),
+    current: Number(input.current ?? 0),
+    dueDate: input.dueDate,
+    goalType: input.goalType ?? "goal",
+    color: input.color,
+    sourceAccountId: input.sourceAccountId,
+  });
 
   const name = input.name.trim();
   const target = Number(input.target ?? 0);
