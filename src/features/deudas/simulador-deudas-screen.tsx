@@ -117,16 +117,12 @@ function simulate(debts: DeudaItem[], strategy: 'snowball' | 'avalanche', extraP
   return { payoffs, totalMonths, totalInterestPaid, totalPaid };
 }
 
-const DEFAULT_DEBTS: DeudaItem[] = [
-  { id: '1', name: 'Tarjeta Crédito Banco X', balance: 1500000, interestRate: 2.5, minimumPayment: 80000 },
-  { id: '2', name: 'Préstamo Libre Inversión', balance: 4500000, interestRate: 1.8, minimumPayment: 150000 },
-  { id: '3', name: 'Crédito Falabella', balance: 600000, interestRate: 2.8, minimumPayment: 50000 },
-];
+const EMPTY_DEBTS: DeudaItem[] = [];
 
 export default function SimuladorDeudasScreen({ onBack }: { onBack: () => void }) {
   const [strategy, setStrategy] = useState<'snowball' | 'avalanche'>('snowball');
   const [extraPayment, setExtraPayment] = useState<number>(200000);
-  const [debts, setDebts] = useState<DeudaItem[]>(DEFAULT_DEBTS);
+  const [debts, setDebts] = useState<DeudaItem[]>(EMPTY_DEBTS);
 
   const [newName, setNewName] = useState('');
   const [newBalance, setNewBalance] = useState('');
@@ -365,6 +361,25 @@ export default function SimuladorDeudasScreen({ onBack }: { onBack: () => void }
             <Plus size={14} /> Agregar
           </button>
         </div>
+
+        {debts.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-arca-border bg-arca-surface-1 py-10 px-6 text-center">
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-arca-accent/10 text-arca-accent">
+              <TrendingDown size={26} />
+            </div>
+            <p className="text-sm font-bold text-arca-text-primary">Aún no hay deudas</p>
+            <p className="mt-1 text-xs text-arca-text-dim max-w-[220px]">
+              Agrega tus créditos y tarjetas para ver en cuánto tiempo las pagarías y cuánto ahorrarías.
+            </p>
+            <button
+              type="button"
+              onClick={() => { haptics.light(); setShowAddForm(true); }}
+              className="mt-4 flex items-center gap-1.5 rounded-2xl bg-arca-accent px-5 py-2.5 text-xs font-bold text-[#15110c]"
+            >
+              <Plus size={14} /> Agregar mi primera deuda
+            </button>
+          </div>
+        )}
 
         {debts.map((d) => (
           <div key={d.id} className="flex items-center justify-between rounded-2xl border border-arca-border bg-arca-surface-1 px-4 py-3">
