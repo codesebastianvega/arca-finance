@@ -77,8 +77,6 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
         </div>
       </div>
 
-      <PwaInstallCard />
-
       {/* Grid of Sections */}
       <div className="space-y-6">
         {MENU_SECTIONS.map((section) => {
@@ -147,6 +145,10 @@ export default function MasScreen({ onScreenChange, totalBalance, currency, isSu
             </button>
           </div>
         )}
+
+        <div className="pt-2">
+          <PwaInstallCard />
+        </div>
       </div>
     </div>
   );
