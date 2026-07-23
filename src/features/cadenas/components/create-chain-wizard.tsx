@@ -14,6 +14,10 @@ import {
   Check,
   Phone,
   UserCheck,
+  Pin,
+  PinOff,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { toast } from '@/src/components/toast-provider';
 import { haptics } from '@/src/lib/haptics';
@@ -25,6 +29,7 @@ interface MemberInput {
   memberName: string;
   phone: string;
   isCurrentUser: boolean;
+  isPinned?: boolean;
 }
 
 export function CreateChainWizard({
@@ -48,15 +53,17 @@ export function CreateChainWizard({
   const [userTurnNumber, setUserTurnNumber] = useState(1);
   const [members, setMembers] = useState<MemberInput[]>([]);
 
-  // Initialize members list when moving to Step 4
+  // Initialize members list when moving to Step 4 or changing totalCount
   const initializeMembers = (count: number) => {
     const list: MemberInput[] = [];
     for (let i = 1; i <= count; i++) {
+      const existing = members[i - 1];
       list.push({
         turnNumber: i,
-        memberName: i === userTurnNumber ? 'Tú (Usuario Arca)' : `Participante #${i}`,
-        phone: '',
+        memberName: existing?.memberName || (i === userTurnNumber ? 'Tú (Usuario Arca)' : `Participante #${i}`),
+        phone: existing?.phone || '',
         isCurrentUser: i === userTurnNumber,
+        isPinned: existing?.isPinned || false,
       });
     }
     setMembers(list);
@@ -65,7 +72,7 @@ export function CreateChainWizard({
   const handleNextStep = () => {
     haptics.light();
     if (step === 1 && !name.trim()) return;
-    if (step === 3 && members.length === 0) {
+    if (step === 3 && (members.length === 0 || members.length !== totalCount)) {
       initializeMembers(totalCount);
     }
     setStep((prev) => Math.min(5, prev + 1) as any);
@@ -76,21 +83,53 @@ export function CreateChainWizard({
     setStep((prev) => Math.max(1, prev - 1) as any);
   };
 
+  // Smart Shuffle: Keeps pinned members in place, shuffles only unpinned members!
   const shuffleTurns = () => {
     haptics.medium();
-    const shuffled = [...members].sort(() => Math.random() - 0.5);
-    const updated = shuffled.map((m, idx) => {
-      const turn = idx + 1;
-      return {
-        ...m,
-        turnNumber: turn,
-      };
-    });
-    setMembers(updated);
+    const pinnedTurns = new Set(members.filter((m) => m.isPinned).map((m) => m.turnNumber));
+    const allSlots = Array.from({ length: members.length }, (_, i) => i + 1);
+    const availableSlots = allSlots.filter((slot) => !pinnedTurns.has(slot));
 
-    const newUsersTurn = updated.find((m) => m.isCurrentUser)?.turnNumber || 1;
-    setUserTurnNumber(newUsersTurn);
-    toast.success('🎲 Turnos sorteados aleatoriamente');
+    const unpinnedMembers = members.filter((m) => !m.isPinned);
+    const shuffledMembers = [...unpinnedMembers].sort(() => Math.random() - 0.5);
+
+    let unpinnedIdx = 0;
+    const nextMembers = members.map((m) => {
+      if (m.isPinned) return m;
+      const assignedSlot = availableSlots[unpinnedIdx];
+      unpinnedIdx++;
+      return { ...m, turnNumber: assignedSlot };
+    });
+
+    nextMembers.sort((a, b) => a.turnNumber - b.turnNumber);
+    setMembers(nextMembers);
+
+    const currentUserSlot = nextMembers.find((m) => m.isCurrentUser)?.turnNumber || 1;
+    setUserTurnNumber(currentUserSlot);
+    toast.success('🎲 Sorteo completado (se mantuvieron los turnos fijados 📌)');
+  };
+
+  const moveMember = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= members.length) return;
+    haptics.light();
+
+    const next = [...members];
+    const tempTurn = next[index].turnNumber;
+    next[index].turnNumber = next[targetIndex].turnNumber;
+    next[targetIndex].turnNumber = tempTurn;
+
+    next.sort((a, b) => a.turnNumber - b.turnNumber);
+    setMembers(next);
+  };
+
+  const togglePin = (index: number) => {
+    haptics.light();
+    setMembers((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], isPinned: !next[index].isPinned };
+      return next;
+    });
   };
 
   const updateMember = (index: number, field: keyof MemberInput, val: any) => {
@@ -217,7 +256,7 @@ export function CreateChainWizard({
                   Monto de la cuota y participantes
                 </h3>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <label className="text-xs font-bold text-arca-text-dim uppercase tracking-wider">
                       Cuota periódica por participante
@@ -233,29 +272,42 @@ export function CreateChainWizard({
 
                   <div>
                     <label className="text-xs font-bold text-arca-text-dim uppercase tracking-wider">
-                      Número total de participantes / turnos
+                      Número de participantes (Personalizable)
                     </label>
-                    <div className="mt-1 flex items-center gap-3">
-                      {[4, 6, 10, 12].map((num) => (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => setTotalCount(num)}
-                          className={`flex-1 rounded-2xl border py-2.5 text-sm font-bold transition-all ${
-                            totalCount === num
-                              ? 'border-arca-accent bg-arca-accent/15 text-arca-accent'
-                              : 'border-arca-border bg-arca-base text-arca-text-secondary'
-                          }`}
-                        >
-                          {num} personas
-                        </button>
-                      ))}
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="2"
+                        max="100"
+                        value={totalCount}
+                        onChange={(e) => {
+                          const val = Math.max(2, Math.min(100, Number(e.target.value) || 2));
+                          setTotalCount(val);
+                        }}
+                        className="w-24 rounded-2xl border border-arca-accent/50 bg-arca-base px-3 py-2.5 text-center text-lg font-black text-arca-accent focus:border-arca-accent focus:outline-none"
+                      />
+                      <div className="flex-1 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                        {[4, 6, 10, 12, 15, 20].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setTotalCount(num)}
+                            className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
+                              totalCount === num
+                                ? 'border-arca-accent bg-arca-accent/15 text-arca-accent'
+                                : 'border-arca-border bg-arca-base text-arca-text-secondary'
+                            }`}
+                          >
+                            {num} p.
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-arca-accent/30 bg-arca-accent/5 p-4 text-center">
                     <p className="text-[10px] font-black uppercase tracking-widest text-arca-accent">
-                      Bolsa Acumulada Total por Ronda
+                      Bolsa Acumulada Total por Ronda ({totalCount} personas)
                     </p>
                     <p className="text-2xl font-black text-arca-text-primary mt-1">
                       ${totalPot.toLocaleString('es-CO')} COP
@@ -401,43 +453,76 @@ export function CreateChainWizard({
                       Asignación y Sorteo de Turnos
                     </h3>
                     <p className="text-xs text-arca-text-dim">
-                      Sortea aleatoriamente o ajusta los turnos manualmente.
+                      Fija turnos específicos (📌) o sortea el resto al azar (🎲).
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={shuffleTurns}
-                    className="flex items-center gap-1.5 rounded-2xl bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/25 transition-all"
+                    className="flex items-center gap-1.5 rounded-2xl bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/25 transition-all shadow-sm"
                   >
                     <Dice5 size={16} />
                     Sorteo 🎲
                   </button>
                 </div>
 
-                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                   {members.map((m, idx) => (
                     <div
                       key={idx}
-                      className={`flex items-center justify-between rounded-2xl border p-3 text-xs ${
+                      className={`flex items-center justify-between rounded-2xl border p-3 text-xs transition-all ${
                         m.isCurrentUser
                           ? 'border-arca-accent bg-arca-accent/10 font-bold'
+                          : m.isPinned
+                          ? 'border-amber-500/40 bg-amber-500/5 font-semibold'
                           : 'border-arca-border bg-arca-base'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-arca-surface-2 font-black text-arca-accent">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-arca-surface-2 font-black text-arca-accent shrink-0">
                           #{m.turnNumber}
                         </span>
-                        <div>
-                          <p className="text-arca-text-primary">{m.memberName}</p>
+                        <div className="truncate">
+                          <p className="text-arca-text-primary truncate">{m.memberName}</p>
                           {m.phone && <p className="text-[10px] text-emerald-400">{m.phone}</p>}
                         </div>
                       </div>
-                      {m.isCurrentUser && (
-                        <span className="rounded-full bg-arca-accent/20 px-2 py-0.5 text-[9px] font-bold text-arca-accent">
-                          Tu Turno
-                        </span>
-                      )}
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Reorder Buttons */}
+                        <div className="flex items-center gap-0.5 bg-arca-surface-2 rounded-xl p-0.5">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveMember(idx, 'up')}
+                            className="p-1 text-arca-text-dim hover:text-arca-text-primary disabled:opacity-30"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === members.length - 1}
+                            onClick={() => moveMember(idx, 'down')}
+                            className="p-1 text-arca-text-dim hover:text-arca-text-primary disabled:opacity-30"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+
+                        {/* Pin Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => togglePin(idx)}
+                          className={`flex items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold transition-all ${
+                            m.isPinned
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : 'bg-arca-surface-2 text-arca-text-dim hover:text-arca-text-primary'
+                          }`}
+                        >
+                          {m.isPinned ? <Pin size={13} /> : <PinOff size={13} />}
+                          {m.isPinned ? 'Fijado' : 'Libre'}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

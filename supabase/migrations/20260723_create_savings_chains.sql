@@ -30,69 +30,42 @@ CREATE TABLE IF NOT EXISTS public.savings_chain_members (
 ALTER TABLE public.savings_chains ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_chain_members ENABLE ROW LEVEL SECURITY;
 
+-- Helper function check (fallback if is_workspace_member doesn't exist)
+CREATE OR REPLACE FUNCTION public.is_workspace_member(ws_id uuid)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.workspace_members 
+    WHERE workspace_id = ws_id AND user_id = auth.uid()
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Drop old policies if existing
+DROP POLICY IF EXISTS savings_chains_workspace_all ON public.savings_chains;
+DROP POLICY IF EXISTS savings_chain_members_all ON public.savings_chain_members;
+DROP POLICY IF EXISTS savings_chains_workspace_select ON public.savings_chains;
+DROP POLICY IF EXISTS savings_chains_workspace_insert ON public.savings_chains;
+DROP POLICY IF EXISTS savings_chains_workspace_update ON public.savings_chains;
+DROP POLICY IF EXISTS savings_chains_workspace_delete ON public.savings_chains;
+
 -- RLS Policies for savings_chains
-CREATE POLICY savings_chains_workspace_select ON public.savings_chains
-  FOR SELECT USING (
-    workspace_id IN (
-      SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY savings_chains_workspace_insert ON public.savings_chains
-  FOR INSERT WITH CHECK (
-    workspace_id IN (
-      SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY savings_chains_workspace_update ON public.savings_chains
-  FOR UPDATE USING (
-    workspace_id IN (
-      SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY savings_chains_workspace_delete ON public.savings_chains
-  FOR DELETE USING (
-    workspace_id IN (
-      SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-    )
+CREATE POLICY savings_chains_workspace_all ON public.savings_chains
+  FOR ALL USING (
+    public.is_workspace_member(workspace_id)
+  ) WITH CHECK (
+    public.is_workspace_member(workspace_id)
   );
 
 -- RLS Policies for savings_chain_members
-CREATE POLICY savings_chain_members_select ON public.savings_chain_members
-  FOR SELECT USING (
+CREATE POLICY savings_chain_members_all ON public.savings_chain_members
+  FOR ALL USING (
     chain_id IN (
-      SELECT id FROM public.savings_chains WHERE workspace_id IN (
-        SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-      )
+      SELECT id FROM public.savings_chains WHERE public.is_workspace_member(workspace_id)
     )
-  );
-
-CREATE POLICY savings_chain_members_insert ON public.savings_chain_members
-  FOR INSERT WITH CHECK (
+  ) WITH CHECK (
     chain_id IN (
-      SELECT id FROM public.savings_chains WHERE workspace_id IN (
-        SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-      )
-    )
-  );
-
-CREATE POLICY savings_chain_members_update ON public.savings_chain_members
-  FOR UPDATE USING (
-    chain_id IN (
-      SELECT id FROM public.savings_chains WHERE workspace_id IN (
-        SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-      )
-    )
-  );
-
-CREATE POLICY savings_chain_members_delete ON public.savings_chain_members
-  FOR DELETE USING (
-    chain_id IN (
-      SELECT id FROM public.savings_chains WHERE workspace_id IN (
-        SELECT workspace_id FROM public.workspace_memberships WHERE user_id = auth.uid()
-      )
+      SELECT id FROM public.savings_chains WHERE public.is_workspace_member(workspace_id)
     )
   );
 

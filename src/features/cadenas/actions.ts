@@ -174,7 +174,11 @@ export async function createSavingsChain(input: CreateChainInput) {
 
   const createdChain = chain as any;
   if (chainErr || !createdChain) {
-    throw new Error(chainErr?.message || "No se pudo crear la cadena de ahorro.");
+    const errMsg = chainErr?.message || "";
+    if (errMsg.toLowerCase().includes("schema cache") || errMsg.toLowerCase().includes("does not exist") || errMsg.toLowerCase().includes("savings_chains")) {
+      throw new Error("⚠️ La tabla 'savings_chains' no existe en Supabase. Ejecuta el archivo 'supabase/migrations/20260723_create_savings_chains.sql' en el SQL Editor de tu consola Supabase.");
+    }
+    throw new Error(errMsg || "No se pudo crear la cadena de ahorro.");
   }
 
   const memberRows = input.members.map((m) => ({
