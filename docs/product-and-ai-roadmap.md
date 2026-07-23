@@ -34,14 +34,7 @@ Este documento establece la hoja de ruta para la evolución de la IA Nova, la ge
 ## Fase 4: Módulo de Cadenas de Ahorro / Natilleras (Colombia)
 **Objetivo:** Permitir la creación, seguimiento y proyección de las Cadenas de Ahorro tradicionales en Colombia (Cadenas, Rondas, Natilleras).
 
-- [ ] 4.1 **Modelado de Datos (Supabase Schema & Types):**
-  - Crear tabla `savings_chains` (nombre, cuota periódica, frecuencia: semanal/quincenal/mensual, total de turnos, fecha de inicio, estado).
-  - Crear tabla `savings_chain_members` (nombre del integrante, número de turno asignado, estado de pago del turno actual).
-- [ ] 4.2 **Gestión y Asignación de Turnos:**
-  - Configuración de la fecha en la que le corresponde cobrar la bolsa total al usuario.
-  - Cálculo automático del monto total a recibir (`cuota * número de integrantes`).
-- [ ] 4.3 **Integración con la Agenda Financiera y Flujo de Caja:**
-  - Registrar los pagos periódicos del usuario a la cadena como compromisos programados.
-  - Registrar el cobro del turno del usuario como un **Ingreso Esperado** proyectado en el Calendario.
-- [ ] 4.4 **Interfaz Visual de Cadenas de Ahorro:**
-  - Vista dedicada con tarjetas de progreso por turno, estado de pagos de la ronda actual e indicador de próximo cobro.
+- [x] 4.1 **Modelado de Datos (Supabase Schema & Types):** Tablas `savings_chains` y `savings_chain_members` con RLS en `20260723_create_savings_chains.sql`.
+- [x] 4.2 **Gestión y Asignación de Turnos (Wizard Typeform):** Sorteo aleatorio 🎲 y asignación manual de turnos en 5 pasos.
+- [x] 4.3 **Integración con la Agenda Financiera, WhatsApp y Nova:** Proyección automática en calendario, recordatorios directos por WhatsApp en 1 clic y herramienta `get_savings_chains` en Nova.
+- [x] 4.4 **Interfaz Visual Dedicada (`CadenasScreen.tsx`):** Tablero multicadena, matriz por ronda con entrega de bolsa y recordatorios.
