@@ -26,7 +26,7 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     title: "Planifica",
     subtitle: "Anticipa decisiones y compromisos",
-    items: ["planeacion_mes", "calendario", "planeacion_proyeccion"],
+    items: ["planeacion_mes", "calendario", "planeacion_proyeccion", "simulador_deudas"],
   },
   {
     title: "Organiza",

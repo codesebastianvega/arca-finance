@@ -35,6 +35,7 @@ import SuperAdminScreen from './components/SuperAdminScreen';
 import MasScreen from './components/MasScreen';
 import SubscriptionsScreen from './features/more/subscriptions-screen';
 import CadenasScreen from './features/cadenas/cadenas-screen';
+import SimuladorDeudasScreen from './features/deudas/simulador-deudas-screen';
 import NewUserOnboarding from './features/onboarding/new-user-onboarding';
 import PlanLockedScreen from './components/PlanLockedScreen';
 import { canAccessScreen, requiredPlanForScreen } from './lib/plan-entitlements';
@@ -58,7 +59,7 @@ export type AppUserSummary = {
 const APP_SCREENS: Screen[] = [
   'hoy', 'resumen', 'dashboard', 'dinero_cuentas', 'dinero_tarjetas', 'dinero_ahorro',
   'obligaciones', 'calendario', 'planeacion_mes', 'planeacion_proyeccion', 'negocios',
-  'movimientos', 'configuracion', 'registrar', 'transferir', 'mas', 'superadmin', 'suscripciones', 'cadenas',
+  'movimientos', 'configuracion', 'registrar', 'transferir', 'mas', 'superadmin', 'suscripciones', 'cadenas', 'simulador_deudas',
 ];
 
 const ARCA_SCREEN_HISTORY_KEY = 'arcaScreen';
@@ -312,6 +313,7 @@ export default function App({
         onOpenNova={openNova}
       />;
       case 'cadenas': return <CadenasScreen onBack={backToMas} />;
+      case 'simulador_deudas': return <SimuladorDeudasScreen onBack={backToMas} />;
       case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} defaultSegment={registerParams.defaultSegment} defaultType={registerParams.defaultType} /></div>;
       default: return <NovaHome
         data={initialTodayData}

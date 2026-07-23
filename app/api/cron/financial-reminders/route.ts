@@ -6,6 +6,7 @@ export const maxDuration = 60;
 
 type PushSubscriptionRow = { id: string; workspace_id: string; endpoint: string; p256dh: string; auth: string; failure_count: number | null };
 type ScheduledEventRow = { id: string; workspace_id: string; due_date: string; title: string; amount: number | string; status: string };
+type SavingsChainRow = { id: string; workspace_id: string; name: string; contribution_amount: number; total_rounds: number; user_turn_number: number; status: string };
 
 function bogotaDate(offsetDays = 0) {
   const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -39,19 +40,37 @@ export async function GET(request: Request) {
     admin.from('push_subscriptions').select('id, workspace_id, endpoint, p256dh, auth, failure_count').eq('active', true),
     admin.from('scheduled_events').select('id, workspace_id, due_date, title, amount, status').gte('due_date', recentPast).lte('due_date', endDate).in('status', ['scheduled', 'pending', 'overdue']),
   ]);
-  if (subscriptionsResult.error || eventsResult.error) return Response.json({ ok: false, error: subscriptionsResult.error?.message ?? eventsResult.error?.message }, { status: 500 });
+
+  let activeChains: any[] = [];
+  try {
+    const chainsResult = await admin.from('savings_chains').select('id, workspace_id, name, contribution_amount, total_rounds, user_turn_number, status').eq('status', 'active');
+    activeChains = (chainsResult.data ?? []) as any[];
+  } catch {
+    // savings_chains table may not exist yet – skip gracefully
+  }
+
+  if (subscriptionsResult.error || eventsResult.error) {
+    return Response.json({ ok: false, error: subscriptionsResult.error?.message ?? eventsResult.error?.message }, { status: 500 });
+  }
 
   const subscriptions = (subscriptionsResult.data ?? []) as PushSubscriptionRow[];
   const events = (eventsResult.data ?? []) as ScheduledEventRow[];
+
   const eventsByWorkspace = new Map<string, ScheduledEventRow[]>();
   for (const event of events) eventsByWorkspace.set(event.workspace_id, [...(eventsByWorkspace.get(event.workspace_id) ?? []), event]);
+
+  const chainsByWorkspace = new Map<string, any[]>();
+  for (const chain of activeChains) chainsByWorkspace.set(chain.workspace_id, [...(chainsByWorkspace.get(chain.workspace_id) ?? []), chain]);
 
   let sent = 0;
   let skipped = 0;
   let failed = 0;
   for (const subscription of subscriptions) {
     const workspaceEvents = eventsByWorkspace.get(subscription.workspace_id) ?? [];
-    if (!workspaceEvents.length) continue;
+    const workspaceChains = chainsByWorkspace.get(subscription.workspace_id) ?? [];
+
+    if (!workspaceEvents.length && !workspaceChains.length) continue;
+
     const eventKey = `financial-digest:${today}`;
     const existing = await admin.from('push_notification_deliveries').select('id, status').eq('subscription_id', subscription.id).eq('event_key', eventKey).maybeSingle();
     if (existing.data?.status === 'sent') { skipped += 1; continue; }
@@ -59,11 +78,26 @@ export async function GET(request: Request) {
     const overdue = workspaceEvents.filter((event) => event.due_date < today);
     const todayItems = workspaceEvents.filter((event) => event.due_date === today);
     const total = workspaceEvents.reduce((sum, event) => sum + Number(event.amount || 0), 0);
-    const title = overdue.length ? `Tienes ${overdue.length} ${overdue.length === 1 ? 'pago vencido' : 'pagos vencidos'}` : todayItems.length ? `${todayItems.length} ${todayItems.length === 1 ? 'compromiso vence' : 'compromisos vencen'} hoy` : 'Tus próximos pagos están cerca';
-    const body = `${workspaceEvents.length} compromisos por ${money(total)}. Toca para organizarlos con Arca.`;
+
+    let title = 'Tus compromisos y Cadenas de Ahorro';
+    let body = `${workspaceEvents.length} compromisos por ${money(total)}. Toca para organizarlos con Arca.`;
+
+    if (workspaceChains.length > 0 && !overdue.length) {
+      const chain = workspaceChains[0];
+      const pot = Number(chain.contribution_amount || 0) * Number(chain.total_rounds || 1);
+      title = `🎉 Cadena activa: ${chain.name}`;
+      body = `Recuerda tu participación en ${chain.name} (Bolsa de ${money(pot)}). Revisa tus turnos en Arca.`;
+    } else if (overdue.length) {
+      title = `Tienes ${overdue.length} ${overdue.length === 1 ? 'pago vencido' : 'pagos vencidos'}`;
+    } else if (todayItems.length) {
+      title = `${todayItems.length} ${todayItems.length === 1 ? 'compromiso vence' : 'compromisos vencen'} hoy`;
+    }
 
     try {
-      await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, JSON.stringify({ title, body, url: '/app?open=notifications', tag: eventKey }));
+      await webpush.sendNotification(
+        { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+        JSON.stringify({ title, body, url: '/app?open=cadenas', tag: eventKey })
+      );
       await admin.from('push_notification_deliveries').upsert({ subscription_id: subscription.id, workspace_id: subscription.workspace_id, event_key: eventKey, status: 'sent', sent_at: new Date().toISOString(), error_message: null, payload: { title, body, event_ids: workspaceEvents.map((event) => event.id) } }, { onConflict: 'subscription_id,event_key' });
       await admin.from('push_subscriptions').update({ last_success_at: new Date().toISOString(), failure_count: 0, updated_at: new Date().toISOString() }).eq('id', subscription.id);
       sent += 1;

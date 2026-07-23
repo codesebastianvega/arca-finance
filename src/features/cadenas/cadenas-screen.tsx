@@ -26,6 +26,7 @@ import {
 } from './actions';
 import type { SavingsChain, SavingsChainMember, SavingsChainsViewModel } from './types';
 import { CreateChainWizard } from './components/create-chain-wizard';
+import { exportChainToCSV, printChainSummaryHTML } from '../reports/exporter';
 
 export default function CadenasScreen({ onBack }: { onBack: () => void }) {
   const [viewModel, setViewModel] = useState<SavingsChainsViewModel | null>(null);
@@ -226,12 +227,31 @@ export default function CadenasScreen({ onBack }: { onBack: () => void }) {
               <h3 className="text-xl font-black text-arca-text-primary">{activeChain.name}</h3>
             </div>
 
-            <button
-              onClick={() => handleDeleteChain(activeChain.id)}
-              className="flex h-9 w-9 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-            >
-              <Trash2 size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => printChainSummaryHTML(activeChain)}
+                className="flex items-center gap-1.5 rounded-2xl border border-arca-border bg-arca-base px-3 py-2 text-xs font-bold text-arca-text-secondary hover:text-arca-text-primary hover:border-arca-accent/40 transition-all"
+                title="Imprimir / Exportar a PDF"
+              >
+                📄 PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => exportChainToCSV(activeChain)}
+                className="flex items-center gap-1.5 rounded-2xl border border-arca-border bg-arca-base px-3 py-2 text-xs font-bold text-arca-text-secondary hover:text-arca-text-primary hover:border-arca-accent/40 transition-all"
+                title="Exportar a Excel / CSV"
+              >
+                📊 Excel
+              </button>
+              <button
+                onClick={() => handleDeleteChain(activeChain.id)}
+                className="flex h-9 w-9 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                title="Eliminar cadena"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Quick Metrics */}

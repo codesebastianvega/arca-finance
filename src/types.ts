@@ -17,7 +17,8 @@ export type Screen =
   | 'mas' 
   | 'superadmin'
   | 'suscripciones'
-  | 'cadenas';
+  | 'cadenas'
+  | 'simulador_deudas';
 
 export interface Transaction {
   id: string;

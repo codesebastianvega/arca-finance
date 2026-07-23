@@ -15,7 +15,8 @@ import {
   CreditCard,
   PiggyBank,
   Repeat,
-  Users
+  Users,
+  Flame
 } from 'lucide-react';
 import { Screen } from '../../types';
 
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Historial financiero', icon: LayoutDashboard, category: 'secondary' },
   { id: 'planeacion_mes', label: 'Plan del mes', icon: Target, category: 'secondary' },
   { id: 'planeacion_proyeccion', label: 'Proyección Futura', icon: TrendingUp, category: 'secondary' },
+  { id: 'simulador_deudas', label: 'Estrategia de Deudas', icon: Flame, category: 'secondary' },
   { id: 'obligaciones', label: 'Pagos y deudas', icon: ReceiptText, category: 'secondary' },
   { id: 'cadenas', label: 'Cadenas de Ahorro', icon: Users, category: 'secondary' },
   { id: 'negocios', label: 'Negocios', icon: Briefcase, category: 'secondary' },
