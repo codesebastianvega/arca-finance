@@ -14,7 +14,8 @@ import {
   ShieldAlert,
   CreditCard,
   PiggyBank,
-  Repeat
+  Repeat,
+  Users
 } from 'lucide-react';
 import { Screen } from '../../types';
 
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'planeacion_mes', label: 'Plan del mes', icon: Target, category: 'secondary' },
   { id: 'planeacion_proyeccion', label: 'Proyección Futura', icon: TrendingUp, category: 'secondary' },
   { id: 'obligaciones', label: 'Pagos y deudas', icon: ReceiptText, category: 'secondary' },
+  { id: 'cadenas', label: 'Cadenas de Ahorro', icon: Users, category: 'secondary' },
   { id: 'negocios', label: 'Negocios', icon: Briefcase, category: 'secondary' },
   { id: 'movimientos', label: 'Movimientos', icon: History, category: 'secondary' },
   { id: 'transferir', label: 'Transferir', icon: Send, category: 'secondary' },

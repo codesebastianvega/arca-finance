@@ -1252,9 +1252,9 @@ export function createFinancialTools(context: WorkspaceContext) {
     }),
 
     navigate_to_screen: tool({
-      description: "Abre o navega a una pantalla específica de la aplicación para el usuario (ej: configuracion, movimientos, cuentas, calendario, resumen, obligaciones, negocios).",
+      description: "Abre o navega a una pantalla específica de la aplicación para el usuario (ej: configuracion, movimientos, cuentas, calendario, resumen, obligaciones, negocios, cadenas).",
       inputSchema: z.object({
-        screen: z.string().describe("Nombre de la pantalla a abrir (ej: configuracion, movimientos, calendario, cuentas, resumen, obligaciones, negocios)"),
+        screen: z.string().describe("Nombre de la pantalla a abrir (ej: configuracion, movimientos, calendario, cuentas, resumen, obligaciones, negocios, cadenas)"),
       }),
       execute: async ({ screen }) => {
         return {
@@ -1275,6 +1275,29 @@ export function createFinancialTools(context: WorkspaceContext) {
           success: true,
           action: "change_theme",
           theme,
+        };
+      },
+    }),
+
+    get_savings_chains: tool({
+      description: "Consulta las cadenas de ahorro y natilleras activas del usuario, incluyendo valor de cuotas, bolsa acumulada, turnos e integrantes.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const { getSavingsChainsViewModel } = await import('@/src/features/cadenas/actions');
+        const data = await getSavingsChainsViewModel();
+        return {
+          success: true,
+          totalChains: data.totalActiveChains,
+          chains: data.chains.map((c) => ({
+            name: c.name,
+            contributionAmount: c.contributionAmount,
+            totalPot: c.totalPot,
+            frequency: c.frequency,
+            userTurnNumber: c.userTurnNumber,
+            userPayoutDate: c.userPayoutDate,
+            userHasBeenPaid: c.userHasBeenPaid,
+            membersCount: c.members.length,
+          })),
         };
       },
     }),

@@ -16,7 +16,8 @@ export type Screen =
   | 'transferir' 
   | 'mas' 
   | 'superadmin'
-  | 'suscripciones';
+  | 'suscripciones'
+  | 'cadenas';
 
 export interface Transaction {
   id: string;
