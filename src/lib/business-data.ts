@@ -211,7 +211,10 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     throw new Error(`No se pudieron leer las cuentas para negocios: ${accountsResult.error.message}`);
   }
 
-  const sourceIdToNameMap = new Map((sourcesResult.data ?? []).map((row) => [String(row.id), String(row.name)]));
+  const sourceIdToNameMap = new Map<string, string>();
+  for (const row of sourcesResult.data ?? []) {
+    sourceIdToNameMap.set(String(row.id), String(row.name));
+  }
 
   const unitMap = new Map<string, UnitAccumulator>();
   const activeItems: BusinessActiveItem[] = [];
@@ -243,7 +246,7 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     const kind = String(row.kind);
     const rawDate = String(row.date ?? "").slice(0, 10);
     const sourceId = (row as any).source_id ? String((row as any).source_id) : null;
-    const sourceLabel = sourceId ? (sourceIdToNameMap.get(sourceId) ?? null) : null;
+    const sourceLabel: string | null = sourceId ? (sourceIdToNameMap.get(sourceId) ?? null) : null;
 
     if (kind === "income") {
       unit.realIncome += amount;
