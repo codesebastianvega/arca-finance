@@ -1061,7 +1061,7 @@ export function createFinancialTools(context: WorkspaceContext) {
           amount: input.amount,
           kind: input.kind,
           accountName: account.label,
-          category: input.kind === "income" ? "Ingreso" : category!.label,
+          category: categoryLabel,
           date: result.date,
           balanceBefore: result.balanceBefore,
           balanceAfter: result.balanceAfter,
