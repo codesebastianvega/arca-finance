@@ -3,6 +3,7 @@ import {
   convertToModelMessages,
   streamText,
   tool,
+  isStepCount,
   type UIMessage,
 } from 'ai';
 import { z } from 'zod';
