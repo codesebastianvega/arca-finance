@@ -172,7 +172,7 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     unitsPromise,
     supabase
       .from("transactions")
-      .select("id, amount, kind, unit, date, status, concept, source_label")
+      .select("id, amount, kind, unit, date, status, concept, source_id")
       .eq("workspace_id", workspaceId)
       .gte("date", `${start}T00:00:00-05:00`)
       .lt("date", `${nextMonth}T00:00:00-05:00`)
@@ -211,6 +211,8 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     throw new Error(`No se pudieron leer las cuentas para negocios: ${accountsResult.error.message}`);
   }
 
+  const sourceIdToNameMap = new Map((sourcesResult.data ?? []).map((row) => [String(row.id), String(row.name)]));
+
   const unitMap = new Map<string, UnitAccumulator>();
   const activeItems: BusinessActiveItem[] = [];
 
@@ -240,6 +242,8 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     const amount = toNumber(row.amount);
     const kind = String(row.kind);
     const rawDate = String(row.date ?? "").slice(0, 10);
+    const sourceId = (row as any).source_id ? String((row as any).source_id) : null;
+    const sourceLabel = sourceId ? (sourceIdToNameMap.get(sourceId) ?? null) : null;
 
     if (kind === "income") {
       unit.realIncome += amount;
@@ -256,7 +260,7 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
         kind: kind as "income" | "expense",
         date: rawDate,
         dateLabel: eventLabel(rawDate),
-        sourceLabel: (row as any).source_label ? String((row as any).source_label) : null,
+        sourceLabel,
       });
     }
   }
