@@ -180,7 +180,13 @@ export default function AiChat({
     if (selectedImage) {
       void sendMessage({
         text: textToSend,
-        files: [selectedImage.file],
+        files: [
+          {
+            type: 'file',
+            mediaType: selectedImage.file.type || 'image/jpeg',
+            url: selectedImage.base64,
+          },
+        ],
       });
       setSelectedImage(null);
     } else {
