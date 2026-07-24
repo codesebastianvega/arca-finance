@@ -241,7 +241,9 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
     transactionsResult,
     bankCreditsResult,
     budgetResult,
-    categoriesResult
+    categoriesResult,
+    unitsResult,
+    sourcesResult
   ] = await Promise.all([
     supabase.from("accounts").select("id, name, entity, type, balance, color, active, archived").eq("workspace_id", workspaceId).eq("active", true).eq("archived", false).order("created_at", { ascending: true }),
     supabase
