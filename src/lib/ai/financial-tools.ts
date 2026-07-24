@@ -1016,10 +1016,10 @@ export function createFinancialTools(context: WorkspaceContext) {
         accountId: z.string().min(1).describe("ID de una cuenta devuelta por get_financial_action_options."),
         accountName: z.string().min(1).describe("Nombre visible de esa misma cuenta."),
         balanceBefore: z.number().min(0).describe("Saldo actual devuelto para esa cuenta."),
-        category: z.string().min(1).describe("Categoría existente devuelta por get_financial_action_options."),
-        unit: z.string().optional().describe("Key de Personal o de un proyecto devuelto por get_financial_action_options. Omitir para usar Personal."),
-        sourceId: z.string().optional().describe("ID de la fuente/canal de ingreso del proyecto (opcional en gastos de negocio; Nova debe preguntar al usuario si desea asociarlo a una fuente específica)."),
-        sourceLabel: z.string().optional().describe("Nombre visible de la fuente/canal del proyecto."),
+        category: z.string().min(1).describe("Nombre VISIBLE de la categoría (ej. 'Ingreso', 'Comida', 'Servicios'). NUNCA pases un ID o UUID aquí, usa el nombre visible."),
+        unit: z.string().optional().describe("Key de Personal o del proyecto devuelto por get_financial_action_options."),
+        sourceId: z.string().optional().describe("ID de la fuente/canal del proyecto si aplica."),
+        sourceLabel: z.string().optional().describe("Nombre visible de la fuente/canal del proyecto (ej. 'Alto Pan de Azucar')."),
         date: z.string().optional().describe("Fecha efectiva YYYY-MM-DD; omitir para hoy."),
       }),
       execute: async (input) => {
@@ -1030,16 +1030,14 @@ export function createFinancialTools(context: WorkspaceContext) {
           throw new Error("El saldo o la cuenta cambió; vuelve a consultar antes de confirmar.");
         }
 
-        const category = options.categories.find(
-          (item) => normalize(item.label) === normalize(input.category),
+        const categoryObj = options.categories.find(
+          (item) => normalize(item.label) === normalize(input.category) || item.id === input.category,
         );
-        if (input.kind === "expense" && !category) {
-          throw new Error("La categoría seleccionada no existe en Arca.");
-        }
+        const categoryLabel = input.kind === "income" ? "Ingreso" : (categoryObj?.label ?? "General");
 
         const personalKey = options.units.find(isPersonalUnit)?.value ?? "general";
         const unit = input.unit
-          ? options.units.find((item) => item.value === input.unit)?.value
+          ? options.units.find((item) => item.value === input.unit || normalize(item.label) === normalize(input.unit))?.value
           : personalKey;
         if (!unit) throw new Error("El proyecto seleccionado no existe en Arca.");
 
@@ -1048,7 +1046,7 @@ export function createFinancialTools(context: WorkspaceContext) {
           concept: input.concept,
           amount: input.amount,
           accountId: account.id,
-          category: input.kind === "income" ? "Ingreso" : category!.label,
+          category: categoryLabel,
           unit,
           date: input.date,
           sourceId: input.sourceId || null,

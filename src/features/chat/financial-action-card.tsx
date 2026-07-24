@@ -228,19 +228,37 @@ function actionPresentation(part: FinancialActionPart, currencyCode: string) {
   if (part.type === 'tool-record_transaction') {
     const isIncome = input.kind === 'income' || output.kind === 'income';
     const balances = transactionBalances(output, input, currencyCode);
+    const rawCategory = firstText(output, input, 'category');
+    const isUuid = rawCategory && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawCategory);
+    const displayCategory = isIncome ? 'Ingreso' : (isUuid ? 'General' : (rawCategory || 'General'));
+    const sourceLabel = firstText(output, input, 'sourceLabel');
+    const unit = firstText(output, input, 'unit');
+
+    const details: [string, string | null | undefined][] = [
+      ['Cuenta', firstText(output, input, 'accountName')],
+      ['Saldo anterior', balances.before],
+      ['Valor', moneyDetail(output, input, currencyCode, 'amount')],
+      ['Saldo resultante', balances.after],
+      ['Categoría', displayCategory],
+    ];
+
+    if (sourceLabel) {
+      details.push(['Fuente / Concepto', sourceLabel]);
+    }
+    if (unit && unit.toLowerCase() !== 'general' && unit.toLowerCase() !== 'personal') {
+      details.push(['Proyecto', unit]);
+    }
+
+    details.push(
+      ['Fecha', firstText(output, input, 'date') ?? 'Hoy'],
+      ['Efecto', isIncome ? 'Aumenta el saldo disponible' : 'Reduce el saldo disponible'],
+    );
+
     return {
       icon: ReceiptText,
       eyebrow: isIncome ? 'Nuevo ingreso' : 'Nuevo gasto',
       title: firstText(output, input, 'concept') ?? 'Registrar movimiento',
-      details: [
-        ['Cuenta', firstText(output, input, 'accountName')],
-        ['Saldo anterior', balances.before],
-        ['Valor', moneyDetail(output, input, currencyCode, 'amount')],
-        ['Saldo resultante', balances.after],
-        ['Categoría', firstText(output, input, 'category')],
-        ['Fecha', firstText(output, input, 'date') ?? 'Hoy'],
-        ['Efecto', isIncome ? 'Aumenta el saldo disponible' : 'Reduce el saldo disponible'],
-      ],
+      details,
     };
   }
 
