@@ -24,4 +24,9 @@ export type HistoryViewModel = {
     id: string;
     label: string;
   }>;
+  categoryOptions: Array<{
+    id: string;
+    label: string;
+    value: string;
+  }>;
 };

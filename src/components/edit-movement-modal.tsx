@@ -7,11 +7,13 @@ import { updateManualTransaction } from "@/app/actions";
 const CONTROL_CLASS = "h-11 w-full rounded-xl border border-arca-border bg-arca-surface-1 px-4 text-sm font-bold text-arca-text-primary focus:border-arca-accent focus:outline-none";
 
 export function EditMovementModal({ 
-  accountOptions, 
+  accountOptions,
+  categoryOptions, 
   item, 
   onClose 
 }: { 
-  accountOptions: { id: string, label: string }[]; 
+  accountOptions: { id: string, label: string }[];
+  categoryOptions?: { id: string, label: string, value: string }[];
   item: any; 
   onClose: () => void 
 }) {
@@ -59,18 +61,32 @@ export function EditMovementModal({
               } 
               className={CONTROL_CLASS}
             >
-              <option value="deudas">Deudas</option>
-              <option value="tarjetas">Tarjetas</option>
-              <option value="comida">Comida</option>
-              <option value="servicios">Servicios</option>
-              <option value="hogar">Hogar</option>
-              <option value="transporte">Transporte</option>
-              <option value="ocio">Ocio</option>
-              <option value="salud">Salud</option>
-              <option value="educacion">Educación</option>
-              <option value="otros">Otros</option>
-              {item.category && !['deudas', 'debt_payment', 'tarjetas', 'card_payment', 'comida', 'servicios', 'hogar', 'transporte', 'ocio', 'salud', 'educacion', 'otros'].includes(item.category.toLowerCase()) && (
-                <option value={item.category}>{item.category}</option>
+              {categoryOptions ? (
+                <>
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.id} value={opt.value}>{opt.label}</option>
+                  ))}
+                  {/* Si la categoría actual no está en la lista (e.g. categorías antiguas/borradas), la agregamos al final para no perderla si no cambian nada */}
+                  {item.category && !['debt_payment', 'card_payment'].includes(item.category) && !categoryOptions.some(c => c.value.toLowerCase() === item.category.toLowerCase()) && (
+                    <option value={item.category}>{item.category}</option>
+                  )}
+                </>
+              ) : (
+                <>
+                  <option value="deudas">Deudas</option>
+                  <option value="tarjetas">Tarjetas</option>
+                  <option value="comida">Comida</option>
+                  <option value="servicios">Servicios</option>
+                  <option value="hogar">Hogar</option>
+                  <option value="transporte">Transporte</option>
+                  <option value="ocio">Ocio</option>
+                  <option value="salud">Salud</option>
+                  <option value="educacion">Educación</option>
+                  <option value="otros">Otros</option>
+                  {item.category && !['deudas', 'debt_payment', 'tarjetas', 'card_payment', 'comida', 'servicios', 'hogar', 'transporte', 'ocio', 'salud', 'educacion', 'otros'].includes(item.category.toLowerCase()) && (
+                    <option value={item.category}>{item.category}</option>
+                  )}
+                </>
               )}
             </select>
           </Field>

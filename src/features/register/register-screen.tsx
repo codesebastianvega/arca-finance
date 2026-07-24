@@ -52,17 +52,6 @@ import { ItemizedExpenseForm } from './itemized-expense-form';
 import { TransactionItem } from '@/src/types';
 import { useActionFeedback } from '../feedback/action-feedback-provider';
 
-const CATEGORIES = [
-  { id: 'deudas', label: 'Deudas', icon: HandCoins },
-  { id: 'tarjetas', label: 'Tarjetas', icon: CreditCard },
-  { id: 'hogar', label: 'Hogar', icon: Home },
-  { id: 'comida', label: 'Comida', icon: Utensils },
-  { id: 'transporte', label: 'Transporte', icon: Car },
-  { id: 'ocio', label: 'Ocio', icon: Gamepad2 },
-  { id: 'salud', label: 'Salud', icon: HeartPulse },
-  { id: 'servicios', label: 'Servicios', icon: Zap },
-  { id: 'otros', label: 'Otros', icon: MoreHorizontal },
-];
 
 const AVAILABLE_ICONS = [
   { name: 'shopping-bag', icon: ShoppingBag },
@@ -328,26 +317,13 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   }, [movementDate, recurrenceCount, recurrenceDays, recurrenceEndDate, recurrenceEndMode, recurrenceMode]);
 
   const expenseCategoryOptions = useMemo(() => {
-    const dbCategories = data.categories.map((category) => ({
+    return data.categories.map((category) => ({
       id: category.id,
       label: category.label,
       value: category.value,
       icon: iconForCategory(category.label, category.icon),
       parentId: category.parentId,
     }));
-    
-    const defaultCategories = CATEGORIES.map((category) => ({
-      id: category.id,
-      label: category.label,
-      value: category.label,
-      icon: category.icon,
-      parentId: null,
-    }));
-    
-    const dbValues = new Set(dbCategories.map(c => c.value));
-    const mergedDefaults = defaultCategories.filter(c => !dbValues.has(c.value));
-    
-    return [...mergedDefaults, ...dbCategories];
   }, [data.categories]);
 
   const personalUnit = useMemo(
@@ -410,23 +386,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     }
   }, [data.accounts, data.incomeSources, movementAccountId, movementUnit, movementDate, movementIncomeSourceId, loanAccountId, selectedCategoryValue, expenseCategoryOptions, personalUnitKey]);
 
-  useEffect(() => {
-    if (type !== 'ingreso') return;
-    const source = data.incomeSources.find((item) => item.id === movementIncomeSourceId);
-    if (!source) return;
-    if (source.unitKey) setMovementUnit(source.unitKey);
-    if (source.defaultAccountId) setMovementAccountId(source.defaultAccountId);
-  }, [type, movementIncomeSourceId, data.incomeSources]);
 
-  useEffect(() => {
-    if (type !== 'ingreso') return;
-    const isValid = filteredIncomeSources.some((source) => source.id === movementIncomeSourceId);
-    if (!isValid && filteredIncomeSources.length > 0) {
-      setMovementIncomeSourceId(filteredIncomeSources[0].id);
-    } else if (filteredIncomeSources.length === 0) {
-      setMovementIncomeSourceId('');
-    }
-  }, [type, filteredIncomeSources, movementIncomeSourceId]);
 
   useEffect(() => {
     const ownerGroup = REGISTER_GROUPS.find((group) =>
@@ -838,7 +798,18 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
 
             <select
               value={movementUnit}
-              onChange={(e) => setMovementUnit(e.target.value)}
+              onChange={(e) => {
+                const newUnit = e.target.value;
+                setMovementUnit(newUnit);
+                if (type === 'ingreso') {
+                  const newSources = data.incomeSources.filter(s => s.unitKey === newUnit);
+                  if (newSources.length > 0 && !newSources.some(s => s.id === movementIncomeSourceId)) {
+                    setMovementIncomeSourceId(newSources[0].id);
+                  } else if (newSources.length === 0) {
+                    setMovementIncomeSourceId('');
+                  }
+                }
+              }}
               className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
             >
               <option value={personalUnitKey}>Personal</option>
@@ -960,7 +931,15 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
               <>
                 <select
                   value={movementIncomeSourceId}
-                  onChange={(e) => setMovementIncomeSourceId(e.target.value)}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setMovementIncomeSourceId(newId);
+                    const source = data.incomeSources.find(s => s.id === newId);
+                    if (source) {
+                      if (source.unitKey) setMovementUnit(source.unitKey);
+                      if (source.defaultAccountId) setMovementAccountId(source.defaultAccountId);
+                    }
+                  }}
                   disabled={filteredIncomeSources.length === 0}
                   className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
                 >

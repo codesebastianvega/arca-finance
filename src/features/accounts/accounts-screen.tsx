@@ -1218,6 +1218,7 @@ export default function AccountsScreen({
           <EditMovementModal
             item={editingTransaction}
             accountOptions={accountOptions}
+            categoryOptions={data.categoryOptions}
             onClose={() => setEditingTransaction(null)}
           />
         )}

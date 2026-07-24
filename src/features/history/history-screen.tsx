@@ -388,7 +388,7 @@ export default function HistoryScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {editingItem ? <EditMovementModal accountOptions={data.accountOptions} item={editingItem} onClose={() => setEditingItem(null)} /> : null}
+        {editingItem ? <EditMovementModal accountOptions={data.accountOptions} categoryOptions={data.categoryOptions} item={editingItem} onClose={() => setEditingItem(null)} /> : null}
       </AnimatePresence>
     </div>
   );

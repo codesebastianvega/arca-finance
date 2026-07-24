@@ -13,6 +13,18 @@ export type RegisterOption = {
   icon?: string | null;
 };
 
+export const DEFAULT_EXPENSE_CATEGORIES = [
+  { id: 'deudas', label: 'Deudas', icon: 'hand-coins' },
+  { id: 'tarjetas', label: 'Tarjetas', icon: 'credit-card' },
+  { id: 'hogar', label: 'Hogar', icon: 'home' },
+  { id: 'comida', label: 'Comida', icon: 'utensils' },
+  { id: 'transporte', label: 'Transporte', icon: 'car' },
+  { id: 'ocio', label: 'Ocio', icon: 'gamepad-2' },
+  { id: 'salud', label: 'Salud', icon: 'heart-pulse' },
+  { id: 'servicios', label: 'Servicios', icon: 'zap' },
+  { id: 'otros', label: 'Otros', icon: 'more-horizontal' },
+];
+
 export type RegisterViewModel = {
   accounts: RegisterOption[];
   creditCards: Array<{
@@ -273,13 +285,26 @@ export async function loadRegisterViewModel(context: WorkspaceContext): Promise<
       payDueDay: Number(row.pay_due_date ?? 1),
       notes: String(row.notes ?? ""),
     })),
-    categories: (categoriesResult.data ?? []).map((row) => ({
-      id: String(row.id),
-      label: String(row.name),
-      value: String(row.name),
-      parentId: row.parent_id ? String(row.parent_id) : null,
-      icon: row.icon ? String(row.icon) : null,
-    })),
+    categories: (() => {
+      const dbCategories = (categoriesResult.data ?? []).map((row) => ({
+        id: String(row.id),
+        label: String(row.name),
+        value: String(row.name),
+        parentId: row.parent_id ? String(row.parent_id) : null,
+        icon: row.icon ? String(row.icon) : null,
+      }));
+      const dbLabels = new Set(dbCategories.map(c => c.label));
+      const defaultCategories = DEFAULT_EXPENSE_CATEGORIES
+        .filter(c => !dbLabels.has(c.label))
+        .map(c => ({
+          id: c.id,
+          label: c.label,
+          value: c.label,
+          parentId: null,
+          icon: c.icon,
+        }));
+      return [...defaultCategories, ...dbCategories];
+    })(),
     units: (unitsResult.data ?? []).map((row) => ({
       id: String(row.id),
       label: String(row.name),

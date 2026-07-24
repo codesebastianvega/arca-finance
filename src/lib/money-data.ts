@@ -1,6 +1,6 @@
 import type { WorkspaceContext } from "@/src/lib/auth-types";
 import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
-
+import { DEFAULT_EXPENSE_CATEGORIES } from "@/src/lib/register-data";
 
 
 export type MoneyCard = {
@@ -90,6 +90,11 @@ export type MoneyViewModel = {
     budget: number | null;
     budgetUsagePercent: number | null;
   };
+  categoryOptions: Array<{
+    id: string;
+    label: string;
+    value: string;
+  }>;
 };
 
 function money(value: number) {
@@ -219,7 +224,15 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
   const workspaceId = context.workspace.id;
   const monthBounds = monthBoundsInBogota();
 
-  const [accountsResult, rawCardsResult, savingsResult, transactionsResult, bankCreditsResult, budgetResult] = await Promise.all([
+  const [
+    accountsResult,
+    rawCardsResult,
+    savingsResult,
+    transactionsResult,
+    bankCreditsResult,
+    budgetResult,
+    categoriesResult
+  ] = await Promise.all([
     supabase.from("accounts").select("id, name, entity, type, balance, color, active, archived").eq("workspace_id", workspaceId).eq("active", true).eq("archived", false).order("created_at", { ascending: true }),
     supabase
       .from("credit_cards")
@@ -253,6 +266,12 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .lt("month", monthBounds.nextMonth)
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("expense_categories")
+      .select("id, name")
+      .eq("workspace_id", workspaceId)
+      .eq("active", true)
+      .order("created_at", { ascending: true })
   ]);
 
   let cardsResult: typeof rawCardsResult | any = rawCardsResult;
@@ -420,5 +439,21 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       budget,
       budgetUsagePercent: budget && budget > 0 ? Math.round((spendingTotal / budget) * 100) : null,
     },
+    categoryOptions: (() => {
+      const dbCategories = (categoriesResult?.data ?? []).map((row: any) => ({
+        id: String(row.id),
+        label: String(row.name),
+        value: String(row.name),
+      }));
+      const dbLabels = new Set(dbCategories.map((c: any) => c.label));
+      const defaultCategories = DEFAULT_EXPENSE_CATEGORIES
+        .filter(c => !dbLabels.has(c.label))
+        .map(c => ({
+          id: c.id,
+          label: c.label,
+          value: c.label,
+        }));
+      return [...defaultCategories, ...dbCategories];
+    })(),
   };
 }

@@ -1,6 +1,7 @@
 import type { WorkspaceContext } from "@/src/lib/auth-types";
 import type { HistoryItem, HistoryViewModel } from "@/src/lib/history-types";
 import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
+import { DEFAULT_EXPENSE_CATEGORIES } from "@/src/lib/register-data";
 
 function toNumber(value: unknown) {
   if (typeof value === "number") return value;
@@ -70,7 +71,7 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
   }
 
   const workspaceId = context.workspace.id;
-  const [transactionsResult, accountsResult] = await Promise.all([
+  const [transactionsResult, accountsResult, categoriesResult] = await Promise.all([
     supabase
       .from("transactions")
       .select("id, concept, amount, date, category, unit, kind, status, source_type, account_id, created_at, accounts(name)")
@@ -86,11 +87,18 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .order("name", { ascending: true }),
+    supabase
+      .from("expense_categories")
+      .select("id, name")
+      .eq("workspace_id", workspaceId)
+      .eq("active", true)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (transactionsResult.error) {
     throw new Error(`No se pudieron leer los movimientos: ${transactionsResult.error.message}`);
   }
+
 
   if (accountsResult.error) {
     throw new Error(`No se pudieron leer las cuentas: ${accountsResult.error.message}`);
@@ -145,5 +153,21 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
       id: String(account.id),
       label: String(account.name),
     })),
+    categoryOptions: (() => {
+      const dbCategories = (categoriesResult?.data ?? []).map((row: any) => ({
+        id: String(row.id),
+        label: String(row.name),
+        value: String(row.name),
+      }));
+      const dbLabels = new Set(dbCategories.map((c: any) => c.label));
+      const defaultCategories = DEFAULT_EXPENSE_CATEGORIES
+        .filter(c => !dbLabels.has(c.label))
+        .map(c => ({
+          id: c.id,
+          label: c.label,
+          value: c.label,
+        }));
+      return [...defaultCategories, ...dbCategories];
+    })(),
   };
 }

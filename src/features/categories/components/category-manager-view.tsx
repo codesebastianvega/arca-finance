@@ -100,25 +100,29 @@ export function CategoryManagerView({
               )}
             </div>
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingCategory(cat);
-                  setName(cat.label);
-                  setParentId(cat.parentId || '');
-                  setIsCreating(true);
-                }}
-                className="rounded-lg p-1.5 text-arca-text-secondary hover:bg-arca-surface-2 hover:text-arca-text-primary transition-colors"
-              >
-                <Pencil size={15} />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(cat.id)}
-                className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                <Trash2 size={15} />
-              </button>
+              {cat.id.length === 36 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCategory(cat);
+                      setName(cat.label);
+                      setParentId(cat.parentId || '');
+                      setIsCreating(true);
+                    }}
+                    className="rounded-lg p-1.5 text-arca-text-secondary hover:bg-arca-surface-2 hover:text-arca-text-primary transition-colors"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(cat.id)}
+                    className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ))}
