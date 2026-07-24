@@ -5,15 +5,21 @@ import { useEffect, useState } from "react";
 const SPLASH_SESSION_KEY = "arca:splash:v2";
 
 export function ArcaSplash() {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !window.sessionStorage.getItem(SPLASH_SESSION_KEY);
+    } catch {
+      return true;
+    }
+  });
+
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
+    if (!visible) return;
+
     try {
-      if (window.sessionStorage.getItem(SPLASH_SESSION_KEY)) {
-        setVisible(false);
-        return;
-      }
       window.sessionStorage.setItem(SPLASH_SESSION_KEY, "shown");
     } catch {
       // The splash still works when storage is unavailable.
@@ -27,7 +33,7 @@ export function ArcaSplash() {
       window.clearTimeout(exitTimer);
       window.clearTimeout(removeTimer);
     };
-  }, []);
+  }, [visible]);
 
   if (!visible) return null;
 
