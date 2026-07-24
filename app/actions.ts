@@ -3766,17 +3766,21 @@ export async function submitBetaFeedback(input: { name?: string; category: strin
 
   if (error) {
     console.error("No se pudo guardar en beta_feedback, realizando fallback a admin_audit_log:", error.message);
-    await admin.from("admin_audit_log").insert({
-      workspace_id: context.workspace.id,
-      actor_id: context.profile.id,
-      action: "BETA_FEEDBACK",
-      details: {
-        category: input.category,
-        message,
-        user_name: name,
-        user_email: email,
-      },
-    }).catch(() => {});
+    try {
+      await admin.from("admin_audit_log").insert({
+        workspace_id: context.workspace.id,
+        actor_id: context.profile.id,
+        action: "BETA_FEEDBACK",
+        details: {
+          category: input.category,
+          message,
+          user_name: name,
+          user_email: email,
+        },
+      });
+    } catch {
+      // Ignorar fallback si tampoco se pudo insertar en audit log
+    }
   }
 
   return { success: true };
