@@ -124,6 +124,7 @@ IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_finan
 
     const result = streamText({
       model: google('gemini-3.6-flash'),
+      maxSteps: 5,
       system: `Eres Nova, la asistente financiera inteligente y copiloto agéntica de Arca.
 
 TIENES AUTONOMÍA TOTAL:
