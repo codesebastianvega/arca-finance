@@ -10,6 +10,7 @@ import { createSupabaseServerComponentClient, getSupabaseAdminClient } from '@/s
 import { getCurrentWorkspaceContext } from '@/src/lib/auth';
 import { createFinancialTools } from '@/src/lib/ai/financial-tools';
 import { normalizeNovaPreferences } from '@/src/lib/nova-preferences';
+import { loadRegisterViewModel } from '@/src/lib/register-data';
 
 export const maxDuration = 30;
 
@@ -107,21 +108,37 @@ export async function POST(req: Request) {
         ? 'Responde como consejera cercana, pero breve: conclusión, una razón útil y el siguiente paso. Amplía solo si el usuario lo pide.'
         : 'Responde con claridad y brevedad: conclusión y, solo si aporta valor, un siguiente paso.';
 
+    const options = await loadRegisterViewModel(context);
+    const stateSnapshot = `
+ESTADO ACTUAL DEL USUARIO:
+Cuentas disponibles (Usa el ID exacto):
+${options.accounts.map(a => `- ${a.label} (ID: ${a.id}, Saldo: ${a.amount})`).join('\n')}
+
+Categorías de Gasto disponibles (Usa el ID exacto):
+${options.categories.map(c => `- ${c.label} (ID: ${c.id})`).join('\n')}
+
+Fuentes de Ingreso disponibles:
+${options.incomeSources.map(i => `- ${i.label} (ID: ${i.id})`).join('\n')}
+
+IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_financial_action_options a menos que necesites datos de Créditos, Proyectos, u otros detalles específicos que no estén listados aquí.`;
+
     const result = streamText({
-      model: google('gemini-3.1-flash-lite'),
+      model: google('gemini-3.6-flash'),
       system: `Eres Nova, la asistente financiera inteligente y copiloto agéntica de Arca.
 
 TIENES AUTONOMÍA TOTAL:
-- Tienes herramientas para consultar, crear, modificar y eliminar cualquier elemento del sistema: categorías de gastos, conceptos de ingresos, cuentas bancarias, tarjetas de crédito, deudas, proyectos, metas de ahorro, movimientos e intereses.
-- NUNCA le pidas al usuario que realice manualmente una acción en la configuración o interfaz si tú posees la herramienta para ejecutarla. Si el usuario pide crear, editar o eliminar una categoría, concepto, proyecto o cuenta, INVOCA INMEDIATAMENTE la herramienta correspondiente y déjala lista en la tarjeta de confirmación de 1 clic.
-- Si el usuario pide abrir una pantalla (configuracion, cuentas, calendario, movimientos, resumen, negocios, etc.) o cambiar el tema visual (oscuro, claro, emerald, etc.), INVOCA de inmediato \`navigate_to_screen\` o \`change_app_theme\`.
+- Tienes herramientas para consultar, crear, modificar y eliminar cualquier elemento del sistema.
+- NUNCA inventes categorías ni cuentas. Usa SOLO las disponibles en el estado actual. Si el usuario pide algo que no existe, pregúntale si quiere usar una similar (como "Otros") o crearla usando tus herramientas.
+- NUNCA le pidas al usuario que realice manualmente una acción en la configuración o interfaz si tú posees la herramienta para ejecutarla.
+- Si el usuario pide abrir una pantalla o cambiar el tema visual, INVOCA de inmediato \`navigate_to_screen\` o \`change_app_theme\`.
 
 REGLAS DE TRABAJO:
-- Cuando una pregunta dependa de datos del usuario, consulta las herramientas antes de responder. Nunca digas que no tienes acceso sin haber buscado primero.
+- Cuando una pregunta dependa de datos del usuario, revisa el estado actual o consulta las herramientas antes de responder.
 - Respeta estrictamente las preferencias del usuario:
   * Nivel de autonomía: ${autonomyInstruction}
   * Tono de respuesta: ${toneInstruction}
-- Sé profesional, precisa y directa.`,
+- Sé profesional, precisa y directa.
+${stateSnapshot}`,
       messages: modelMessages,
       stopSequences: [],
       onFinish: async ({ usage }) => {
@@ -129,15 +146,20 @@ REGLAS DE TRABAJO:
           const u = (usage as unknown) as Record<string, number | undefined>;
           const admin = getSupabaseAdminClient();
           if (admin) {
-            await admin.from('ai_usage_events').insert({
+            const { error: insertErr } = await admin.from('ai_usage_events').insert({
               workspace_id: workspaceId,
               user_id: context.profile.id,
-              prompt_tokens: u.promptTokens ?? u.inputTokens ?? 0,
-              completion_tokens: u.completionTokens ?? u.outputTokens ?? 0,
+              input_tokens: u.promptTokens ?? u.inputTokens ?? 0,
+              output_tokens: u.completionTokens ?? u.outputTokens ?? 0,
               total_tokens: u.totalTokens ?? 0,
-              model: 'gemini-3.1-flash-lite',
+              model: 'gemini-3.5-flash',
+              provider: 'google',
+              status: 'success',
               created_at: new Date().toISOString(),
             });
+            if (insertErr) {
+              console.error("Error guardando uso de tokens:", insertErr);
+            }
           }
         }
       },
@@ -174,7 +196,7 @@ REGLAS DE TRABAJO:
             };
           }
         }),
-      }
+      },
     });
 
     return result.toUIMessageStreamResponse({

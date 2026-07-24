@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react';
 
 import type { ToolUIPart } from 'ai';
 import {
@@ -200,9 +201,6 @@ function actionPresentation(part: FinancialActionPart, currencyCode: string) {
 
   if (part.type === 'tool-navigate_to_screen') {
     const screen = firstText(output, input, 'screen');
-    if (typeof window !== 'undefined' && screen) {
-      window.dispatchEvent(new CustomEvent('navigate-screen', { detail: { screen } }));
-    }
     return {
       icon: ArrowRight,
       eyebrow: 'Navegación del sistema',
@@ -216,9 +214,6 @@ function actionPresentation(part: FinancialActionPart, currencyCode: string) {
 
   if (part.type === 'tool-change_app_theme') {
     const theme = firstText(output, input, 'theme');
-    if (typeof window !== 'undefined' && theme) {
-      window.dispatchEvent(new CustomEvent('change-theme', { detail: { theme } }));
-    }
     return {
       icon: Sparkles,
       eyebrow: 'Apariencia del sistema',
@@ -639,6 +634,17 @@ export function FinancialActionCard({
   const presentation = actionPresentation(part, currencyCode);
   const Icon = presentation.icon;
   const amount = moneyDetail(output, input, currencyCode, 'amount', 'initialBalance');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (part.type === 'tool-navigate_to_screen') {
+      const screen = firstText(part.output ?? {}, part.input ?? {}, 'screen');
+      if (screen) window.dispatchEvent(new CustomEvent('navigate-screen', { detail: { screen } }));
+    } else if (part.type === 'tool-change_app_theme') {
+      const theme = firstText(part.output ?? {}, part.input ?? {}, 'theme');
+      if (theme) window.dispatchEvent(new CustomEvent('change-theme', { detail: { theme } }));
+    }
+  }, [part.type, part.input, part.output]);
 
   if (part.state === 'input-streaming' || part.state === 'input-available') {
     return (

@@ -39,9 +39,14 @@ const MENU_SECTIONS: MenuSection[] = [
     items: ["dashboard", "movimientos"],
   },
   {
+    title: "Aprende",
+    subtitle: "Educación y tips financieros",
+    items: ["escuela"],
+  },
+  {
     title: "Tu Arca",
     subtitle: "Personaliza y protege tu espacio",
-    items: ["configuracion"],
+    items: ["configuracion", "feedback"],
   },
 ];
 

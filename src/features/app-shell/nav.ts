@@ -16,7 +16,9 @@ import {
   PiggyBank,
   Repeat,
   Users,
-  Flame
+  Flame,
+  BookOpen,
+  MessageSquareHeart
 } from 'lucide-react';
 import { Screen } from '../../types';
 
@@ -45,6 +47,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'movimientos', label: 'Movimientos', icon: History, category: 'secondary' },
   { id: 'transferir', label: 'Transferir', icon: Send, category: 'secondary' },
   { id: 'suscripciones', label: 'Suscripciones', icon: Repeat, category: 'secondary' },
+  { id: 'escuela', label: 'Escuela Nova', icon: BookOpen, category: 'secondary' },
+  { id: 'feedback', label: 'Beta Tester', icon: MessageSquareHeart, category: 'secondary' },
   
   // Money Sub-screens
   { id: 'dinero_tarjetas', label: 'Tarjetas', icon: CreditCard, category: 'hidden' },
