@@ -3768,5 +3768,6 @@ export async function submitBetaFeedback(input: { name?: string; category: strin
     throw new Error(`No se pudo guardar el comentario: ${error.message}`);
   }
 
+  revalidatePath("/app");
   return { success: true };
 }

@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, MessageSquareHeart, Bug, Lightbulb, HelpCircle } from 'lucide-react';
 import { haptics } from '@/src/lib/haptics';
 import { submitBetaFeedback } from '@/app/actions';
 
 export default function FeedbackScreen({ onBack }: { onBack: () => void }) {
+  const router = useRouter();
   const [name, setName] = useState('');
   const [category, setCategory] = useState<'bug' | 'idea' | 'pregunta' | 'amor'>('idea');
   const [message, setMessage] = useState('');
@@ -24,6 +26,7 @@ export default function FeedbackScreen({ onBack }: { onBack: () => void }) {
       await submitBetaFeedback({ name, category, message });
       setStatus('success');
       haptics.success();
+      router.refresh();
       setTimeout(() => onBack(), 2000);
     } catch (err) {
       setStatus('idle');
