@@ -60,6 +60,7 @@ export default function AiChat({
   initialPrompt,
   onInitialPromptConsumed,
   onViewChanges,
+  currencyCode = 'COP',
   monthlyLimit,
   initialUsed,
   onViewPlans,
@@ -179,12 +180,7 @@ export default function AiChat({
     if (selectedImage) {
       void sendMessage({
         text: textToSend,
-        files: [
-          {
-            type: selectedImage.file.type,
-            url: selectedImage.base64,
-          },
-        ],
+        files: [selectedImage.file],
       });
       setSelectedImage(null);
     } else {
