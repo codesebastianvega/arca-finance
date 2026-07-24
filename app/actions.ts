@@ -3742,3 +3742,42 @@ export async function fetchPaginatedHistoryPage(input: {
     hasMore: (offset + items.length) < (count ?? items.length),
   };
 }
+
+export async function submitBetaFeedback(input: { name?: string; category: string; message: string }) {
+  const context = await requireWorkspaceContext();
+  const admin = await createSupabaseServerComponentClient();
+
+  if (!admin) throw new Error("Supabase client no disponible.");
+
+  const email = context.profile.email ?? null;
+  const name = input.name?.trim() || context.profile.fullName || "Beta Tester";
+  const message = input.message.trim();
+
+  if (!message) throw new Error("El mensaje no puede estar vacío.");
+
+  const { error } = await admin.from("beta_feedback").insert({
+    workspace_id: context.workspace.id,
+    user_id: context.profile.id,
+    user_email: email,
+    user_name: name,
+    category: input.category,
+    message,
+  });
+
+  if (error) {
+    console.error("No se pudo guardar en beta_feedback, realizando fallback a admin_audit_log:", error.message);
+    await admin.from("admin_audit_log").insert({
+      workspace_id: context.workspace.id,
+      actor_id: context.profile.id,
+      action: "BETA_FEEDBACK",
+      details: {
+        category: input.category,
+        message,
+        user_name: name,
+        user_email: email,
+      },
+    }).catch(() => {});
+  }
+
+  return { success: true };
+}

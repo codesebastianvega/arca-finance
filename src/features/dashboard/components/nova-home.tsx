@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CircleDollarSign,
   Lightbulb,
+  MessageSquareHeart,
   Plus,
   ReceiptText,
   Sparkles,
@@ -39,6 +40,7 @@ type NovaHomeProps = {
   onOpenObligations: () => void;
   onOpenMovements: () => void;
   onOpenSummary: () => void;
+  onOpenFeedback?: () => void;
 };
 
 const NOVA_EXAMPLES = [
@@ -56,6 +58,7 @@ export default function NovaHome({
   onOpenObligations,
   onOpenMovements,
   onOpenSummary,
+  onOpenFeedback,
 }: NovaHomeProps) {
   const [showExamples, setShowExamples] = useState(false);
   const [showUpcomingModal, setShowUpcomingModal] = useState(false);
@@ -103,6 +106,29 @@ export default function NovaHome({
           </span>
         </button>
       </header>
+
+      {/* --- BETA TESTER CARD --- */}
+      <button
+        type="button"
+        onClick={() => { haptics.medium(); onOpenFeedback?.(); }}
+        className="group flex w-full items-center gap-4 rounded-2xl border border-pink-500/30 border-l-4 border-l-pink-500 bg-gradient-to-r from-pink-500/10 via-arca-surface-1 to-arca-surface-2 p-4 text-left shadow-sm transition-all hover:border-pink-500/60 light:from-pink-500/10 light:to-arca-light-surface-2 active:scale-[0.99]"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-pink-500/15 border border-pink-500/30 text-pink-400">
+          <MessageSquareHeart size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-pink-400">
+            <span>✦ Beta Tester</span>
+            <span className="rounded-full bg-pink-500/20 px-1.5 py-0.5 text-[8px] text-pink-300">Feedback</span>
+          </span>
+          <span className="mt-0.5 block text-sm font-black text-arca-text-primary light:text-arca-light-text-primary">
+            ¿Tienes sugerencias o un bug? ¡Cuéntanos!
+          </span>
+        </span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-400 transition-transform group-hover:translate-x-1">
+          <ArrowRight size={15} />
+        </span>
+      </button>
 
       {/* --- RESUMEN FINANCIERO CARD --- */}
       <button

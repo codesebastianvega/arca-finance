@@ -13,6 +13,7 @@ import {
   CircleAlert,
   Clock3,
   Crown,
+  MessageSquareHeart,
   Search,
   ReceiptText,
   Settings2,
@@ -32,11 +33,11 @@ import {
   adminConfirmSubscriptionPayment,
   adminRejectSubscriptionPayment,
 } from '@/app/superadmin-actions';
-import type { AdminPlanCode, AdminSubscriptionInvoice, AdminSubscriptionStatus, SuperAdminClient, SuperAdminViewModel } from '@/src/lib/superadmin-types';
+import type { AdminPlanCode, AdminSubscriptionInvoice, AdminSubscriptionStatus, BetaFeedbackItem, SuperAdminClient, SuperAdminViewModel } from '@/src/lib/superadmin-types';
 import type { BillingPlan } from '@/src/lib/billing';
 import { useLoader } from '@/src/lib/loader-context';
 
-type AdminTab = 'resumen' | 'clientes' | 'cobros' | 'planes' | 'ia';
+type AdminTab = 'resumen' | 'clientes' | 'cobros' | 'planes' | 'ia' | 'feedback';
 
 const PLAN_LABELS: Record<AdminPlanCode, string> = {
   free: 'Arca Gratis',
@@ -122,7 +123,7 @@ export default function SuperAdminScreen({ onBack, data }: { onBack: () => void;
       {!data.billingReady && <div className="flex gap-3 rounded-2xl border border-arca-alert/25 bg-arca-alert/[0.06] p-4"><ReceiptText size={17} className="mt-0.5 shrink-0 text-arca-alert" /><div><p className="text-xs font-bold text-arca-text-primary">Cobros pendientes de activar</p><p className="mt-1 text-[10px] leading-relaxed text-arca-text-dim">Aplica la migración arca-subscription-billing.sql para registrar comprobantes, pagos y renovaciones.</p></div></div>}
 
       <nav className="flex overflow-x-auto rounded-2xl border border-arca-border bg-arca-surface-1 p-1">
-        {([['resumen', 'Resumen'], ['clientes', 'Clientes'], ['cobros', 'Cobros'], ['planes', 'Planes'], ['ia', 'Uso IA']] as const).map(([value, label]) => (
+        {([['resumen', 'Resumen'], ['clientes', 'Clientes'], ['cobros', 'Cobros'], ['planes', 'Planes'], ['ia', 'Uso IA'], ['feedback', 'Beta Testers']] as const).map(([value, label]) => (
           <button key={value} onClick={() => setTab(value)} className={`min-w-[74px] flex-1 rounded-xl px-2 py-2.5 text-[10px] font-black transition-colors ${tab === value ? 'bg-arca-accent text-black' : 'text-arca-text-dim'}`}>{label}</button>
         ))}
       </nav>
@@ -132,6 +133,7 @@ export default function SuperAdminScreen({ onBack, data }: { onBack: () => void;
       {tab === 'cobros' && <BillingTab invoices={data.invoices} pending={false} onRun={(operation) => handleRun(operation, 'Cobro procesado correctamente')} />}
       {tab === 'planes' && <PlansTab plans={data.plans} clients={data.clients} pending={false} onRun={(operation) => handleRun(operation, 'Plan actualizado correctamente')} />}
       {tab === 'ia' && <AiUsageTab data={data} onSelect={(client) => setSelectedClientId(client.userId)} />}
+      {tab === 'feedback' && <FeedbackTab feedbackList={data.feedbackList ?? []} />}
 
       <AnimatePresence>
         {selectedClient && (
@@ -506,4 +508,48 @@ function AttentionRow({ label, value, tone }: { label: string; value: number; to
 
 function MiniFact({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-arca-border bg-arca-surface-1 p-3"><p className="text-[7px] font-black uppercase tracking-wider text-arca-text-dim">{label}</p><p className="mt-1 truncate text-[10px] font-bold text-arca-text-primary">{value}</p></div>;
+}
+
+function FeedbackTab({ feedbackList }: { feedbackList: BetaFeedbackItem[] }) {
+  const categoryBadges: Record<string, { label: string; color: string }> = {
+    bug: { label: 'Bug / Error', color: 'bg-red-500/10 border-red-500/30 text-red-400' },
+    idea: { label: 'Sugerencia', color: 'bg-amber-500/10 border-amber-500/30 text-amber-400' },
+    pregunta: { label: 'Pregunta', color: 'bg-blue-500/10 border-blue-500/30 text-blue-400' },
+    amor: { label: 'Me encanta', color: 'bg-pink-500/10 border-pink-500/30 text-pink-400' },
+  };
+
+  if (!feedbackList || feedbackList.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 p-8 text-center">
+        <MessageSquareHeart size={32} className="text-arca-text-dim" />
+        <p className="mt-3 text-sm font-bold text-arca-text-primary">Aún no hay comentarios de Beta Testers</p>
+        <p className="mt-1 text-xs text-arca-text-dim">Los comentarios y sugerencias enviados por los usuarios aparecerán aquí.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-xs font-black uppercase tracking-wider text-arca-text-dim">Feedback recibido ({feedbackList.length})</h2>
+      </div>
+      {feedbackList.map((item) => {
+        const badge = categoryBadges[item.category] || { label: item.category, color: 'bg-arca-surface-2 border-arca-border text-arca-text-dim' };
+        return (
+          <div key={item.id} className="rounded-2xl border border-arca-border bg-arca-surface-1 p-4 shadow-sm space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-black text-arca-text-primary">{item.userName || 'Usuario'}</p>
+                <p className="text-[10px] text-arca-text-dim">{item.userEmail || 'Sin email'} • {formatDate(item.createdAt)}</p>
+              </div>
+              <span className={`rounded-full border px-2.5 py-0.5 text-[8px] font-black uppercase ${badge.color}`}>
+                {badge.label}
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed text-arca-text-secondary whitespace-pre-wrap">{item.message}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
 }

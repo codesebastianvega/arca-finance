@@ -3,12 +3,14 @@
 import React, { useState } from 'react';
 import { ArrowLeft, MessageSquareHeart, Bug, Lightbulb, HelpCircle } from 'lucide-react';
 import { haptics } from '@/src/lib/haptics';
+import { submitBetaFeedback } from '@/app/actions';
 
 export default function FeedbackScreen({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<'bug' | 'idea' | 'pregunta' | 'amor'>('idea');
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,15 +18,17 @@ export default function FeedbackScreen({ onBack }: { onBack: () => void }) {
 
     haptics.medium();
     setStatus('loading');
+    setErrorMessage(null);
 
-    // Aquí en el futuro se conectará a Supabase / email
-    // await supabase.from('beta_feedback').insert({ name, category, message });
-    
-    setTimeout(() => {
+    try {
+      await submitBetaFeedback({ name, category, message });
       setStatus('success');
       haptics.success();
       setTimeout(() => onBack(), 2000);
-    }, 1000);
+    } catch (err) {
+      setStatus('idle');
+      setErrorMessage(err instanceof Error ? err.message : 'No se pudo enviar el comentario');
+    }
   };
 
   const categories = [

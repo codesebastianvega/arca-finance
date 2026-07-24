@@ -1,7 +1,7 @@
 import { requireWorkspaceContext } from '@/src/lib/auth';
 import { getSupabaseAdminClient } from '@/src/lib/supabase';
 import { DEFAULT_BILLING_PLANS, normalizeBillingPlan, type BillingPlan } from '@/src/lib/billing';
-import type { AdminPlanCode, AdminSubscriptionInvoice, AdminSubscriptionStatus, SuperAdminViewModel } from '@/src/lib/superadmin-types';
+import type { AdminPlanCode, AdminSubscriptionInvoice, AdminSubscriptionStatus, BetaFeedbackItem, SuperAdminViewModel } from '@/src/lib/superadmin-types';
 
 type Row = Record<string, unknown>;
 
@@ -73,7 +73,7 @@ export async function loadSuperAdminViewModel(): Promise<SuperAdminViewModel | n
   const admin = getSupabaseAdminClient();
   if (!admin) throw new Error('Supabase admin client no disponible.');
 
-  const [profilesResult, workspacesResult, subscriptionsResult, plansResult, invoicesResult, sessionsResult, aiResult] = await Promise.all([
+  const [profilesResult, workspacesResult, subscriptionsResult, plansResult, invoicesResult, sessionsResult, aiResult, feedbackResult, auditFeedbackResult] = await Promise.all([
     admin.from('profiles').select('id, email, full_name, is_superadmin, created_at, updated_at').order('created_at', { ascending: false }),
     loadWorkspaceRows(admin),
     admin.from('workspace_subscriptions').select('id, workspace_id, plan_code, status, trial_ends_at, metadata, created_at').order('created_at', { ascending: false }),
@@ -81,6 +81,8 @@ export async function loadSuperAdminViewModel(): Promise<SuperAdminViewModel | n
     admin.from('subscription_invoices').select('id, workspace_id, plan_code, amount_cop, status, due_at, paid_at, created_at').order('created_at', { ascending: false }).limit(100),
     admin.from('app_usage_sessions').select('workspace_id, user_id, started_at, last_seen_at, duration_seconds').gte('last_seen_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
     admin.from('ai_usage_events').select('workspace_id, user_id, input_tokens, output_tokens, total_tokens, status, created_at').gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+    admin.from('beta_feedback').select('id, user_name, user_email, category, message, created_at').order('created_at', { ascending: false }).limit(100),
+    admin.from('admin_audit_log').select('id, details, created_at').eq('action', 'BETA_FEEDBACK').order('created_at', { ascending: false }).limit(100),
   ]);
 
   if (profilesResult.error) throw new Error(`No se pudieron leer los clientes: ${profilesResult.error.message}`);
@@ -206,6 +208,31 @@ export async function loadSuperAdminViewModel(): Promise<SuperAdminViewModel | n
     };
   });
 
+  const rawFeedback = feedbackResult?.error ? [] : ((feedbackResult?.data ?? []) as Row[]);
+  const rawAuditFeedback = auditFeedbackResult?.error ? [] : ((auditFeedbackResult?.data ?? []) as Row[]);
+
+  const feedbackList: BetaFeedbackItem[] = [
+    ...rawFeedback.map((row) => ({
+      id: String(row.id),
+      userName: String(row.user_name ?? 'Beta Tester'),
+      userEmail: String(row.user_email ?? 'Sin email'),
+      category: String(row.category ?? 'idea'),
+      message: String(row.message ?? ''),
+      createdAt: String(row.created_at ?? new Date().toISOString()),
+    })),
+    ...rawAuditFeedback.map((row) => {
+      const details = (row.details ?? {}) as Record<string, unknown>;
+      return {
+        id: String(row.id),
+        userName: String(details.user_name ?? 'Beta Tester'),
+        userEmail: String(details.user_email ?? 'Sin email'),
+        category: String(details.category ?? 'idea'),
+        message: String(details.message ?? ''),
+        createdAt: String(row.created_at ?? new Date().toISOString()),
+      };
+    }),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   return {
     generatedAt: new Date().toISOString(),
     telemetryReady,
@@ -233,6 +260,7 @@ export async function loadSuperAdminViewModel(): Promise<SuperAdminViewModel | n
     clients,
     plans,
     invoices,
+    feedbackList,
     growth,
   };
 }

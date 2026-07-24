@@ -35,6 +35,15 @@ export type AdminSubscriptionInvoice = {
   createdAt: string;
 };
 
+export type BetaFeedbackItem = {
+  id: string;
+  userName: string;
+  userEmail: string;
+  category: string;
+  message: string;
+  createdAt: string;
+};
+
 export type SuperAdminViewModel = {
   generatedAt: string;
   telemetryReady: boolean;
@@ -62,6 +71,7 @@ export type SuperAdminViewModel = {
   clients: SuperAdminClient[];
   plans: BillingPlan[];
   invoices: AdminSubscriptionInvoice[];
+  feedbackList: BetaFeedbackItem[];
   growth: Array<{ label: string; newClients: number; activeClients: number }>;
 };
 import type { BillingPlan } from '@/src/lib/billing';

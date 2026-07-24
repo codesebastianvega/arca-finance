@@ -253,6 +253,7 @@ export default function App({
         }}
         onOpenMovements={() => setCurrentScreen('movimientos')}
         onOpenSummary={() => setCurrentScreen('resumen')}
+        onOpenFeedback={() => setCurrentScreen('feedback')}
       />;
       case 'resumen': return <DecisionDashboard
         data={initialTodayData} 
