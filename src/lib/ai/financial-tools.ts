@@ -1311,7 +1311,7 @@ export function createFinancialTools(context: WorkspaceContext) {
         const todayData = await loadTodayViewModel(context);
         const moneyData = await loadMoneyViewModel(context);
 
-        const totalLiquidity = moneyData.liquidBalance;
+        const totalLiquidity = todayData.cash.totalBalance || moneyData.accounts.reduce((sum, acc) => sum + acc.balance, 0);
         const next7DaysIso = addDays(dateInBogota(), 7);
         const upcomingCritical7Days = todayData.criticalPayments.filter(
           (p) => p.dueDate <= next7DaysIso
@@ -1324,7 +1324,7 @@ export function createFinancialTools(context: WorkspaceContext) {
         const incomes7DaysTotal = upcomingIncomes7Days.reduce((sum, i) => sum + i.amount, 0);
 
         const dayOfMonth = Number(dateInBogota().slice(8, 10)) || 1;
-        const monthExpensesTotal = todayData.monthSpent;
+        const monthExpensesTotal = todayData.budget.consumed ?? 0;
         const dailyBurnRate = Math.round(monthExpensesTotal / Math.max(1, dayOfMonth));
 
         const realFreeCash = totalLiquidity + incomes7DaysTotal - critical7DaysTotal;
@@ -1369,7 +1369,7 @@ export function createFinancialTools(context: WorkspaceContext) {
 
         const safeInstallments = Math.max(1, Math.round(installments));
         const monthlyInstallment = Math.round(amount / safeInstallments);
-        const totalLiquidity = moneyData.liquidBalance;
+        const totalLiquidity = todayData.cash.totalBalance || moneyData.accounts.reduce((sum, acc) => sum + acc.balance, 0);
 
         const remainingCashMonth1 = totalLiquidity - monthlyInstallment;
         const isImmediateRisk = remainingCashMonth1 < 0;
@@ -1411,20 +1411,21 @@ export function createFinancialTools(context: WorkspaceContext) {
         debtorName: z.string().describe("Nombre de la persona o cliente que debe"),
         amount: z.number().describe("Monto adeudado en moneda local"),
         dueDate: z.string().optional().describe("Fecha de vencimiento acordada"),
-        tone: z.enum(["friendly", "formal", "urgent"]).optional().describe("Tono del mensaje (friendly = amigable, formal = profesional, urgent = urgente)"),
+        tone: z.string().optional().describe("Tono del mensaje: friendly (amigable), formal (profesional), o urgent (urgente)"),
         bankDetails: z.string().optional().describe("Datos de la cuenta o Nequi para recibir la transferencia"),
       }),
       execute: async ({ debtorName, amount, dueDate, tone = "friendly", bankDetails }) => {
         const formattedAmount = `${amount.toLocaleString()} ${context.workspace.currencyCode}`;
         const paymentAccount = bankDetails || "Nequi / Bancolombia";
+        const selectedTone = tone.toLowerCase();
 
         let text = "";
-        if (tone === "friendly") {
-          text = `Hola ${debtorName} 👋 Espero que estés muy bien. Te escribo porfa para recordarte lo del saldo de ${formattedAmount}${dueDate ? ` con vencimiento el ${dueDate}` : ""}. Cuando puedas me transfieres porfa a ${paymentAccount}. ¡Mil gracias! 🙌`;
-        } else if (tone === "urgent") {
+        if (selectedTone.includes("urgent") || selectedTone.includes("urgente")) {
           text = `Hola ${debtorName}, espero te encuentres bien. Te escribo urgentemente respecto al pago de ${formattedAmount} pendiente desde ${dueDate ?? "la fecha acordada"}. Por favor confírmame el envío del soporte a ${paymentAccount}. Quedo atento, gracias.`;
-        } else {
+        } else if (selectedTone.includes("formal")) {
           text = `Estimado/a ${debtorName}, reciba un cordial saludo. Le escribo para recordarle la gestión del pago por valor de ${formattedAmount}${dueDate ? ` correspondiente al ${dueDate}` : ""}. Agradezco realizar la transferencia a ${paymentAccount} y enviarme el comprobante. Atentamente.`;
+        } else {
+          text = `Hola ${debtorName} 👋 Espero que estés muy bien. Te escribo porfa para recordarte lo del saldo de ${formattedAmount}${dueDate ? ` con vencimiento el ${dueDate}` : ""}. Cuando puedas me transfieres porfa a ${paymentAccount}. ¡Mil gracias! 🙌`;
         }
 
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -1433,7 +1434,7 @@ export function createFinancialTools(context: WorkspaceContext) {
           success: true,
           debtorName,
           amount: formattedAmount,
-          tone,
+          tone: selectedTone,
           whatsappMessage: text,
           whatsappUrl,
         };
