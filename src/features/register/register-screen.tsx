@@ -201,6 +201,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [movementUnit, setMovementUnit] = useState('');
   const [movementDate, setMovementDate] = useState(defaultDate);
   const [movementIncomeSourceId, setMovementIncomeSourceId] = useState('');
+  const [expenseSourceId, setExpenseSourceId] = useState('');
   const [incomeStatus, setIncomeStatus] = useState<'received' | 'expected'>(defaultIncomeStatus);
   const [recurrenceMode, setRecurrenceMode] = useState<IncomeRecurrenceFrequency>('once');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
@@ -432,6 +433,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
     setDescription('');
     setTags('');
     setSelectedCategoryValue(expenseCategoryOptions[0]?.value ?? 'General');
+    setExpenseSourceId('');
     setMovementAccountId(data.accounts[0]?.value ?? '');
     setMovementUnit(personalUnitKey);
     setMovementIncomeSourceId(data.incomeSources[0]?.id ?? '');
@@ -581,8 +583,10 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             category: type === 'ingreso' ? 'ingreso' : selectedCategoryValue,
             unit: movementUnit,
             date: movementDate,
-            sourceId: type === 'ingreso' ? movementIncomeSourceId : null,
-            sourceLabel: type === 'ingreso' ? data.incomeSources.find((item) => item.id === movementIncomeSourceId)?.label ?? null : null,
+            sourceId: type === 'ingreso' ? movementIncomeSourceId : (expenseSourceId || null),
+            sourceLabel: type === 'ingreso' 
+              ? data.incomeSources.find((item) => item.id === movementIncomeSourceId)?.label ?? null 
+              : (expenseSourceId ? data.incomeSources.find((item) => item.id === expenseSourceId)?.label ?? null : null),
             items: type === 'gasto' ? transactionItems : undefined,
           });
         }
@@ -817,6 +821,22 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
                 <option key={unit.id} value={unit.value}>{unit.label}</option>
               ))}
             </select>
+
+            {type === 'gasto' && filteredIncomeSources.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">¿De qué fuente del proyecto es este gasto? (Opcional)</label>
+                <select
+                  value={expenseSourceId}
+                  onChange={(e) => setExpenseSourceId(e.target.value)}
+                  className="w-full bg-arca-surface-2 light:bg-arca-light-surface-2 border border-arca-border light:border-arca-light-border rounded-xl px-4 py-4 text-sm font-medium focus:border-arca-accent outline-none appearance-none"
+                >
+                  <option value="">Ninguna (Gasto general del proyecto)</option>
+                  {filteredIncomeSources.map((source) => (
+                    <option key={source.id} value={source.id}>{source.label}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
         )}
 

@@ -1018,6 +1018,8 @@ export function createFinancialTools(context: WorkspaceContext) {
         balanceBefore: z.number().min(0).describe("Saldo actual devuelto para esa cuenta."),
         category: z.string().min(1).describe("Categoría existente devuelta por get_financial_action_options."),
         unit: z.string().optional().describe("Key de Personal o de un proyecto devuelto por get_financial_action_options. Omitir para usar Personal."),
+        sourceId: z.string().optional().describe("ID de la fuente/canal de ingreso del proyecto (opcional en gastos de negocio; Nova debe preguntar al usuario si desea asociarlo a una fuente específica)."),
+        sourceLabel: z.string().optional().describe("Nombre visible de la fuente/canal del proyecto."),
         date: z.string().optional().describe("Fecha efectiva YYYY-MM-DD; omitir para hoy."),
       }),
       execute: async (input) => {
@@ -1049,6 +1051,8 @@ export function createFinancialTools(context: WorkspaceContext) {
           category: input.kind === "income" ? "Ingreso" : category!.label,
           unit,
           date: input.date,
+          sourceId: input.sourceId || null,
+          sourceLabel: input.sourceLabel || null,
         });
 
         return {

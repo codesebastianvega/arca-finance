@@ -3,14 +3,16 @@
 import { useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Briefcase, CalendarClock, ChevronRight, Clock, Edit2, Plus, Sparkles, TrendingUp, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, CalendarClock, CalendarRange, Check, ChevronLeft, ChevronRight, Clock, Edit2, Plus, Sparkles, TrendingDown, TrendingUp, Users, X } from 'lucide-react';
 import {
   createBusinessUnit,
   createIncomeSource,
   updateBusinessUnit,
   updateIncomeSource,
+  confirmScheduledEventNow,
+  cancelScheduledEvent,
 } from '@/app/actions';
-import type { BusinessActiveItem, BusinessSource, BusinessUnitSummary, BusinessViewModel } from '@/src/lib/business-types';
+import type { BusinessActiveItem, BusinessSource, BusinessTransaction, BusinessUnitSummary, BusinessViewModel } from '@/src/lib/business-types';
 import { haptics } from '@/src/lib/haptics';
 
 type EditorMode =
@@ -33,6 +35,10 @@ export default function BusinessScreen({
   const router = useRouter();
   const [editor, setEditor] = useState<EditorMode | null>(null);
   const [selectedDetailUnit, setSelectedDetailUnit] = useState<BusinessUnitSummary | null>(null);
+  const [selectedSource, setSelectedSource] = useState<BusinessSource | null>(null);
+  const [invoiceAction, setInvoiceAction] = useState<BusinessActiveItem | null>(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const formatMoney = useMemo(() => moneyFormatter(currency), [currency]);
@@ -237,7 +243,11 @@ export default function BusinessScreen({
           ) : null}
         </div>
         {data.activeItems.length > 0 ? (
-          data.activeItems.slice(0, 3).map((item) => <InvoiceRow key={item.id} item={item} formatMoney={formatMoney.format} />)
+          data.activeItems.slice(0, 3).map((item) => (
+            <button key={item.id} type="button" onClick={() => { haptics.light(); setInvoiceAction(item); }} className="w-full text-left">
+              <InvoiceRow item={item} formatMoney={formatMoney.format} />
+            </button>
+          ))
         ) : (
           <div className="card-arca p-4 text-xs text-arca-text-dim text-center">No hay cobros pendientes abiertos para este mes.</div>
         )}
@@ -333,15 +343,29 @@ export default function BusinessScreen({
                           key={source.id}
                           className="flex items-center justify-between p-3.5 rounded-xl border border-arca-border bg-arca-surface-2 text-left"
                         >
-                          <div>
-                            <p className="text-xs font-bold text-arca-text-primary">{source.name}</p>
+                          <button
+                            onClick={() => {
+                              haptics.light();
+                              setSelectedSource(source);
+                              setDateFrom('');
+                              setDateTo('');
+                            }}
+                            className="flex-1 text-left min-w-0"
+                          >
+                            <p className="text-xs font-bold text-arca-text-primary truncate">{source.name}</p>
                             <p className="text-[9px] text-arca-text-dim mt-0.5">
                               Destino: {source.defaultAccountLabel ?? 'Sin cuenta predefinida'}
                             </p>
-                          </div>
+                            {(source.totalIncome > 0 || source.totalExpense > 0) && (
+                              <div className="flex gap-2.5 mt-1.5">
+                                {source.totalIncome > 0 && <span className="text-[9px] font-bold text-arca-positive">+{source.totalIncomeLabel}</span>}
+                                {source.totalExpense > 0 && <span className="text-[9px] font-bold text-arca-alert">-{source.totalExpenseLabel}</span>}
+                              </div>
+                            )}
+                          </button>
                           <button
                             onClick={() => openEditSource(source)}
-                            className="p-2 text-arca-text-dim hover:text-arca-accent"
+                            className="p-2 text-arca-text-dim hover:text-arca-accent shrink-0"
                           >
                             <Edit2 size={14} />
                           </button>
@@ -471,6 +495,223 @@ export default function BusinessScreen({
             </motion.div>
           </div>
         ) : null}
+      {/* Source Detail Sub-modal */}
+      <AnimatePresence>
+        {selectedSource && (
+          <div className="fixed inset-0 z-[600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedSource(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-lg max-h-[85dvh] overflow-hidden bg-arca-surface-1 rounded-t-[32px] shadow-2xl p-6 space-y-4"
+            >
+              <div className="w-12 h-1.5 bg-arca-border rounded-full mx-auto mb-2" />
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold text-arca-text-primary tracking-tight">{selectedSource.name}</h3>
+                  <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mt-0.5">
+                    Fuente de {selectedSource.unitName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSource(null)}
+                  className="w-8 h-8 rounded-full bg-arca-surface-2 flex items-center justify-center text-arca-text-dim hover:text-arca-text-primary"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Rango de fechas */}
+              <div className="rounded-2xl bg-arca-surface-2 border border-arca-border p-3.5 space-y-2">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-arca-text-dim uppercase tracking-widest">
+                  <CalendarRange size={13} className="text-arca-accent" />
+                  <span>Filtrar por Rango de Fechas</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9px] text-arca-text-dim block mb-1">Desde</label>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="w-full bg-arca-surface-1 border border-arca-border rounded-xl px-3 py-2 text-xs font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-arca-text-dim block mb-1">Hasta</label>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="w-full bg-arca-surface-1 border border-arca-border rounded-xl px-3 py-2 text-xs font-medium text-arca-text-primary focus:outline-none focus:border-arca-accent"
+                    />
+                  </div>
+                </div>
+                {(dateFrom || dateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setDateFrom(''); setDateTo(''); }}
+                    className="text-[9px] font-bold text-arca-accent uppercase tracking-wider hover:underline pt-1 block"
+                  >
+                    Limpiar filtro
+                  </button>
+                )}
+              </div>
+
+              {/* Movimientos de la fuente */}
+              {(() => {
+                const filteredTx = data.unitTransactions.filter(t => 
+                  t.sourceLabel === selectedSource.name &&
+                  (!dateFrom || t.date >= dateFrom) &&
+                  (!dateTo || t.date <= dateTo)
+                );
+                const sumIncome = filteredTx.filter(t => t.kind === 'income').reduce((acc, t) => acc + t.amount, 0);
+                const sumExpense = filteredTx.filter(t => t.kind === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-arca-positive/10 border border-arca-positive/20 p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-arca-positive">Total Ingresos</p>
+                        <p className="text-sm font-black text-arca-positive mt-1">{formatMoney.format(sumIncome)}</p>
+                      </div>
+                      <div className="rounded-xl bg-arca-alert/10 border border-arca-alert/20 p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-arca-alert">Total Gastos</p>
+                        <p className="text-sm font-black text-arca-alert mt-1">{formatMoney.format(sumExpense)}</p>
+                      </div>
+                    </div>
+
+                    <div className="max-h-[35dvh] overflow-y-auto space-y-2 pr-1">
+                      {filteredTx.length > 0 ? (
+                        filteredTx.map((tx) => (
+                          <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl border border-arca-border bg-arca-surface-2">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${tx.kind === 'income' ? 'bg-arca-positive/10 text-arca-positive' : 'bg-arca-alert/10 text-arca-alert'}`}>
+                                {tx.kind === 'income' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-arca-text-primary">{tx.concept}</p>
+                                <p className="text-[9px] text-arca-text-dim">{tx.dateLabel}</p>
+                              </div>
+                            </div>
+                            <span className={`text-xs font-bold ${tx.kind === 'income' ? 'text-arca-positive' : 'text-arca-alert'}`}>
+                              {tx.kind === 'income' ? '+' : '-'}{tx.amountLabel}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-arca-border p-5 text-center text-xs text-arca-text-dim">
+                          No hay movimientos registrados para esta fuente en este período.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Invoice Action Modal */}
+      <AnimatePresence>
+        {invoiceAction && (
+          <div className="fixed inset-0 z-[600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setInvoiceAction(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-arca-surface-1 rounded-t-[32px] shadow-2xl p-6 space-y-4 pb-10"
+            >
+              <div className="w-12 h-1.5 bg-arca-border rounded-full mx-auto mb-2" />
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-bold text-arca-text-primary tracking-tight">{invoiceAction.title}</h3>
+                  <p className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest mt-0.5">
+                    {invoiceAction.unitName} · {invoiceAction.dueLabel}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceAction(null)}
+                  className="w-8 h-8 rounded-full bg-arca-surface-2 flex items-center justify-center text-arca-text-dim hover:text-arca-text-primary"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-arca-positive/10 border border-arca-positive/20 p-4 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-arca-positive">Monto a Cobrar</p>
+                <p className="text-2xl font-black text-arca-positive mt-1">{formatMoney.format(invoiceAction.amount)}</p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isPending || !invoiceAction.scheduledEventId}
+                  onClick={() => {
+                    if (!invoiceAction.scheduledEventId) return;
+                    startTransition(async () => {
+                      try {
+                        await confirmScheduledEventNow(invoiceAction.scheduledEventId!);
+                        haptics.success();
+                        setInvoiceAction(null);
+                        router.refresh();
+                      } catch (err) {
+                        haptics.error();
+                        setActionError(err instanceof Error ? err.message : 'Error al confirmar');
+                      }
+                    });
+                  }}
+                  className="w-full h-12 rounded-xl bg-arca-positive text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Check size={16} />
+                  <span>{isPending ? 'Confirmando...' : 'Marcar como Cobrado'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isPending || !invoiceAction.scheduledEventId}
+                  onClick={() => {
+                    if (!invoiceAction.scheduledEventId) return;
+                    startTransition(async () => {
+                      try {
+                        await cancelScheduledEvent(invoiceAction.scheduledEventId!);
+                        haptics.success();
+                        setInvoiceAction(null);
+                        router.refresh();
+                      } catch (err) {
+                        haptics.error();
+                        setActionError(err instanceof Error ? err.message : 'Error al cancelar');
+                      }
+                    });
+                  }}
+                  className="w-full h-12 rounded-xl border border-arca-alert/40 text-arca-alert text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-arca-alert/10"
+                >
+                  <X size={16} />
+                  <span>{isPending ? 'Cancelando...' : 'Cancelar Cobro'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );

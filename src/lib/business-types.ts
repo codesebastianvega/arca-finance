@@ -16,7 +16,9 @@ export type BusinessUnitSummary = {
 
 export type BusinessActiveItem = {
   id: string;
+  scheduledEventId: string | null;
   title: string;
+  unitKey: string;
   unitName: string;
   amount: number;
   amountLabel: string;
@@ -32,6 +34,17 @@ export type BusinessTopItem = {
   helper: string;
 };
 
+export type BusinessTransaction = {
+  id: string;
+  concept: string;
+  amount: number;
+  amountLabel: string;
+  kind: "income" | "expense";
+  date: string;
+  dateLabel: string;
+  sourceLabel: string | null;
+};
+
 export type BusinessSource = {
   id: string;
   name: string;
@@ -39,6 +52,10 @@ export type BusinessSource = {
   unitName: string;
   defaultAccountId: string | null;
   defaultAccountLabel: string | null;
+  totalIncome: number;
+  totalIncomeLabel: string;
+  totalExpense: number;
+  totalExpenseLabel: string;
 };
 
 export type BusinessViewModel = {
@@ -56,5 +73,6 @@ export type BusinessViewModel = {
   topItems: BusinessTopItem[];
   units: BusinessUnitSummary[];
   sources: BusinessSource[];
+  unitTransactions: BusinessTransaction[];
   accountOptions: Array<{ id: string; label: string }>;
 };

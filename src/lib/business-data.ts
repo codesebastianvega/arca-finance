@@ -1,5 +1,5 @@
 import type { WorkspaceContext } from "@/src/lib/auth-types";
-import type { BusinessActiveItem, BusinessSource, BusinessTopItem, BusinessUnitSummary, BusinessViewModel } from "@/src/lib/business-types";
+import type { BusinessActiveItem, BusinessSource, BusinessTopItem, BusinessTransaction, BusinessUnitSummary, BusinessViewModel } from "@/src/lib/business-types";
 import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 
 function toNumber(value: unknown) {
@@ -172,14 +172,14 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     unitsPromise,
     supabase
       .from("transactions")
-      .select("amount, kind, unit, date, status")
+      .select("id, amount, kind, unit, date, status, concept, source_label")
       .eq("workspace_id", workspaceId)
       .gte("date", `${start}T00:00:00-05:00`)
       .lt("date", `${nextMonth}T00:00:00-05:00`)
       .neq("status", "cancelled"),
     supabase
       .from("scheduled_events")
-      .select("title, amount, kind, due_date, status, business_unit_key")
+      .select("id, title, amount, kind, due_date, status, business_unit_key")
       .eq("workspace_id", workspaceId)
       .gte("due_date", start)
       .lt("due_date", nextMonth)
@@ -231,17 +231,33 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     });
   }
 
+  const unitTransactions: BusinessTransaction[] = [];
+
   for (const row of transactionsResult.data ?? []) {
     const key = String(row.unit ?? "").trim();
     if (!key || !unitMap.has(key)) continue;
     const unit = unitMap.get(key)!;
     const amount = toNumber(row.amount);
     const kind = String(row.kind);
+    const rawDate = String(row.date ?? "").slice(0, 10);
 
     if (kind === "income") {
       unit.realIncome += amount;
     } else if (kind === "expense") {
       unit.realExpense += amount;
+    }
+
+    if (kind === "income" || kind === "expense") {
+      unitTransactions.push({
+        id: String((row as any).id),
+        concept: String((row as any).concept ?? "Movimiento"),
+        amount,
+        amountLabel: money(amount),
+        kind: kind as "income" | "expense",
+        date: rawDate,
+        dateLabel: eventLabel(rawDate),
+        sourceLabel: (row as any).source_label ? String((row as any).source_label) : null,
+      });
     }
   }
 
@@ -266,7 +282,9 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     if (kind === "income") {
       activeItems.push({
         id: `${key}-${dueDate}-${String(row.title)}`,
+        scheduledEventId: (row as any).id ? String((row as any).id) : null,
         title: String(row.title),
+        unitKey: key,
         unitName: unit.name,
         amount,
         amountLabel: money(amount),
@@ -318,14 +336,36 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     }));
 
   const accountMap = new Map((accountsResult.data ?? []).map((row) => [String(row.id), String(row.name)]));
-  const sources: BusinessSource[] = (sourcesResult.data ?? []).map((row) => ({
-    id: String(row.id),
-    name: String(row.name),
-    unitKey: String(row.business_unit_key),
-    unitName: unitMap.get(String(row.business_unit_key))?.name ?? String(row.business_unit_key),
-    defaultAccountId: row.default_account_id ? String(row.default_account_id) : null,
-    defaultAccountLabel: row.default_account_id ? accountMap.get(String(row.default_account_id)) ?? null : null,
-  }));
+
+  // Compute per-source totals from unitTransactions
+  const sourceIncomeMap = new Map<string, number>();
+  const sourceExpenseMap = new Map<string, number>();
+  for (const tx of unitTransactions) {
+    if (!tx.sourceLabel) continue;
+    if (tx.kind === "income") {
+      sourceIncomeMap.set(tx.sourceLabel, (sourceIncomeMap.get(tx.sourceLabel) ?? 0) + tx.amount);
+    } else {
+      sourceExpenseMap.set(tx.sourceLabel, (sourceExpenseMap.get(tx.sourceLabel) ?? 0) + tx.amount);
+    }
+  }
+
+  const sources: BusinessSource[] = (sourcesResult.data ?? []).map((row) => {
+    const sourceName = String(row.name);
+    const totalIncome = sourceIncomeMap.get(sourceName) ?? 0;
+    const totalExpense = sourceExpenseMap.get(sourceName) ?? 0;
+    return {
+      id: String(row.id),
+      name: sourceName,
+      unitKey: String(row.business_unit_key),
+      unitName: unitMap.get(String(row.business_unit_key))?.name ?? String(row.business_unit_key),
+      defaultAccountId: row.default_account_id ? String(row.default_account_id) : null,
+      defaultAccountLabel: row.default_account_id ? accountMap.get(String(row.default_account_id)) ?? null : null,
+      totalIncome,
+      totalIncomeLabel: money(totalIncome),
+      totalExpense,
+      totalExpenseLabel: money(totalExpense),
+    };
+  });
 
   return {
     totals: {
@@ -344,6 +384,7 @@ export async function loadBusinessViewModel(context: WorkspaceContext): Promise<
     topItems,
     units,
     sources,
+    unitTransactions: unitTransactions.sort((a, b) => b.date.localeCompare(a.date)),
     accountOptions: (accountsResult.data ?? []).map((row) => ({
       id: String(row.id),
       label: String(row.name),
