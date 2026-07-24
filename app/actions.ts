@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireWorkspaceContext } from "@/src/lib/auth";
-import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
+import { createSupabaseServerComponentClient, getSupabaseAdminClient } from "@/src/lib/supabase";
 import {
   generateIncomeOccurrenceDates,
   normalizeRecurrenceDays,
@@ -3745,9 +3745,9 @@ export async function fetchPaginatedHistoryPage(input: {
 
 export async function submitBetaFeedback(input: { name?: string; category: string; message: string }) {
   const context = await requireWorkspaceContext();
-  const admin = await createSupabaseServerComponentClient();
+  const admin = getSupabaseAdminClient();
 
-  if (!admin) throw new Error("Supabase client no disponible.");
+  if (!admin) throw new Error("Supabase admin client no disponible.");
 
   const email = context.profile.email ?? null;
   const name = input.name?.trim() || context.profile.fullName || "Beta Tester";
@@ -3765,22 +3765,7 @@ export async function submitBetaFeedback(input: { name?: string; category: strin
   });
 
   if (error) {
-    console.error("No se pudo guardar en beta_feedback, realizando fallback a admin_audit_log:", error.message);
-    try {
-      await admin.from("admin_audit_log").insert({
-        workspace_id: context.workspace.id,
-        actor_id: context.profile.id,
-        action: "BETA_FEEDBACK",
-        details: {
-          category: input.category,
-          message,
-          user_name: name,
-          user_email: email,
-        },
-      });
-    } catch {
-      // Ignorar fallback si tampoco se pudo insertar en audit log
-    }
+    throw new Error(`No se pudo guardar el comentario: ${error.message}`);
   }
 
   return { success: true };
