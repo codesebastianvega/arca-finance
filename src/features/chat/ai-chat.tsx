@@ -296,10 +296,10 @@ export default function AiChat({
                   {/* Subtle pill-shaped suggestion chips */}
                   <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm pt-2">
                     {[
-                      { emoji: "📊", label: "Gastos del mes", prompt: "Revisa mis gastos de este mes y dime en qué he gastado más" },
-                      { emoji: "📅", label: "Pagos próximos", prompt: "¿Qué compromisos y deudas vencen esta semana?" },
+                      { emoji: "🩺", label: "Diagnóstico Semanal", prompt: "Ejecuta un diagnóstico semanal de mi salud financiera" },
+                      { emoji: "🔮", label: "Simular 'Qué Pasa Si'", prompt: "¿Qué pasa si compro una laptop de $3.500.000 a 6 cuotas?" },
+                      { emoji: "💬", label: "Cobro por WhatsApp", prompt: "Genera un recordatorio amigable de cobro por WhatsApp para Juan de $150.000" },
                       { emoji: "💰", label: "Disponible libre", prompt: "¿Cuánto dinero libre tengo disponible para gastar hoy?" },
-                      { emoji: "📈", label: "Resumen de flujo", prompt: "Hazme un resumen de mis ingresos vs mis gastos actuales" },
                     ].map((chip) => (
                       <button
                         type="button"

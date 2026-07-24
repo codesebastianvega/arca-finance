@@ -1303,5 +1303,141 @@ export function createFinancialTools(context: WorkspaceContext) {
         };
       },
     }),
+
+    get_weekly_audit: tool({
+      description: "Ejecuta un diagnóstico financiero 360° semanal de Arca: liquidez total, gastos proyectados a 7 días, ritmo de gasto diario (burn rate) y caja libre real.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const todayData = await loadTodayViewModel(context);
+        const moneyData = await loadMoneyViewModel(context);
+
+        const totalLiquidity = moneyData.liquidBalance;
+        const next7DaysIso = addDays(dateInBogota(), 7);
+        const upcomingCritical7Days = todayData.criticalPayments.filter(
+          (p) => p.dueDate <= next7DaysIso
+        );
+        const critical7DaysTotal = upcomingCritical7Days.reduce((sum, p) => sum + p.amount, 0);
+
+        const upcomingIncomes7Days = todayData.upcomingIncomes.filter(
+          (i) => i.dueDate && i.dueDate <= next7DaysIso
+        );
+        const incomes7DaysTotal = upcomingIncomes7Days.reduce((sum, i) => sum + i.amount, 0);
+
+        const dayOfMonth = Number(dateInBogota().slice(8, 10)) || 1;
+        const monthExpensesTotal = todayData.monthSpent;
+        const dailyBurnRate = Math.round(monthExpensesTotal / Math.max(1, dayOfMonth));
+
+        const realFreeCash = totalLiquidity + incomes7DaysTotal - critical7DaysTotal;
+        const healthStatus = realFreeCash < 0 
+          ? "CRITICAL_DEFICIT" 
+          : realFreeCash < critical7DaysTotal * 0.5 
+          ? "CAUTION_LOW_RESERVE" 
+          : "HEALTHY_LIQUIDITY";
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          totalLiquidity,
+          criticalPaymentsNext7Days: {
+            totalAmount: critical7DaysTotal,
+            count: upcomingCritical7Days.length,
+            items: upcomingCritical7Days.map((p) => ({ title: p.title, amount: p.amount, dueDate: p.dueDate })),
+          },
+          expectedIncomesNext7Days: {
+            totalAmount: incomes7DaysTotal,
+            count: upcomingIncomes7Days.length,
+            items: upcomingIncomes7Days.map((i) => ({ title: i.title, amount: i.amount, dueDate: i.dueDate })),
+          },
+          dailyBurnRate,
+          realFreeCash,
+          healthStatus,
+        };
+      },
+    }),
+
+    simulate_purchase_impact: tool({
+      description: "Simula el impacto financiero de realizar una compra grande o diferida a cuotas (What-If engine). Evalúa la liquidez futura y el riesgo de iliquidez.",
+      inputSchema: z.object({
+        amount: z.number().describe("Monto total de la compra proyectada"),
+        installments: z.number().optional().describe("Número de cuotas mensuales (1 si es pago único)"),
+        description: z.string().describe("Nombre o descripción de la compra (ej: Laptop, Consola, Viaje)"),
+        category: z.string().optional().describe("Categoría estimada del gasto"),
+      }),
+      execute: async ({ amount, installments = 1, description }) => {
+        const moneyData = await loadMoneyViewModel(context);
+        const todayData = await loadTodayViewModel(context);
+
+        const safeInstallments = Math.max(1, Math.round(installments));
+        const monthlyInstallment = Math.round(amount / safeInstallments);
+        const totalLiquidity = moneyData.liquidBalance;
+
+        const remainingCashMonth1 = totalLiquidity - monthlyInstallment;
+        const isImmediateRisk = remainingCashMonth1 < 0;
+
+        const monthlyFixedCommitments = todayData.criticalPayments.reduce((sum, p) => sum + p.amount, 0);
+
+        let riskLevel: "LOW_RISK" | "MODERATE_RISK" | "HIGH_RISK" = "LOW_RISK";
+        let recommendation = "";
+
+        if (isImmediateRisk) {
+          riskLevel = "HIGH_RISK";
+          recommendation = `Riesgo alto: Tu liquidez actual (${totalLiquidity.toLocaleString()}) no cubre la primera cuota (${monthlyInstallment.toLocaleString()}).`;
+        } else if (remainingCashMonth1 < monthlyFixedCommitments) {
+          riskLevel = "MODERATE_RISK";
+          recommendation = `Riesgo moderado: Tras pagar la cuota de ${monthlyInstallment.toLocaleString()}, tu caja restante (${remainingCashMonth1.toLocaleString()}) será ajustada para tus compromisos fijos del mes.`;
+        } else {
+          riskLevel = "LOW_RISK";
+          recommendation = `Compra viable: Tienes liquidez suficiente (${totalLiquidity.toLocaleString()}) para asumir cuotas mensuales de ${monthlyInstallment.toLocaleString()} durante ${safeInstallments} meses sin comprometer tus pagos fijos.`;
+        }
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          purchaseDescription: description,
+          totalAmount: amount,
+          installments: safeInstallments,
+          monthlyInstallment,
+          currentLiquidity: totalLiquidity,
+          remainingCashAfterMonth1: remainingCashMonth1,
+          riskLevel,
+          recommendation,
+        };
+      },
+    }),
+
+    generate_whatsapp_collection_reminder: tool({
+      description: "Genera un mensaje redactado profesionalmente para cobrar un saldo a favor por WhatsApp, incluyendo enlace de 1 clic para abrir WhatsApp.",
+      inputSchema: z.object({
+        debtorName: z.string().describe("Nombre de la persona o cliente que debe"),
+        amount: z.number().describe("Monto adeudado en moneda local"),
+        dueDate: z.string().optional().describe("Fecha de vencimiento acordada"),
+        tone: z.enum(["friendly", "formal", "urgent"]).optional().describe("Tono del mensaje (friendly = amigable, formal = profesional, urgent = urgente)"),
+        bankDetails: z.string().optional().describe("Datos de la cuenta o Nequi para recibir la transferencia"),
+      }),
+      execute: async ({ debtorName, amount, dueDate, tone = "friendly", bankDetails }) => {
+        const formattedAmount = `${amount.toLocaleString()} ${context.workspace.currencyCode}`;
+        const paymentAccount = bankDetails || "Nequi / Bancolombia";
+
+        let text = "";
+        if (tone === "friendly") {
+          text = `Hola ${debtorName} 👋 Espero que estés muy bien. Te escribo porfa para recordarte lo del saldo de ${formattedAmount}${dueDate ? ` con vencimiento el ${dueDate}` : ""}. Cuando puedas me transfieres porfa a ${paymentAccount}. ¡Mil gracias! 🙌`;
+        } else if (tone === "urgent") {
+          text = `Hola ${debtorName}, espero te encuentres bien. Te escribo urgentemente respecto al pago de ${formattedAmount} pendiente desde ${dueDate ?? "la fecha acordada"}. Por favor confírmame el envío del soporte a ${paymentAccount}. Quedo atento, gracias.`;
+        } else {
+          text = `Estimado/a ${debtorName}, reciba un cordial saludo. Le escribo para recordarle la gestión del pago por valor de ${formattedAmount}${dueDate ? ` correspondiente al ${dueDate}` : ""}. Agradezco realizar la transferencia a ${paymentAccount} y enviarme el comprobante. Atentamente.`;
+        }
+
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+
+        return {
+          success: true,
+          debtorName,
+          amount: formattedAmount,
+          tone,
+          whatsappMessage: text,
+          whatsappUrl,
+        };
+      },
+    }),
   };
 }
