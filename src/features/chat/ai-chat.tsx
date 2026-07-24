@@ -5,7 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Sparkles, User, Bot, ArrowRight, Check } from 'lucide-react';
+import { X, Send, Sparkles, User, Bot, ArrowRight, Check, Camera } from 'lucide-react';
 import { MessageResponse } from '@/src/components/ai-elements/message';
 import {
   FinancialActionCard,
@@ -42,27 +42,28 @@ const PERSONAL_PLAN_FEATURES = [
   'Automatizaciones y recordatorios',
 ] as const;
 
+type AiChatProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  initialPrompt?: string | null;
+  onInitialPromptConsumed?: () => void;
+  onViewChanges?: () => void;
+  currencyCode?: string;
+  monthlyLimit: number | null;
+  initialUsed: number;
+  onViewPlans?: () => void;
+};
+
 export default function AiChat({
   isOpen,
   onClose,
   initialPrompt,
   onInitialPromptConsumed,
-  currencyCode,
+  onViewChanges,
   monthlyLimit,
   initialUsed,
   onViewPlans,
-  onViewChanges,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  initialPrompt?: string | null;
-  onInitialPromptConsumed?: () => void;
-  currencyCode: string;
-  monthlyLimit: number | null;
-  initialUsed: number;
-  onViewPlans?: () => void;
-  onViewChanges?: () => void;
-}) {
+}: AiChatProps) {
   const router = useRouter();
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [used, setUsed] = useState(initialUsed);
@@ -92,8 +93,27 @@ export default function AiChat({
   const isLoading = status === 'submitted' || status === 'streaming';
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [quotaInfo, setQuotaInfo] = useState<NovaQuotaInfo | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ file: File; previewUrl: string; base64: string } | null>(null);
   const refreshedToolCallsRef = useRef(new Set<string>());
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    haptics.medium();
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setSelectedImage({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        base64,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -148,12 +168,29 @@ export default function AiChat({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    if ((!inputValue.trim() && !selectedImage) || isLoading) return;
     if (remaining === 0) {
       setQuotaReached(true);
       return;
     }
-    sendMessage({ text: inputValue });
+
+    const textToSend = inputValue.trim() || 'Analiza esta factura/recibo/comprobante de pago y prepara el movimiento correspondiente.';
+
+    if (selectedImage) {
+      void sendMessage({
+        text: textToSend,
+        files: [
+          {
+            type: selectedImage.file.type,
+            url: selectedImage.base64,
+          },
+        ],
+      });
+      setSelectedImage(null);
+    } else {
+      void sendMessage({ text: textToSend });
+    }
+
     setUsed((current) => current + 1);
     setInputValue('');
   };
@@ -411,21 +448,61 @@ export default function AiChat({
 
             {/* Input Form */}
             <div className="shrink-0 relative z-10 p-3 sm:p-4 pb-safe bg-arca-surface-1/90 backdrop-blur-xl border-t border-arca-border">
+              {selectedImage && (
+                <div className="relative mb-3 flex items-center gap-3 rounded-2xl border border-arca-accent/40 bg-arca-surface-2 p-2.5 shadow-lg max-w-sm">
+                  <img src={selectedImage.previewUrl} alt="Vista previa de factura" className="h-12 w-12 rounded-xl object-cover border border-arca-border" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-arca-text-primary truncate">{selectedImage.file.name}</p>
+                    <p className="text-[10px] text-arca-accent font-semibold flex items-center gap-1">
+                      <span>📸</span> Factura lista para escaneo OCR
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImage(null)}
+                    aria-label="Eliminar foto"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-arca-surface-1 text-arca-text-secondary hover:text-white border border-arca-border transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={onSubmit} className="relative flex items-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.medium();
+                    fileInputRef.current?.click();
+                  }}
+                  aria-label="Tomar foto o subir recibo"
+                  className="absolute left-2.5 z-10 w-10 h-10 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
+                >
+                  <Camera size={19} />
+                </button>
+
                 <input
                   ref={inputRef}
                   type="text"
                   autoFocus
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Pregúntale a Nova..."
-                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-6 pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
+                  placeholder={selectedImage ? "Añade notas (opcional)..." : "Pregúntale a Nova..."}
+                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-14 pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
                 />
                 <button
                   type="submit"
-                  disabled={isLoading || !inputValue.trim()}
+                  disabled={isLoading || (!inputValue.trim() && !selectedImage)}
                   aria-label="Enviar mensaje"
-                  className="absolute right-2 w-10 h-10 rounded-full bg-arca-accent flex items-center justify-center text-[#15110c] hover:bg-arca-accent-hover disabled:opacity-30 transition-all disabled:shadow-none"
+                  className="absolute right-2 z-10 w-10 h-10 rounded-full bg-arca-accent flex items-center justify-center text-[#15110c] hover:bg-arca-accent-hover disabled:opacity-30 transition-all disabled:shadow-none"
                 >
                   <Send size={18} className="ml-0.5" />
                 </button>
