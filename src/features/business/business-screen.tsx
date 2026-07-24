@@ -495,6 +495,7 @@ export default function BusinessScreen({
             </motion.div>
           </div>
         ) : null}
+      </AnimatePresence>
       {/* Source Detail Sub-modal */}
       <AnimatePresence>
         {selectedSource && (
