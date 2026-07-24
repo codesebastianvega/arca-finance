@@ -71,10 +71,10 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
   }
 
   const workspaceId = context.workspace.id;
-  const [transactionsResult, accountsResult, categoriesResult] = await Promise.all([
+  const [transactionsResult, accountsResult, categoriesResult, unitsResult, sourcesResult] = await Promise.all([
     supabase
       .from("transactions")
-      .select("id, concept, amount, date, category, unit, kind, status, source_type, account_id, created_at, accounts(name)")
+      .select("id, concept, amount, date, category, unit, kind, status, source_type, source_id, account_id, created_at, accounts(name)")
       .eq("workspace_id", workspaceId)
       .neq("status", "cancelled")
       .gte("date", historyStartDate())
@@ -93,12 +93,23 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
       .eq("workspace_id", workspaceId)
       .eq("active", true)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("business_units")
+      .select("id, name, key")
+      .eq("workspace_id", workspaceId)
+      .eq("archived", false)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("income_sources")
+      .select("id, name, business_unit_key")
+      .eq("workspace_id", workspaceId)
+      .eq("active", true)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (transactionsResult.error) {
     throw new Error(`No se pudieron leer los movimientos: ${transactionsResult.error.message}`);
   }
-
 
   if (accountsResult.error) {
     throw new Error(`No se pudieron leer las cuentas: ${accountsResult.error.message}`);
@@ -114,6 +125,7 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
     kind: string;
     status: string;
     source_type: string | null;
+    source_id: string | null;
     account_id: string | null;
     accounts?: { name?: string | null } | Array<{ name?: string | null }> | null;
   }>).map((row) => {
@@ -139,6 +151,7 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
       accountName,
       status: String(row.status),
       sourceType: row.source_type ? String(row.source_type) : null,
+      sourceId: row.source_id ? String(row.source_id) : null,
       editable: isEditable({
         source_type: row.source_type ? String(row.source_type) : null,
         kind: String(row.kind),
@@ -169,5 +182,17 @@ export async function loadHistoryViewModel(context: WorkspaceContext): Promise<H
         }));
       return [...defaultCategories, ...dbCategories];
     })(),
+    unitOptions: (unitsResult.data ?? [])
+      .filter((u: any) => String(u.name).toLowerCase() !== 'personal' && !String(u.key).startsWith('personal-'))
+      .map((u: any) => ({
+        id: String(u.id),
+        label: String(u.name),
+        value: String(u.key),
+      })),
+    incomeSources: (sourcesResult.data ?? []).map((s: any) => ({
+      id: String(s.id),
+      label: String(s.name),
+      unitKey: String(s.business_unit_key),
+    })),
   };
 }

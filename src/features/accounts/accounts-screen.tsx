@@ -1219,6 +1219,8 @@ export default function AccountsScreen({
             item={editingTransaction}
             accountOptions={accountOptions}
             categoryOptions={data.categoryOptions}
+            unitOptions={data.unitOptions}
+            incomeSources={data.incomeSources}
             onClose={() => setEditingTransaction(null)}
           />
         )}

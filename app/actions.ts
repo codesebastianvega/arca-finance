@@ -2859,6 +2859,7 @@ export async function updateManualTransaction(input: {
   amount: number;
   category: string;
   unit: string;
+  sourceId?: string | null;
   date: string;
   accountId: string;
 }) {
@@ -2957,6 +2958,7 @@ export async function updateManualTransaction(input: {
     amount: input.amount,
     category: input.category ? input.category.trim() : transaction.category,
     unit: input.unit ? input.unit.trim() : transaction.unit,
+    source_id: input.sourceId !== undefined ? (input.sourceId || null) : (transaction as any).source_id,
     account_id: nextAccountId,
     date: input.date ? `${input.date}T00:00:00-05:00` : transaction.date,
     updated_at: new Date().toISOString(),

@@ -15,6 +15,7 @@ export type HistoryItem = {
   accountName: string | null;
   status: string;
   sourceType: string | null;
+  sourceId: string | null;
   editable: boolean;
 };
 
@@ -28,5 +29,15 @@ export type HistoryViewModel = {
     id: string;
     label: string;
     value: string;
+  }>;
+  unitOptions: Array<{
+    id: string;
+    label: string;
+    value: string;
+  }>;
+  incomeSources: Array<{
+    id: string;
+    label: string;
+    unitKey: string;
   }>;
 };

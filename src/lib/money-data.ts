@@ -95,6 +95,16 @@ export type MoneyViewModel = {
     label: string;
     value: string;
   }>;
+  unitOptions: Array<{
+    id: string;
+    label: string;
+    value: string;
+  }>;
+  incomeSources: Array<{
+    id: string;
+    label: string;
+    unitKey: string;
+  }>;
 };
 
 function money(value: number) {
@@ -271,7 +281,19 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
       .select("id, name")
       .eq("workspace_id", workspaceId)
       .eq("active", true)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("business_units")
+      .select("id, name, key")
+      .eq("workspace_id", workspaceId)
+      .eq("archived", false)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("income_sources")
+      .select("id, name, business_unit_key")
+      .eq("workspace_id", workspaceId)
+      .eq("active", true)
+      .order("created_at", { ascending: true }),
   ]);
 
   let cardsResult: typeof rawCardsResult | any = rawCardsResult;
@@ -455,5 +477,17 @@ export async function loadMoneyViewModel(context: WorkspaceContext): Promise<Mon
         }));
       return [...defaultCategories, ...dbCategories];
     })(),
+    unitOptions: (unitsResult.data ?? [])
+      .filter((u: any) => String(u.name).toLowerCase() !== 'personal' && !String(u.key).startsWith('personal-'))
+      .map((u: any) => ({
+        id: String(u.id),
+        label: String(u.name),
+        value: String(u.key),
+      })),
+    incomeSources: (sourcesResult.data ?? []).map((s: any) => ({
+      id: String(s.id),
+      label: String(s.name),
+      unitKey: String(s.business_unit_key),
+    })),
   };
 }
