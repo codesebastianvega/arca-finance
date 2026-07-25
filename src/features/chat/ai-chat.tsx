@@ -12,6 +12,7 @@ import {
   isFinancialActionPart,
   type FinancialActionPart,
 } from './financial-action-card';
+import { AntExpensesCard, type AntExpensesOutput } from './ant-expenses-card';
 import {
   DEFAULT_NOVA_PREFERENCES,
   NOVA_PREFERENCES_KEY,
@@ -480,6 +481,18 @@ export default function AiChat({
                                   part.text
                                 )}
                               </div>
+                            );
+                          }
+
+                          if (part.type === 'tool-detect_ant_expenses_and_subscriptions' || part.type === 'tool-call' && (part as any).toolName === 'detect_ant_expenses_and_subscriptions') {
+                            const output = (part as any).output as AntExpensesOutput | undefined;
+                            return (
+                              <AntExpensesCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onExploreSubscriptions={() => router.push('/app?screen=suscripciones')}
+                              />
                             );
                           }
 

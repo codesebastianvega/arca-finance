@@ -1440,5 +1440,74 @@ export function createFinancialTools(context: WorkspaceContext) {
         };
       },
     }),
+
+    detect_ant_expenses_and_subscriptions: tool({
+      description: "Detecta micro-gastos (gastos hormiga < $35.000) y suscripciones recurrentes del usuario. Calcula la suma total acumulada y muestra la equivalencia tangible en recibos/servicios del hogar.",
+      inputSchema: z.object({
+        periodDays: z.number().optional().default(30).describe("Período en días a analizar (por defecto 30 días)"),
+      }),
+      execute: async ({ periodDays = 30 }) => {
+        const historyData = await loadHistoryViewModel(context);
+        const subscriptionsData = await loadSubscriptionsViewModel(context);
+
+        const now = new Date();
+        const pastDate = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
+
+        // Filter transactions under threshold ($35.000)
+        const THRESHOLD = 35000;
+        const antTransactions = historyData.movements.filter((m) => {
+          if (m.type !== 'gasto') return false;
+          const mDate = new Date(m.rawDate);
+          return mDate >= pastDate && Math.abs(m.amount) <= THRESHOLD;
+        });
+
+        const totalAntExpenses = antTransactions.reduce((sum, m) => sum + Math.abs(m.amount), 0);
+
+        // Group by category
+        const categoryMap: Record<string, { total: number; count: number }> = {};
+        for (const m of antTransactions) {
+          const cat = m.category || "Otros micro-gastos";
+          if (!categoryMap[cat]) categoryMap[cat] = { total: 0, count: 0 };
+          categoryMap[cat].total += Math.abs(m.amount);
+          categoryMap[cat].count += 1;
+        }
+
+        const categoriesList = Object.entries(categoryMap).map(([name, data]) => ({
+          category: name,
+          amount: data.total,
+          count: data.count,
+        })).sort((a, b) => b.amount - a.amount);
+
+        // Calculate tangible equivalence
+        let equivalence = "1 factura de luz del hogar";
+        if (totalAntExpenses > 300000) {
+          equivalence = "3 meses de internet fibra óptica o 1 mercado mediano";
+        } else if (totalAntExpenses > 150000) {
+          equivalence = "1 factura mensual de energía o servicio de gas del hogar";
+        } else if (totalAntExpenses > 70000) {
+          equivalence = "1 mes completo de tu plan de celular o internet";
+        }
+
+        const subscriptions = subscriptionsData.subscriptions.map((sub) => ({
+          id: sub.id,
+          name: sub.name,
+          amount: sub.amount,
+          frequency: sub.frequency,
+          status: sub.status,
+        }));
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          periodDays,
+          totalAntExpenses,
+          antExpensesCount: antTransactions.length,
+          categoriesList,
+          tangibleEquivalence: equivalence,
+          subscriptionsCount: subscriptions.length,
+          subscriptions,
+        };
+      },
+    }),
   };
 }

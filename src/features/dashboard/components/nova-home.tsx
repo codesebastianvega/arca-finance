@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Bug,
   CalendarClock,
   Camera,
   CircleDollarSign,
@@ -431,6 +432,13 @@ export default function NovaHome({
 
         <div className="space-y-2">
           {[
+            {
+              icon: Bug,
+              badge: "NUEVO",
+              title: "Detector de Gastos Hormiga & Suscripciones",
+              desc: "Analiza tus micro-gastos acumulados y muestra su equivalencia en recibos.",
+              prompt: "¿Cuáles son mis gastos hormiga y suscripciones del mes?",
+            },
             {
               icon: Mic,
               badge: "NUEVO",
