@@ -199,59 +199,6 @@ export default function NovaHome({
         </button>
       </header>
 
-      {/* --- NOVEDAD: VISION OCR & SUPERPODERES --- */}
-      <div className="relative overflow-hidden rounded-2xl border border-arca-accent/40 bg-gradient-to-r from-arca-accent/15 via-arca-surface-1 to-arca-surface-2 p-4 shadow-[0_4px_20px_rgba(245,158,11,0.12)]">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-arca-accent/20 border border-arca-accent/40 text-arca-accent shadow-[0_0_12px_rgba(245,158,11,0.25)]">
-              <Camera size={22} />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">
-                  ✦ ¡NUEVA FUNCIÓN!
-                </span>
-                <span className="rounded-full bg-arca-accent/20 px-2 py-0.5 text-[8px] font-extrabold text-arca-accent border border-arca-accent/30">
-                  Visión OCR
-                </span>
-              </div>
-              <h3 className="mt-0.5 text-sm font-black text-arca-text-primary light:text-arca-light-text-primary">
-                Escáner de Recibos y Facturas con IA
-              </h3>
-            </div>
-          </div>
-        </div>
-
-        <p className="mt-2 text-xs text-arca-text-secondary light:text-arca-light-text-secondary leading-relaxed">
-          Tómale una foto a cualquier ticket de compra o comprobante (Nequi, Bancolombia) y Nova lo registrará automáticamente.
-        </p>
-
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              haptics.medium();
-              onOpenNova("Analiza esta foto de recibo que subiré");
-            }}
-            className="flex items-center gap-1.5 rounded-xl bg-arca-accent px-3.5 py-2 text-xs font-black text-[#15110c] transition-all hover:bg-arca-accent-hover active:scale-95 shadow-sm"
-          >
-            <Camera size={14} />
-            Probar escáner 📸
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              haptics.medium();
-              onOpenNova("Ejecuta un diagnóstico semanal de mi salud financiera");
-            }}
-            className="flex items-center gap-1.5 rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-2 text-xs font-bold text-arca-text-primary hover:border-arca-accent/40 active:scale-95"
-          >
-            <Sparkles size={13} className="text-arca-accent" />
-            Superpoderes Nova ⚡
-          </button>
-        </div>
-      </div>
-
       {/* --- BETA TESTER CARD --- */}
       <button
         type="button"
@@ -451,6 +398,76 @@ export default function NovaHome({
             <WalletCards size={17} className="text-arca-accent" />
             <span className="mt-2 block text-xs font-bold">Movimientos</span>
           </button>
+        </div>
+      </section>
+
+      {/* --- SUBTLE NOVA CAPABILITIES LIST AT THE VERY BOTTOM --- */}
+      <section className="mt-1">
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.16em] text-arca-text-secondary light:text-arca-light-text-secondary flex items-center gap-1.5">
+            <Sparkles size={12} className="text-arca-accent" />
+            Funciones de Nova AI
+          </h2>
+          <span className="text-[9px] font-bold text-arca-text-dim">Superpoderes</span>
+        </div>
+
+        <div className="space-y-2">
+          {[
+            {
+              icon: Camera,
+              badge: "NUEVO",
+              title: "Escáner OCR de Recibos y Facturas",
+              desc: "Tómale foto a cualquier ticket o comprobante para registrarlo.",
+              prompt: "Analiza esta foto de recibo que subiré",
+            },
+            {
+              icon: Sparkles,
+              badge: "IA",
+              title: "Diagnóstico Semanal de Salud Financiera",
+              desc: "Liquidez a 7 días, compromisos y días de caja libre.",
+              prompt: "Ejecuta un diagnóstico semanal de mi salud financiera",
+            },
+            {
+              icon: Lightbulb,
+              badge: "IA",
+              title: "Simulador de Compras 'Qué Pasa Si'",
+              desc: "Analiza el impacto de compras a cuotas en tus finanzas.",
+              prompt: "¿Qué pasa si compro una laptop de $3.500.000 a 6 cuotas?",
+            },
+          ].map((item) => {
+            const ItemIcon = item.icon;
+            return (
+              <button
+                type="button"
+                key={item.title}
+                onClick={() => {
+                  haptics.medium();
+                  onOpenNova(item.prompt);
+                }}
+                className="group flex w-full items-center gap-3 rounded-2xl border border-arca-border/80 bg-arca-surface-1/60 p-3 text-left transition-all hover:border-arca-accent/40 hover:bg-arca-surface-1 active:scale-[0.99] light:bg-arca-light-surface-1 light:border-arca-light-border"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-arca-surface-2 border border-arca-border text-arca-accent group-hover:scale-105 transition-transform">
+                  <ItemIcon size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-arca-text-primary light:text-arca-light-text-primary">
+                      {item.title}
+                    </span>
+                    {item.badge === "NUEVO" ? (
+                      <span className="rounded-full bg-arca-accent/20 px-1.5 py-0.2 text-[8px] font-black text-arca-accent border border-arca-accent/30">
+                        NUEVO
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-arca-text-dim truncate">
+                    {item.desc}
+                  </span>
+                </span>
+                <ArrowRight size={14} className="shrink-0 text-arca-text-dim group-hover:text-arca-accent group-hover:translate-x-0.5 transition-all" />
+              </button>
+            );
+          })}
         </div>
       </section>
 
