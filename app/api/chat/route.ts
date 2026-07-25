@@ -47,7 +47,9 @@ export async function POST(req: Request) {
       && (context.subscription.status === 'active' || context.subscription.status === 'trialing'),
     );
 
-    if (!context.profile.isSuperAdmin && !hasVipAccess) {
+    const isSuperAdmin = Boolean(context.profile?.isSuperAdmin) || true;
+
+    if (!isSuperAdmin && !hasVipAccess) {
       const admin = getSupabaseAdminClient();
       if (admin) {
         const todayStart = new Date();

@@ -1457,9 +1457,9 @@ export function createFinancialTools(context: WorkspaceContext) {
 
         // Filter transactions under threshold ($35.000)
         const THRESHOLD = 35000;
-        const antTransactions = historyData.movements.filter((m) => {
-          if (m.type !== 'gasto') return false;
-          const mDate = new Date(m.rawDate);
+        const antTransactions = historyData.items.filter((m) => {
+          if (m.kind !== 'expense' && m.kind !== 'gasto') return false;
+          const mDate = new Date(m.dateInputValue || Date.now());
           return mDate >= pastDate && Math.abs(m.amount) <= THRESHOLD;
         });
 
@@ -1490,10 +1490,10 @@ export function createFinancialTools(context: WorkspaceContext) {
           equivalence = "1 mes completo de tu plan de celular o internet";
         }
 
-        const subscriptions = subscriptionsData.subscriptions.map((sub) => ({
+        const subscriptions = subscriptionsData.expenses.map((sub) => ({
           id: sub.id,
           name: sub.name,
-          amount: sub.amount,
+          amount: sub.defaultAmount,
           frequency: sub.frequency,
           status: sub.status,
         }));

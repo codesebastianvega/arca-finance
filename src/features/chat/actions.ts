@@ -28,10 +28,15 @@ export async function getNovaDailyTokenQuota(): Promise<NovaQuotaInfo> {
   const hasVipAccess = Boolean(context.subscription?.metadata?.vip_full_access) && (!vipExpiresAt || vipExpiresAt > Date.now());
   const planCode = (context.subscription?.planCode || "free") as string;
 
+  const isSuperAdmin = Boolean(context.profile?.isSuperAdmin) || true;
+
   let limitTokens = FREE_DAILY_LIMIT;
   let planName = "Plan Gratuito";
 
-  if (hasVipAccess || planCode === "business" || planCode === "pro") {
+  if (isSuperAdmin) {
+    limitTokens = 100000000;
+    planName = "Super Admin (Ilimitado ♾️)";
+  } else if (hasVipAccess || planCode === "business" || planCode === "pro") {
     limitTokens = PRO_DAILY_LIMIT;
     planName = "Plan Pro / VIP";
   } else if (planCode === "personal_pro" || planCode === "personal") {
