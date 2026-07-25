@@ -16,6 +16,9 @@ import { AntExpensesCard, type AntExpensesOutput } from './ant-expenses-card';
 import { PurchaseSimulationCard, type PurchaseSimulationOutput } from './purchase-simulation-card';
 import { DebtSnowballCard, type DebtPayoffOutput } from './debt-snowball-card';
 import { YieldsScannerCard, type YieldsScannerOutput } from './yields-scanner-card';
+import { TripPlannerCard, type TripPlannerOutput } from './trip-planner-card';
+import { VehiclePlannerCard, type VehiclePlannerOutput } from './vehicle-planner-card';
+import { HomePurchaseCard, type HomePurchaseOutput } from './home-purchase-card';
 import {
   DEFAULT_NOVA_PREFERENCES,
   NOVA_PREFERENCES_KEY,
@@ -531,6 +534,42 @@ export default function AiChat({
                                 output={output}
                                 currencyCode={currencyCode}
                                 onExploreAccounts={() => router.push('/app?screen=dinero')}
+                              />
+                            );
+                          }
+
+                          if (part.type === 'tool-plan_trip_budget_and_savings' || part.type === 'tool-call' && (part as any).toolName === 'plan_trip_budget_and_savings') {
+                            const output = (part as any).output as TripPlannerOutput | undefined;
+                            return (
+                              <TripPlannerCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onOpenLifeGoalsScreen={() => router.push('/app?screen=metas_vida')}
+                              />
+                            );
+                          }
+
+                          if (part.type === 'tool-plan_vehicle_obligations' || part.type === 'tool-call' && (part as any).toolName === 'plan_vehicle_obligations') {
+                            const output = (part as any).output as VehiclePlannerOutput | undefined;
+                            return (
+                              <VehiclePlannerCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onOpenLifeGoalsScreen={() => router.push('/app?screen=metas_vida')}
+                              />
+                            );
+                          }
+
+                          if (part.type === 'tool-calculate_home_purchase_capacity' || part.type === 'tool-call' && (part as any).toolName === 'calculate_home_purchase_capacity') {
+                            const output = (part as any).output as HomePurchaseOutput | undefined;
+                            return (
+                              <HomePurchaseCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onOpenLifeGoalsScreen={() => router.push('/app?screen=metas_vida')}
                               />
                             );
                           }

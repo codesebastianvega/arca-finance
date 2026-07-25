@@ -1661,5 +1661,120 @@ export function createFinancialTools(context: WorkspaceContext) {
         };
       },
     }),
+
+    plan_trip_budget_and_savings: tool({
+      description: "Planea un viaje futuro desglosando el presupuesto recomendado (tiquetes, hotel, comidas, tours) y calculando la meta de ahorro semanal o mensual necesaria.",
+      inputSchema: z.object({
+        destination: z.string().describe("Destino del viaje (ej: San Andrés, Cartagena, Europa)"),
+        totalBudget: z.number().describe("Presupuesto total estimado en moneda local"),
+        targetMonth: z.string().optional().describe("Mes previsto del viaje (ej: Octubre, Diciembre)"),
+        monthsToTrip: z.number().optional().default(6).describe("Número de meses faltantes para el viaje (por defecto 6 meses)"),
+      }),
+      execute: async ({ destination, totalBudget, targetMonth = "los próximos meses", monthsToTrip = 6 }) => {
+        const flights = Math.round(totalBudget * 0.35);
+        const hotel = Math.round(totalBudget * 0.30);
+        const food = Math.round(totalBudget * 0.20);
+        const toursAndExtras = Math.round(totalBudget * 0.15);
+
+        const safeMonths = Math.max(1, monthsToTrip);
+        const monthlySavingsNeeded = Math.round(totalBudget / safeMonths);
+        const weeklySavingsNeeded = Math.round(totalBudget / (safeMonths * 4));
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          destination,
+          totalBudget,
+          targetMonth,
+          monthsToTrip: safeMonths,
+          breakdown: {
+            flights,
+            hotel,
+            food,
+            toursAndExtras,
+          },
+          monthlySavingsNeeded,
+          weeklySavingsNeeded,
+        };
+      },
+    }),
+
+    plan_vehicle_obligations: tool({
+      description: "Programa los gastos anuales recurrentes de un vehículo (SOAT, Tecnomecánica e Impuesto Vehicular) y calcula la cuota mensual de previsión para no apretar la caja.",
+      inputSchema: z.object({
+        vehicleName: z.string().optional().default("Mi Vehículo").describe("Nombre o referencia del vehículo (ej: Carro Mazda, Moto Pulsar)"),
+        vehicleType: z.enum(["car", "motorcycle"]).optional().default("car").describe("Tipo de vehículo: car (carro) o motorcycle (moto)"),
+        soatMonth: z.string().optional().default("Mayo").describe("Mes de vencimiento del SOAT"),
+        tecnoMonth: z.string().optional().default("Junio").describe("Mes de vencimiento de la Tecnomecánica"),
+        taxMonth: z.string().optional().default("Julio").describe("Mes de pago del Impuesto Vehicular"),
+      }),
+      execute: async ({ vehicleName = "Mi Vehículo", vehicleType = "car", soatMonth = "Mayo", tecnoMonth = "Junio", taxMonth = "Julio" }) => {
+        const isCar = vehicleType === "car";
+        const soatCost = isCar ? 650000 : 550000;
+        const tecnoCost = isCar ? 320000 : 210000;
+        const taxCost = isCar ? 850000 : 220000;
+
+        const totalAnnualCost = soatCost + tecnoCost + taxCost;
+        const monthlyProvision = Math.round(totalAnnualCost / 12);
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          vehicleName,
+          vehicleType,
+          totalAnnualCost,
+          monthlyProvision,
+          obligations: [
+            { name: "SOAT Obligatorio", month: soatMonth, estimatedCost: soatCost },
+            { name: "Revisión Tecnomecánica", month: tecnoMonth, estimatedCost: tecnoCost },
+            { name: "Impuesto Vehicular", month: taxMonth, estimatedCost: taxCost },
+          ],
+        };
+      },
+    }),
+
+    calculate_home_purchase_capacity: tool({
+      description: "Calcula la cuota inicial (30%), evalúa los subsidios de vivienda aplicables en Colombia (Mi Casa Ya / Cajas de Compensación) y calcula el ahorro proyectado para comprar vivienda.",
+      inputSchema: z.object({
+        propertyValue: z.number().describe("Valor total del inmueble proyectado en COP (ej: 180000000)"),
+        isVis: z.boolean().optional().default(true).describe("True si es Vivienda de Interés Social (VIS <= 135-150 SMMLV)"),
+        savingsMonths: z.number().optional().default(24).describe("Meses proyectados para juntar la cuota inicial (por defecto 24 meses)"),
+      }),
+      execute: async ({ propertyValue, isVis = true, savingsMonths = 24 }) => {
+        const downPaymentRatio = 0.30;
+        const totalDownPayment = Math.round(propertyValue * downPaymentRatio);
+
+        // Colombia SMMLV 2026 estimate (~$1.400.000)
+        const smmlv = 1400000;
+        let estimatedSubsidies = 0;
+
+        if (isVis) {
+          // Mi Casa Ya (30 SMMLV) + Caja de Compensación (30 SMMLV)
+          estimatedSubsidies = 30 * smmlv; // ~$42.000.000 estimado
+        }
+
+        const netDownPaymentNeeded = Math.max(0, totalDownPayment - estimatedSubsidies);
+        const safeMonths = Math.max(1, savingsMonths);
+        const monthlySavingsNeeded = Math.round(netDownPaymentNeeded / safeMonths);
+
+        const financedAmount = propertyValue - totalDownPayment;
+        // Estimated 15-year mortgage quota (~11.5% EA)
+        const estimatedMortgageQuota = Math.round((financedAmount * 0.011));
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          propertyValue,
+          isVis,
+          totalDownPayment,
+          estimatedSubsidies,
+          netDownPaymentNeeded,
+          savingsMonths: safeMonths,
+          monthlySavingsNeeded,
+          financedAmount,
+          estimatedMortgageQuota,
+        };
+      },
+    }),
   };
 }

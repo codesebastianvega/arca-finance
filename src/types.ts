@@ -19,6 +19,7 @@ export type Screen =
   | 'suscripciones'
   | 'cadenas'
   | 'simulador_deudas'
+  | 'metas_vida'
   | 'escuela'
   | 'feedback';
 

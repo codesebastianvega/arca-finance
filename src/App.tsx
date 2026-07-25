@@ -36,6 +36,7 @@ import MasScreen from './components/MasScreen';
 import SubscriptionsScreen from './features/more/subscriptions-screen';
 import CadenasScreen from './features/cadenas/cadenas-screen';
 import SimuladorDeudasScreen from './features/deudas/simulador-deudas-screen';
+import { LifeGoalsScreen } from './features/life-goals/life-goals-screen';
 import EscuelaScreen from './features/escuela/escuela-screen';
 import FeedbackScreen from './features/feedback/feedback-screen';
 import NewUserOnboarding from './features/onboarding/new-user-onboarding';
@@ -328,6 +329,7 @@ export default function App({
       />;
       case 'cadenas': return <CadenasScreen onBack={backToMas} />;
       case 'simulador_deudas': return <SimuladorDeudasScreen onBack={backToMas} />;
+      case 'metas_vida': return <LifeGoalsScreen onOpenChatWithPrompt={(prompt) => openNova(prompt)} />;
       case 'escuela': return <EscuelaScreen onBack={backToMas} />;
       case 'feedback': return <FeedbackScreen onBack={backToMas} />;
       case 'registrar': return <div className="pt-4"><RegisterScreen data={initialRegisterData} defaultSegment={registerParams.defaultSegment} defaultType={registerParams.defaultType} /></div>;

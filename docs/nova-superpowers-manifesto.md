@@ -72,15 +72,15 @@ Integración con el ecosistema móvil e instituciones financieras.
 
 ---
 
-## 💼 6. Superpoderes de Negocios y Operaciones (B2B / Freelance)
+## 💼 6. Superpoderes de Negocios y Operaciones (B2B / Freelance) [Futuro - Plan Negocios Pro]
 
 - [ ] **6.1 Cobrador Inteligente por WhatsApp (1 Clic):**
   - Redacción automática de mensajes formales o amigables de cobro para clientes con saldo pendiente.
-  - Botón directo de apertura de WhatsApp con mensaje listo para enviar.
 - [ ] **6.2 Estado de Pérdidas y Ganancias por Proyecto / Unidad (P&L):**
   - Margen de rentabilidad neto en % y dinero real por cada actividad o negocio (*Pan de Azúcar vs SIE Travel*).
 - [ ] **6.3 Asistente de Proyección Tributaria / Retenciones (Colombia):**
   - Estimado de retenciones en la fuente, IVA acumulado del trimestre y calendario tributario personal/empresarial para evitar multas.
+  - *(Pospuesto para etapa futura de Plan Negocios).*
 
 ---
 
