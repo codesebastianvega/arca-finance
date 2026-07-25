@@ -27,25 +27,25 @@ Interacción natural por audio desde cualquier lugar.
 - [ ] **2.1 Notas de Voz Instantáneas en la App:**
   - Botón de micrófono en el chat: *"Nova, me gasté 25 mil en almuerzo con el equipo pagado con Nequi"*.
   - Transcripción y ejecución en segundo plano sin escribir una sola palabra.
-- [ ] **2.2 Integración con WhatsApp / Telegram (Bot de Arca):**
+- [ ] **2.2 Integración con WhatsApp / Telegram (Bot de Arca) [Futuro - Plan Enterprise / VIP]:**
   - Enviar una nota de voz o foto de recibo directamente por WhatsApp a Nova cuando estés en la calle.
   - Nova procesa el gasto y actualiza tu cuenta de Arca inmediatamente.
-- [ ] **2.3 Comandos de Voz Manos Libres en el Auto (CarPlay / Android Auto / Siri / Google Assistant):**
-  - *"Oye Siri / Ok Google, dile a Arca que gasté $50.000 en gasolina"*.
+  - *(Pospuesto para etapa futura de planes superiores).*
+- [x] **2.3 Comandos de Voz Manos Libres en el Auto (Siri / Google Assistant / Micrófono Nativo):**
+  - *"Oye Siri / Ok Google, dictar a Arca"* o uso del botón de micrófono nativo.
 
 ---
 
 ## 📲 3. Conectividad & Billeteras Digitales
 Integración con el ecosistema móvil e instituciones financieras.
 
-- [ ] **3.1 Integración con Google Wallet & Apple Wallet:**
+- [ ] **3.1 Integración con Google Wallet & Apple Wallet [Futuro]:**
   - Generación de pases digitales de presupuesto o tarjetas de fidelización en la billetera del teléfono.
-  - Atajos rápidos desde Google Pay tras realizar una compra.
-- [ ] **3.2 Parser Automático de Notificaciones Bancarias (SMS & Push Listener):**
-  - En la PWA/Android App, Nova lee en segundo plano las notificaciones de bancos (*"Compra con tarjeta *1234 por $45.000 en Éxito"*).
-  - Lanza un aviso flotante de 1-tap: * "¿Registrar gasto de $45.000 en Supermercado?"*
-- [ ] **3.3 Webhooks de Pago Integrados:**
-  - Recepción de eventos desde plataformas de cobro (Stripe, Wompi, Bold) para sincronizar ingresos de negocios en tiempo real.
+- [ ] **3.2 Parser Automático de Notificaciones Bancarias (SMS & Push Listener) [Futuro - Requiere Certificación de Seguridad]:**
+  - Lectura local segura en Android/PWA de notificaciones de bancos (*"Compra con tarjeta *1234 por $45.000 en Éxito"*).
+  - *(Pospuesto para etapa futura debido a políticas de privacidad de tiendas móviles).*
+- [ ] **3.3 Webhooks de Pago Integrados (Stripe, Wompi, Bold) [Futuro - Plan Negocios Pro]:**
+  - Recepción con firma criptográfica HMAC de eventos de pago de pasarelas para sincronizar ventas automáticas.
 
 ---
 
