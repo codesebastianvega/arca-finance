@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -64,6 +64,27 @@ export default function NovaHome({
   const [showExamples, setShowExamples] = useState(false);
   const [showUpcomingModal, setShowUpcomingModal] = useState(false);
   const [showIncomesModal, setShowIncomesModal] = useState(false);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem("arca:announcement:vision_ocr_v1");
+      if (!seen) {
+        setShowAnnouncementModal(true);
+      }
+    } catch {
+      // localStorage unavailable
+    }
+  }, []);
+
+  const dismissAnnouncement = () => {
+    try {
+      localStorage.setItem("arca:announcement:vision_ocr_v1", "seen");
+    } catch {
+      // localStorage unavailable
+    }
+    setShowAnnouncementModal(false);
+  };
 
   const overduePayments = data.criticalPayments.filter((payment) => payment.status === "overdue");
   const upcomingPayments = data.criticalPayments.filter((payment) => payment.status !== "overdue");
@@ -85,6 +106,76 @@ export default function NovaHome({
 
   return (
     <div className="flex w-full flex-col gap-4 font-sans pb-4">
+      {/* 1-TIME FEATURE ANNOUNCEMENT POPUP MODAL */}
+      <AnimatePresence>
+        {showAnnouncementModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+            onClick={dismissAnnouncement}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-arca-accent/40 bg-arca-surface-1 p-6 shadow-2xl"
+            >
+              <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-arca-accent/20 blur-3xl pointer-events-none" />
+
+              <div className="flex items-start justify-between">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-arca-accent/15 border border-arca-accent/35 text-arca-accent shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+                  <Camera size={28} />
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissAnnouncement}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-arca-surface-2 text-arca-text-secondary hover:text-white border border-arca-border"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-accent/20 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-arca-accent border border-arca-accent/30">
+                  ✦ ¡NUEVA FUNCIÓN!
+                </span>
+                <h3 className="mt-2 text-xl font-black text-arca-text-primary leading-tight">
+                  Escáner de Recibos y Facturas con Visión IA 📸
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-arca-text-secondary">
+                  ¡Nova ahora tiene ojos! Tómale una foto a cualquier ticket de compra, factura física o comprobante de Nequi/Bancolombia y Nova lo registrará automáticamente por ti.
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    dismissAnnouncement();
+                    haptics.medium();
+                    onOpenNova("Analiza esta foto de recibo que subiré");
+                  }}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] shadow-lg transition-transform active:scale-95"
+                >
+                  <Camera size={18} />
+                  Probar Escáner Ahora 📸
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissAnnouncement}
+                  className="h-10 w-full rounded-2xl text-xs font-bold text-arca-text-dim hover:text-arca-text-secondary transition-colors"
+                >
+                  Entendido, cerrar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* HEADER */}
       <header className="flex items-start justify-between">
         <div>
