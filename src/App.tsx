@@ -220,7 +220,18 @@ export default function App({
       window.sessionStorage.setItem('arca-open-notifications', '1');
       setCurrentScreen('resumen');
     };
-    if (new URLSearchParams(window.location.search).get('open') === 'notifications') openNotifications();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('open') === 'notifications') openNotifications();
+    if (params.get('voice') === 'true') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt: '' } }));
+      }, 500);
+    } else if (params.get('action') === 'scan') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt: 'Analiza esta foto de recibo que subiré' } }));
+      }, 500);
+    }
+
     const handleServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NAVIGATE' && String(event.data.url ?? '').includes('open=notifications')) openNotifications();
     };

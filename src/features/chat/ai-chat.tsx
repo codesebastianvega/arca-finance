@@ -5,7 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Sparkles, User, Bot, ArrowRight, Check, Camera } from 'lucide-react';
+import { X, Send, Sparkles, User, Bot, ArrowRight, Check, Camera, Mic, MicOff } from 'lucide-react';
 import { MessageResponse } from '@/src/components/ai-elements/message';
 import {
   FinancialActionCard,
@@ -97,6 +97,8 @@ export default function AiChat({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [quotaInfo, setQuotaInfo] = useState<NovaQuotaInfo | null>(null);
   const [selectedImage, setSelectedImage] = useState<{ file: File; previewUrl: string; base64: string } | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const refreshedToolCallsRef = useRef(new Set<string>());
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,6 +116,65 @@ export default function AiChat({
       });
     };
     reader.readAsDataURL(file);
+  };
+
+  const startListening = () => {
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setErrorToast("Tu navegador no soporta dictado por voz nativo.");
+      setTimeout(() => setErrorToast(null), 4000);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'es-CO';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        haptics.medium();
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setInputValue(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        haptics.light();
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Ignore stop error
+      }
+    }
+    setIsListening(false);
   };
 
   useEffect(() => {
@@ -461,6 +522,18 @@ export default function AiChat({
 
             {/* Input Form */}
             <div className="shrink-0 relative z-10 p-3 sm:p-4 pb-safe bg-arca-surface-1/90 backdrop-blur-xl border-t border-arca-border">
+              {isListening && (
+                <div className="relative mb-2.5 flex items-center justify-between gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 px-3.5 py-2 text-xs font-bold text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.15)] animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping" />
+                    <span>🎙️ Escuchando tu voz... Di tu gasto o orden</span>
+                  </div>
+                  <button type="button" onClick={stopListening} className="text-[10px] font-black uppercase text-red-400 underline">
+                    Detener
+                  </button>
+                </div>
+              )}
+
               {selectedImage && (
                 <div className="relative mb-3 flex items-center gap-3 rounded-2xl border border-arca-accent/40 bg-arca-surface-2 p-2.5 shadow-lg max-w-sm">
                   <img src={selectedImage.previewUrl} alt="Vista previa de factura" className="h-12 w-12 rounded-xl object-cover border border-arca-border" />
@@ -502,14 +575,33 @@ export default function AiChat({
                   <Camera size={19} />
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isListening) {
+                      stopListening();
+                    } else {
+                      startListening();
+                    }
+                  }}
+                  aria-label={isListening ? "Detener dictado por voz" : "Dictar por voz"}
+                  className={`absolute left-[54px] z-10 w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
+                    isListening
+                      ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                      : 'bg-arca-surface-1 border-arca-border text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40'
+                  }`}
+                >
+                  {isListening ? <MicOff size={19} /> : <Mic size={19} />}
+                </button>
+
                 <input
                   ref={inputRef}
                   type="text"
                   autoFocus
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder={selectedImage ? "Añade notas (opcional)..." : "Pregúntale a Nova..."}
-                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-14 pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
+                  placeholder={isListening ? "Habla ahora..." : selectedImage ? "Añade notas (opcional)..." : "Pregúntale o díctale..."}
+                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-[102px] pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
                 />
                 <button
                   type="submit"
