@@ -11,6 +11,7 @@ import {
   CircleDollarSign,
   Lightbulb,
   MessageSquareHeart,
+  Mic,
   Plus,
   ReceiptText,
   Sparkles,
@@ -68,7 +69,7 @@ export default function NovaHome({
 
   useEffect(() => {
     try {
-      const seen = localStorage.getItem("arca:announcement:vision_ocr_v1");
+      const seen = localStorage.getItem("arca:announcement:nova_voice_ocr_v2");
       if (!seen) {
         setShowAnnouncementModal(true);
       }
@@ -79,7 +80,7 @@ export default function NovaHome({
 
   const dismissAnnouncement = () => {
     try {
-      localStorage.setItem("arca:announcement:vision_ocr_v1", "seen");
+      localStorage.setItem("arca:announcement:nova_voice_ocr_v2", "seen");
     } catch {
       // localStorage unavailable
     }
@@ -126,8 +127,13 @@ export default function NovaHome({
               <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-arca-accent/20 blur-3xl pointer-events-none" />
 
               <div className="flex items-start justify-between">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-arca-accent/15 border border-arca-accent/35 text-arca-accent shadow-[0_0_20px_rgba(245,158,11,0.25)]">
-                  <Camera size={28} />
+                <div className="flex items-center gap-2">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-arca-accent/15 border border-arca-accent/35 text-arca-accent shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                    <Mic size={24} />
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-arca-accent/15 border border-arca-accent/35 text-arca-accent shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                    <Camera size={24} />
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -140,13 +146,13 @@ export default function NovaHome({
 
               <div className="mt-4">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-accent/20 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-arca-accent border border-arca-accent/30">
-                  ✦ ¡NUEVA FUNCIÓN!
+                  ✦ ¡NUEVAS SUPERPOTENCIAS!
                 </span>
                 <h3 className="mt-2 text-xl font-black text-arca-text-primary leading-tight">
-                  Escáner de Recibos y Facturas con Visión IA 📸
+                  Dictado por Voz 🎙️ & Escáner de Recibos 📸
                 </h3>
                 <p className="mt-2 text-xs leading-relaxed text-arca-text-secondary">
-                  ¡Nova ahora tiene ojos! Tómale una foto a cualquier ticket de compra, factura física o comprobante de Nequi/Bancolombia y Nova lo registrará automáticamente por ti.
+                  ¡Nova ahora escucha tu voz y lee tus facturas! Habla con Nova por micrófono o dile a <span className="font-bold text-arca-accent">"Oye Siri"</span> o <span className="font-bold text-arca-accent">"Ok Google"</span> para registrar tus gastos sin teclear nada.
                 </p>
               </div>
 
@@ -156,17 +162,29 @@ export default function NovaHome({
                   onClick={() => {
                     dismissAnnouncement();
                     haptics.medium();
-                    onOpenNova("Analiza esta foto de recibo que subiré");
+                    onOpenNova("");
                   }}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] shadow-lg transition-transform active:scale-95"
                 >
-                  <Camera size={18} />
-                  Probar Escáner Ahora 📸
+                  <Mic size={18} />
+                  Probar Dictado por Voz 🎙️
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    dismissAnnouncement();
+                    haptics.medium();
+                    onOpenNova("Analiza esta foto de recibo que subiré");
+                  }}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-arca-border bg-arca-surface-2 text-xs font-bold text-arca-text-primary hover:border-arca-accent/40 active:scale-95"
+                >
+                  <Camera size={16} />
+                  Probar Escáner 📸
                 </button>
                 <button
                   type="button"
                   onClick={dismissAnnouncement}
-                  className="h-10 w-full rounded-2xl text-xs font-bold text-arca-text-dim hover:text-arca-text-secondary transition-colors"
+                  className="mt-1 h-9 w-full text-xs font-bold text-arca-text-dim hover:text-arca-text-secondary transition-colors"
                 >
                   Entendido, cerrar
                 </button>
@@ -413,6 +431,13 @@ export default function NovaHome({
 
         <div className="space-y-2">
           {[
+            {
+              icon: Mic,
+              badge: "NUEVO",
+              title: "Dictado por Voz & 'Oye Siri / Ok Google'",
+              desc: "Dicta tus gastos o consultas a Nova sin teclear una sola palabra.",
+              prompt: "",
+            },
             {
               icon: Camera,
               badge: "NUEVO",
