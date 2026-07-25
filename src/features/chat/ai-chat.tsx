@@ -516,11 +516,13 @@ export default function AiChat({
                         })}
 
                         {showLoading && (
-                          <div className={`p-4 rounded-[20px] text-sm leading-relaxed border ${m.role === 'user' ? 'whitespace-pre-wrap bg-arca-surface-2 border-arca-border-strong text-arca-text-primary rounded-br-sm' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary rounded-bl-sm shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'}`}>
+                          <div className={`p-4 rounded-[20px] text-sm leading-relaxed border rounded-bl-sm transition-colors ${
+                            status === 'submitted' ? 'bg-neutral-900/70 border-neutral-800 text-neutral-400' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary'
+                          }`}>
                             <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
-                              <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
-                              <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
-                              <motion.div className="w-1.5 h-1.5 bg-arca-accent rounded-full" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
+                              <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                              <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
+                              <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
                             </div>
                           </div>
                         )}
@@ -529,6 +531,34 @@ export default function AiChat({
                   </motion.div>
                 );
               })}
+
+              {/* Instant Loading Bubble right after user message while waiting for network stream */}
+              {isLoading && messages.length > 0 && messages.at(-1)?.role === 'user' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="flex items-end space-x-2 max-w-[92%] flex-row">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border transition-all duration-300 ${
+                      status === 'submitted' ? 'bg-neutral-800/80 border-neutral-700 text-neutral-400' : 'bg-arca-accent/10 border-arca-accent/30 text-arca-accent'
+                    }`}>
+                      <Bot size={16} />
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-2 items-start">
+                      <div className={`p-4 rounded-[20px] text-sm leading-relaxed border rounded-bl-sm transition-all duration-300 ${
+                        status === 'submitted' ? 'bg-neutral-900/80 border-neutral-800 shadow-none' : 'bg-arca-surface-1 border-arca-border shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'
+                      }`}>
+                        <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
+                          <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                          <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
+                          <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               <div ref={messagesEndRef} />
             </div>

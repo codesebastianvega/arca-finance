@@ -8,6 +8,8 @@ import { createSupabaseServerComponentClient } from "@/src/lib/supabase";
 import { loadTodayViewModel } from "@/src/lib/today-data";
 import { loadRegisterViewModel } from "@/src/lib/register-data";
 import { loadMonthViewModel } from "@/src/lib/month-data";
+import { loadHistoryViewModel } from "@/src/lib/history-data";
+import { loadSubscriptionsViewModel } from "@/src/lib/subscriptions-data";
 import { summarizeRecurrence } from "@/src/lib/recurrence-summary";
 import {
   archiveAccount,
