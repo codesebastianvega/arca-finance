@@ -332,8 +332,19 @@ export default function AiChat({
                     </p>
                   </div>
 
+                  {/* Announcement Banner */}
+                  <div className="w-full max-w-sm rounded-2xl border border-arca-accent/40 bg-gradient-to-r from-arca-accent/15 via-arca-surface-1 to-arca-surface-2 p-3.5 text-left shadow-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-arca-accent/20 text-arca-accent"><Camera size={15} /></span>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-arca-accent">✦ NUEVA FUNCIÓN: VISIÓN OCR</span>
+                    </div>
+                    <p className="mt-1.5 text-xs font-medium text-arca-text-secondary leading-snug">
+                      Toca el icono de la cámara <span className="font-bold text-arca-accent">📸</span> abajo para enviarme la foto de cualquier recibo o transferencia y lo registraré por ti.
+                    </p>
+                  </div>
+
                   {/* Subtle pill-shaped suggestion chips */}
-                  <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm pt-2">
+                  <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm pt-1">
                     {[
                       { emoji: "🩺", label: "Diagnóstico Semanal", prompt: "Ejecuta un diagnóstico semanal de mi salud financiera" },
                       { emoji: "🔮", label: "Simular 'Qué Pasa Si'", prompt: "¿Qué pasa si compro una laptop de $3.500.000 a 6 cuotas?" },

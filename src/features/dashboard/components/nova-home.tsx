@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BarChart3,
   CalendarClock,
+  Camera,
   CircleDollarSign,
   Lightbulb,
   MessageSquareHeart,
@@ -106,6 +107,59 @@ export default function NovaHome({
           </span>
         </button>
       </header>
+
+      {/* --- NOVEDAD: VISION OCR & SUPERPODERES --- */}
+      <div className="relative overflow-hidden rounded-2xl border border-arca-accent/40 bg-gradient-to-r from-arca-accent/15 via-arca-surface-1 to-arca-surface-2 p-4 shadow-[0_4px_20px_rgba(245,158,11,0.12)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-arca-accent/20 border border-arca-accent/40 text-arca-accent shadow-[0_0_12px_rgba(245,158,11,0.25)]">
+              <Camera size={22} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">
+                  ✦ ¡NUEVA FUNCIÓN!
+                </span>
+                <span className="rounded-full bg-arca-accent/20 px-2 py-0.5 text-[8px] font-extrabold text-arca-accent border border-arca-accent/30">
+                  Visión OCR
+                </span>
+              </div>
+              <h3 className="mt-0.5 text-sm font-black text-arca-text-primary light:text-arca-light-text-primary">
+                Escáner de Recibos y Facturas con IA
+              </h3>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-2 text-xs text-arca-text-secondary light:text-arca-light-text-secondary leading-relaxed">
+          Tómale una foto a cualquier ticket de compra o comprobante (Nequi, Bancolombia) y Nova lo registrará automáticamente.
+        </p>
+
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              haptics.medium();
+              onOpenNova("Analiza esta foto de recibo que subiré");
+            }}
+            className="flex items-center gap-1.5 rounded-xl bg-arca-accent px-3.5 py-2 text-xs font-black text-[#15110c] transition-all hover:bg-arca-accent-hover active:scale-95 shadow-sm"
+          >
+            <Camera size={14} />
+            Probar escáner 📸
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              haptics.medium();
+              onOpenNova("Ejecuta un diagnóstico semanal de mi salud financiera");
+            }}
+            className="flex items-center gap-1.5 rounded-xl border border-arca-border bg-arca-surface-2 px-3 py-2 text-xs font-bold text-arca-text-primary hover:border-arca-accent/40 active:scale-95"
+          >
+            <Sparkles size={13} className="text-arca-accent" />
+            Superpoderes Nova ⚡
+          </button>
+        </div>
+      </div>
 
       {/* --- BETA TESTER CARD --- */}
       <button
