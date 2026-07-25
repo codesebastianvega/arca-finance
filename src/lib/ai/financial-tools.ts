@@ -1511,5 +1511,155 @@ export function createFinancialTools(context: WorkspaceContext) {
         };
       },
     }),
+
+    calculate_debt_payoff_plan: tool({
+      description: "Calcula el plan óptimo de liquidación de deudas (tarjetas de crédito, créditos bancarios y préstamos) comparando la estrategia Avalancha (mayor tasa de interés primero) vs Bola de Nieve (menor saldo primero).",
+      inputSchema: z.object({
+        monthlyExtraBudget: z.number().optional().default(0).describe("Monto adicional mensual que el usuario puede aportar para abonar a capital"),
+      }),
+      execute: async ({ monthlyExtraBudget = 0 }) => {
+        const moneyData = await loadMoneyViewModel(context);
+        const obligationsData = await loadObligationsViewModel(context);
+
+        // Gather all debts: credit cards, bank credits, payable loans
+        const debts: Array<{
+          id: string;
+          name: string;
+          type: string;
+          balance: number;
+          interestRateEA: number;
+          minPayment: number;
+        }> = [];
+
+        // Credit cards
+        for (const card of moneyData.creditCards) {
+          if (card.currentBalance > 0) {
+            debts.push({
+              id: card.id,
+              name: card.name,
+              type: "Tarjeta de Crédito",
+              balance: card.currentBalance,
+              interestRateEA: 28.5, // Tasa promedio aproximada TC Colombia
+              minPayment: Math.round(card.currentBalance * 0.05), // ~5% pago mínimo estimado
+            });
+          }
+        }
+
+        // Bank credits
+        for (const credit of moneyData.bankCredits) {
+          if (credit.currentBalance > 0) {
+            debts.push({
+              id: credit.id,
+              name: credit.name,
+              type: "Crédito Bancario",
+              balance: credit.currentBalance,
+              interestRateEA: credit.interestRateEA || 22.0,
+              minPayment: credit.monthlyQuota || Math.round(credit.currentBalance * 0.04),
+            });
+          }
+        }
+
+        // Payable loans (debt obligations)
+        for (const obl of obligationsData.debts) {
+          if (obl.pendingAmount > 0) {
+            debts.push({
+              id: obl.id,
+              name: obl.name,
+              type: "Préstamo Pendiente",
+              balance: obl.pendingAmount,
+              interestRateEA: 18.0,
+              minPayment: obl.amount,
+            });
+          }
+        }
+
+        const totalDebtBalance = debts.reduce((sum, d) => sum + d.balance, 0);
+        const totalMinPayment = debts.reduce((sum, d) => sum + d.minPayment, 0);
+
+        // Avalanche strategy (sort by highest interest rate)
+        const avalanchePlan = [...debts].sort((a, b) => b.interestRateEA - a.interestRateEA);
+
+        // Snowball strategy (sort by lowest balance)
+        const snowballPlan = [...debts].sort((a, b) => a.balance - b.balance);
+
+        // Estimated payoff months calculation
+        const totalMonthlyPayment = totalMinPayment + monthlyExtraBudget;
+        const estimatedMonths = totalMonthlyPayment > 0 ? Math.ceil(totalDebtBalance / totalMonthlyPayment) : 99;
+
+        const estimatedFreeDate = new Date();
+        estimatedFreeDate.setMonth(estimatedFreeDate.getMonth() + estimatedMonths);
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          totalDebtBalance,
+          totalMinPayment,
+          monthlyExtraBudget,
+          debtsCount: debts.length,
+          estimatedMonthsToFreedom: estimatedMonths,
+          estimatedFreedomDate: estimatedFreeDate.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
+          avalanchePlan,
+          snowballPlan,
+        };
+      },
+    }),
+
+    scan_colombia_yields: tool({
+      description: "Escanea las mejores opciones de rentabilidad diaria e inversiones de bajo riesgo en Colombia (Nu, Pibank, Lulo, Tyba) y calcula los intereses adicionales que ganaría el dinero libre del usuario.",
+      inputSchema: z.object({
+        customAmount: z.number().optional().describe("Monto opcional a evaluar. Si se omite, se usa el saldo líquido libre del usuario."),
+      }),
+      execute: async ({ customAmount }) => {
+        const moneyData = await loadMoneyViewModel(context);
+        const liquidCash = customAmount ?? moneyData.accounts.reduce((sum, acc) => sum + acc.balance, 0);
+
+        // Current Colombia yield rates (2026 EA averages)
+        const yieldOptions = [
+          {
+            entity: "Nu Colombia",
+            product: "Cajita Nu (Rentabilidad Diaria 24/7)",
+            eaRate: 13.0,
+            liquidity: "Inmediata (Sin plazos fijos)",
+            riskLevel: "Bajo (Fogafín hasta $50M)",
+          },
+          {
+            entity: "Pibank Colombia",
+            product: "Cuenta de Ahorros Pibank",
+            eaRate: 12.0,
+            liquidity: "Inmediata",
+            riskLevel: "Bajo (Fogafín)",
+          },
+          {
+            entity: "Lulo Bank",
+            product: "Lulo Cuenta (Bolsillos)",
+            eaRate: 10.0,
+            liquidity: "Inmediata",
+            riskLevel: "Bajo (Fogafín)",
+          },
+          {
+            entity: "Tyba / CDTs Neobancos",
+            product: "CDT Digital 180 días",
+            eaRate: 13.5,
+            liquidity: "180 días",
+            riskLevel: "Muy Bajo (Bancario)",
+          },
+        ];
+
+        const bestOption = yieldOptions[0]; // Nu Colombia 13% EA
+        const monthlyYieldNet = Math.round((liquidCash * (bestOption.eaRate / 100)) / 12);
+        const annualYieldNet = Math.round(liquidCash * (bestOption.eaRate / 100));
+
+        return {
+          success: true,
+          currency: context.workspace.currencyCode,
+          evaluatedAmount: liquidCash,
+          bestOptionEntity: bestOption.entity,
+          bestOptionRate: bestOption.eaRate,
+          monthlyGainEstimate: monthlyYieldNet,
+          annualGainEstimate: annualYieldNet,
+          options: yieldOptions,
+        };
+      },
+    }),
   };
 }

@@ -13,6 +13,9 @@ import {
   type FinancialActionPart,
 } from './financial-action-card';
 import { AntExpensesCard, type AntExpensesOutput } from './ant-expenses-card';
+import { PurchaseSimulationCard, type PurchaseSimulationOutput } from './purchase-simulation-card';
+import { DebtSnowballCard, type DebtPayoffOutput } from './debt-snowball-card';
+import { YieldsScannerCard, type YieldsScannerOutput } from './yields-scanner-card';
 import {
   DEFAULT_NOVA_PREFERENCES,
   NOVA_PREFERENCES_KEY,
@@ -492,6 +495,42 @@ export default function AiChat({
                                 output={output}
                                 currencyCode={currencyCode}
                                 onExploreSubscriptions={() => router.push('/app?screen=suscripciones')}
+                              />
+                            );
+                          }
+
+                          if (part.type === 'tool-simulate_purchase_impact' || part.type === 'tool-call' && (part as any).toolName === 'simulate_purchase_impact') {
+                            const output = (part as any).output as PurchaseSimulationOutput | undefined;
+                            return (
+                              <PurchaseSimulationCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onExploreObligations={() => router.push('/app?screen=obligaciones')}
+                              />
+                            );
+                          }
+
+                          if (part.type === 'tool-calculate_debt_payoff_plan' || part.type === 'tool-call' && (part as any).toolName === 'calculate_debt_payoff_plan') {
+                            const output = (part as any).output as DebtPayoffOutput | undefined;
+                            return (
+                              <DebtSnowballCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onExploreObligations={() => router.push('/app?screen=obligaciones')}
+                              />
+                            );
+                          }
+
+                          if (part.type === 'tool-scan_colombia_yields' || part.type === 'tool-call' && (part as any).toolName === 'scan_colombia_yields') {
+                            const output = (part as any).output as YieldsScannerOutput | undefined;
+                            return (
+                              <YieldsScannerCard
+                                key={(part as any).toolCallId ?? `${m.id}-${part.type}-${index}`}
+                                output={output}
+                                currencyCode={currencyCode}
+                                onExploreAccounts={() => router.push('/app?screen=dinero')}
                               />
                             );
                           }

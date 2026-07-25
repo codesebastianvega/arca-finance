@@ -16,6 +16,8 @@ import {
   Plus,
   ReceiptText,
   Sparkles,
+  Target,
+  TrendingUp,
   WalletCards,
   X,
 } from "lucide-react";
@@ -459,6 +461,20 @@ export default function NovaHome({
               title: "Diagnóstico Semanal de Salud Financiera",
               desc: "Liquidez a 7 días, compromisos y días de caja libre.",
               prompt: "Ejecuta un diagnóstico semanal de mi salud financiera",
+            },
+            {
+              icon: Target,
+              badge: "NUEVO",
+              title: "Acelerador Cero Deudas (Avalancha / Bola de Nieve)",
+              desc: "Plan óptimo para liquidar tus tarjetas y préstamos más rápido.",
+              prompt: "¿Cuál es mi mejor estrategia para pagar deudas rápidamente?",
+            },
+            {
+              icon: TrendingUp,
+              badge: "NUEVO",
+              title: "Escáner de Rendimientos en Colombia (Neobancos)",
+              desc: "Compara Nu, Pibank y Lulo para rentar tu dinero libre.",
+              prompt: "¿Dónde puedo poner a rentar mi dinero libre en Colombia?",
             },
             {
               icon: Lightbulb,
