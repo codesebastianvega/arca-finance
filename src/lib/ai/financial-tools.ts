@@ -1532,15 +1532,15 @@ export function createFinancialTools(context: WorkspaceContext) {
         }> = [];
 
         // Credit cards
-        for (const card of moneyData.creditCards) {
-          if (card.currentBalance > 0) {
+        for (const card of moneyData.cards) {
+          if (card.used > 0) {
             debts.push({
               id: card.id,
               name: card.name,
               type: "Tarjeta de Crédito",
-              balance: card.currentBalance,
-              interestRateEA: 28.5, // Tasa promedio aproximada TC Colombia
-              minPayment: Math.round(card.currentBalance * 0.05), // ~5% pago mínimo estimado
+              balance: card.used,
+              interestRateEA: card.annualInterestRate || 28.5,
+              minPayment: card.minimumPayment || Math.round(card.used * 0.05),
             });
           }
         }
@@ -1553,20 +1553,20 @@ export function createFinancialTools(context: WorkspaceContext) {
               name: credit.name,
               type: "Crédito Bancario",
               balance: credit.currentBalance,
-              interestRateEA: credit.interestRateEA || 22.0,
-              minPayment: credit.monthlyQuota || Math.round(credit.currentBalance * 0.04),
+              interestRateEA: credit.interestRate || 22.0,
+              minPayment: credit.monthlyPayment || Math.round(credit.currentBalance * 0.04),
             });
           }
         }
 
-        // Payable loans (debt obligations)
-        for (const obl of obligationsData.debts) {
-          if (obl.pendingAmount > 0) {
+        // Obligations debts
+        for (const obl of obligationsData.items) {
+          if (obl.amount > 0) {
             debts.push({
               id: obl.id,
               name: obl.name,
-              type: "Préstamo Pendiente",
-              balance: obl.pendingAmount,
+              type: "Obligación Pendiente",
+              balance: obl.amount,
               interestRateEA: 18.0,
               minPayment: obl.amount,
             });
