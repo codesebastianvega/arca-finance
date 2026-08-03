@@ -810,49 +810,50 @@ export async function completeFirstRunSetup(input: {
 import type { TransactionItem } from "@/src/types";
 
 async function ensureTax4x1000Category(admin: any, workspaceId: string): Promise<string> {
-  const { data: parentCategories } = await admin
-    .from("expense_categories")
-    .select("id, name")
-    .eq("workspace_id", workspaceId)
-    .ilike("name", "%impuesto%");
-
-  let parentId: string | null = parentCategories && parentCategories.length > 0 ? parentCategories[0].id : null;
-
-  if (!parentId) {
-    const { data: newParent } = await admin
+  try {
+    const { data: parentCategories } = await admin
       .from("expense_categories")
-      .insert({
-        workspace_id: workspaceId,
-        name: "Impuestos",
-        group_name: "personal",
-        icon: "landmark",
-        active: true,
-      })
-      .select("id")
-      .single();
-    if (newParent) parentId = newParent.id;
+      .select("id, name")
+      .eq("workspace_id", workspaceId)
+      .ilike("name", "%impuesto%");
+
+    let parentId: string | null = parentCategories && parentCategories.length > 0 ? parentCategories[0].id : null;
+
+    if (!parentId) {
+      const { data: newParent } = await admin
+        .from("expense_categories")
+        .insert({
+          workspace_id: workspaceId,
+          name: "Impuestos",
+          icon: "landmark",
+          active: true,
+        })
+        .select("id");
+      if (newParent && newParent.length > 0) parentId = newParent[0].id;
+    }
+
+    const { data: taxChildren } = await admin
+      .from("expense_categories")
+      .select("id, name")
+      .eq("workspace_id", workspaceId)
+      .ilike("name", "%4x1000%");
+
+    if (taxChildren && taxChildren.length > 0) return taxChildren[0].name;
+
+    const childName = "4x1000 (GMF)";
+    await admin.from("expense_categories").insert({
+      workspace_id: workspaceId,
+      name: childName,
+      parent_id: parentId,
+      icon: "landmark",
+      active: true,
+    });
+
+    return childName;
+  } catch (err) {
+    console.error("Error al asegurar categoría 4x1000:", err);
+    return "Impuestos";
   }
-
-  const { data: taxChild } = await admin
-    .from("expense_categories")
-    .select("id, name")
-    .eq("workspace_id", workspaceId)
-    .ilike("name", "%4x1000%")
-    .maybeSingle();
-
-  if (taxChild) return taxChild.name;
-
-  const childName = "4x1000 (GMF)";
-  await admin.from("expense_categories").insert({
-    workspace_id: workspaceId,
-    name: childName,
-    parent_id: parentId,
-    group_name: "personal",
-    icon: "landmark",
-    active: true,
-  });
-
-  return childName;
 }
 
 export async function createMovement(input: {
@@ -975,29 +976,33 @@ export async function createMovement(input: {
   }
 
   if (input.applyTax4x1000 && kind === "expense") {
-    const taxAmount = Math.round(amount * 0.004);
-    if (taxAmount > 0) {
-      const taxCategoryName = await ensureTax4x1000Category(admin, context.workspace.id);
-      // @ts-expect-error
-      await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -taxAmount, p_allow_negative: true });
-      await admin.from("transactions").insert({
-        workspace_id: context.workspace.id,
-        kind: "expense",
-        status: "confirmed",
-        amount: taxAmount,
-        concept: `4x1000 - ${concept}`,
-        account_id: accountId,
-        category: taxCategoryName,
-        unit,
-        date: `${date}T00:00:00-05:00`,
-        posted_at: new Date().toISOString(),
-        source_type: "manual",
-        metadata: {
-          is_auto_tax: true,
-          parent_transaction_id: transaction.id,
-          tax_rate: "0.4%",
-        },
-      });
+    try {
+      const taxAmount = Math.round(amount * 0.004);
+      if (taxAmount > 0) {
+        const taxCategoryName = await ensureTax4x1000Category(admin, context.workspace.id);
+        // @ts-expect-error
+        await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -taxAmount, p_allow_negative: true });
+        await admin.from("transactions").insert({
+          workspace_id: context.workspace.id,
+          kind: "expense",
+          status: "confirmed",
+          amount: taxAmount,
+          concept: `4x1000 - ${concept}`,
+          account_id: accountId,
+          category: taxCategoryName,
+          unit,
+          date: `${date}T00:00:00-05:00`,
+          posted_at: new Date().toISOString(),
+          source_type: "manual",
+          metadata: {
+            is_auto_tax: true,
+            parent_transaction_id: transaction.id,
+            tax_rate: "0.4%",
+          },
+        });
+      }
+    } catch (taxError) {
+      console.error("Error al registrar micro-impuesto 4x1000:", taxError);
     }
   }
 
@@ -3259,29 +3264,33 @@ export async function createTransfer(input: {
   }
 
   if (input.applyTax4x1000) {
-    const taxAmount = Math.round(input.amount * 0.004);
-    if (taxAmount > 0) {
-      const taxCategoryName = await ensureTax4x1000Category(admin, context.workspace.id);
-      // @ts-expect-error
-      await admin.rpc("increment_account_balance", { p_account_id: fromAccount.id, p_amount: -taxAmount, p_allow_negative: true });
-      await admin.from("transactions").insert({
-        workspace_id: context.workspace.id,
-        kind: "expense",
-        status: "confirmed",
-        amount: taxAmount,
-        concept: `4x1000 - Transferencia a ${toAccount.name}`,
-        account_id: fromAccount.id,
-        category: taxCategoryName,
-        unit: "general",
-        date: isoDate,
-        posted_at: now,
-        source_type: "manual",
-        metadata: {
-          is_auto_tax: true,
-          transfer_key: transferKey,
-          tax_rate: "0.4%",
-        },
-      });
+    try {
+      const taxAmount = Math.round(input.amount * 0.004);
+      if (taxAmount > 0) {
+        const taxCategoryName = await ensureTax4x1000Category(admin, context.workspace.id);
+        // @ts-expect-error
+        await admin.rpc("increment_account_balance", { p_account_id: fromAccount.id, p_amount: -taxAmount, p_allow_negative: true });
+        await admin.from("transactions").insert({
+          workspace_id: context.workspace.id,
+          kind: "expense",
+          status: "confirmed",
+          amount: taxAmount,
+          concept: `4x1000 - Transferencia a ${toAccount.name}`,
+          account_id: fromAccount.id,
+          category: taxCategoryName,
+          unit: "general",
+          date: isoDate,
+          posted_at: now,
+          source_type: "manual",
+          metadata: {
+            is_auto_tax: true,
+            transfer_key: transferKey,
+            tax_rate: "0.4%",
+          },
+        });
+      }
+    } catch (taxError) {
+      console.error("Error al registrar micro-impuesto 4x1000 en transferencia:", taxError);
     }
   }
 
