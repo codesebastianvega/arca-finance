@@ -225,11 +225,11 @@ export default function App({
     if (params.get('open') === 'notifications') openNotifications();
     if (params.get('voice') === 'true') {
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt: '' } }));
+        window.dispatchEvent(new CustomEvent('open-nova', { detail: { triggerVoice: true } }));
       }, 500);
     } else if (params.get('action') === 'scan') {
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt: 'Analiza esta foto de recibo que subiré' } }));
+        window.dispatchEvent(new CustomEvent('open-nova', { detail: { triggerCamera: true } }));
       }, 500);
     }
 
@@ -243,8 +243,8 @@ export default function App({
   const renderScreen = () => {
     const backToMas = () => setCurrentScreen('mas');
     const backFromSettings = () => goBackOneScreen('mas');
-    const openNova = (prompt?: string) => {
-      window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt } }));
+    const openNova = (prompt?: string, options?: { triggerCamera?: boolean; triggerVoice?: boolean }) => {
+      window.dispatchEvent(new CustomEvent('open-nova', { detail: { prompt, ...options } }));
     };
 
     const fullAccess = userSummary.isSuperAdmin || userSummary.hasVipAccess;

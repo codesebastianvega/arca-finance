@@ -54,6 +54,10 @@ type AiChatProps = {
   onClose: () => void;
   initialPrompt?: string | null;
   onInitialPromptConsumed?: () => void;
+  triggerCamera?: boolean;
+  onTriggerCameraConsumed?: () => void;
+  triggerVoice?: boolean;
+  onTriggerVoiceConsumed?: () => void;
   onViewChanges?: () => void;
   currencyCode?: string;
   monthlyLimit: number | null;
@@ -66,6 +70,10 @@ export default function AiChat({
   onClose,
   initialPrompt,
   onInitialPromptConsumed,
+  triggerCamera,
+  onTriggerCameraConsumed,
+  triggerVoice,
+  onTriggerVoiceConsumed,
   onViewChanges,
   currencyCode = 'COP',
   monthlyLimit,
@@ -280,6 +288,26 @@ export default function AiChat({
     void sendMessage({ text: prompt });
     setUsed((current) => current + 1);
   }, [initialPrompt, isLoading, isOpen, onInitialPromptConsumed, remaining, sendMessage]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (triggerCamera) {
+      onTriggerCameraConsumed?.();
+      const timer = setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+
+    if (triggerVoice) {
+      onTriggerVoiceConsumed?.();
+      const timer = setTimeout(() => {
+        startListening();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, triggerCamera, triggerVoice, onTriggerCameraConsumed, onTriggerVoiceConsumed]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -114,14 +114,20 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
     return () => window.clearInterval(interval);
   }, []);
 
+  const [novaInitialPrompt, setNovaInitialPrompt] = useState<string | null>(null);
+  const [novaTriggerCamera, setNovaTriggerCamera] = useState(false);
+  const [novaTriggerVoice, setNovaTriggerVoice] = useState(false);
+
   useEffect(() => {
     const handleOpenNova = (event: Event) => {
       if (!canUseNova) {
         setCurrentScreen('configuracion');
         return;
       }
-      const customEvent = event as CustomEvent<{ prompt?: string }>;
+      const customEvent = event as CustomEvent<{ prompt?: string; triggerCamera?: boolean; triggerVoice?: boolean }>;
       setNovaInitialPrompt(customEvent.detail?.prompt?.trim() || null);
+      setNovaTriggerCamera(Boolean(customEvent.detail?.triggerCamera));
+      setNovaTriggerVoice(Boolean(customEvent.detail?.triggerVoice));
       openOverlay('nova');
     };
 
@@ -298,6 +304,10 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
           onClose={() => closeOverlay('nova')}
           initialPrompt={novaInitialPrompt}
           onInitialPromptConsumed={() => setNovaInitialPrompt(null)}
+          triggerCamera={novaTriggerCamera}
+          onTriggerCameraConsumed={() => setNovaTriggerCamera(false)}
+          triggerVoice={novaTriggerVoice}
+          onTriggerVoiceConsumed={() => setNovaTriggerVoice(false)}
           currencyCode={currencyCode}
           monthlyLimit={novaMonthlyLimit}
           initialUsed={novaUsed}

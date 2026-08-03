@@ -41,7 +41,7 @@ function formatMoney(amount: number, currency: string) {
 type NovaHomeProps = {
   data: TodayViewModel;
   currency: string;
-  onOpenNova: (prompt?: string) => void;
+  onOpenNova: (prompt?: string, options?: { triggerCamera?: boolean; triggerVoice?: boolean }) => void;
   onOpenObligations: () => void;
   onOpenMovements: () => void;
   onOpenSummary: () => void;
@@ -165,7 +165,7 @@ export default function NovaHome({
                   onClick={() => {
                     dismissAnnouncement();
                     haptics.medium();
-                    onOpenNova("");
+                    onOpenNova("", { triggerVoice: true });
                   }}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] shadow-lg transition-transform active:scale-95"
                 >
@@ -177,7 +177,7 @@ export default function NovaHome({
                   onClick={() => {
                     dismissAnnouncement();
                     haptics.medium();
-                    onOpenNova("Analiza esta foto de recibo que subiré");
+                    onOpenNova("", { triggerCamera: true });
                   }}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-arca-border bg-arca-surface-2 text-xs font-bold text-arca-text-primary hover:border-arca-accent/40 active:scale-95"
                 >
@@ -447,13 +447,15 @@ export default function NovaHome({
               title: "Dictado por Voz & 'Oye Siri / Ok Google'",
               desc: "Dicta tus gastos o consultas a Nova sin teclear una sola palabra.",
               prompt: "",
+              triggerVoice: true,
             },
             {
               icon: Camera,
               badge: "NUEVO",
               title: "Escáner OCR de Recibos y Facturas",
               desc: "Tómale foto a cualquier ticket o comprobante para registrarlo.",
-              prompt: "Analiza esta foto de recibo que subiré",
+              prompt: "",
+              triggerCamera: true,
             },
             {
               icon: Sparkles,
@@ -491,7 +493,10 @@ export default function NovaHome({
                 key={item.title}
                 onClick={() => {
                   haptics.medium();
-                  onOpenNova(item.prompt);
+                  onOpenNova(item.prompt, {
+                    triggerCamera: item.triggerCamera,
+                    triggerVoice: item.triggerVoice,
+                  });
                 }}
                 className="group flex w-full items-center gap-3 rounded-2xl border border-arca-border/80 bg-arca-surface-1/60 p-3 text-left transition-all hover:border-arca-accent/40 hover:bg-arca-surface-1 active:scale-[0.99] light:bg-arca-light-surface-1 light:border-arca-light-border"
               >
