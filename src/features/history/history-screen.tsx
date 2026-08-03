@@ -610,8 +610,8 @@ function shiftDate(dateKey: string, days: number) {
 function periodBounds(period: PeriodFilter, customStart: string, customEnd: string) {
   const today = todayBogota();
   if (period === 'today') return { start: today, end: today };
-  if (period === '7days') return { start: shiftDate(today, -6), end: today };
-  if (period === 'month') return { start: `${today.slice(0, 7)}-01`, end: today };
+  if (period === '7days') return { start: shiftDate(today, -6), end: '' };
+  if (period === 'month') return { start: `${today.slice(0, 7)}-01`, end: '' };
   if (period === 'previous') {
     const currentStart = new Date(`${today.slice(0, 7)}-01T12:00:00-05:00`);
     currentStart.setMonth(currentStart.getMonth() - 1);
