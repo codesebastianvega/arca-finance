@@ -224,3 +224,65 @@ export async function adminRejectSubscriptionPayment(input: { invoiceId: string;
   revalidatePath('/app');
   return { ok: true };
 }
+
+export async function adminResetFutureEvents(input: { workspaceId: string; note?: string }) {
+  const { context, admin } = await requireSuperAdmin();
+
+  // Deletes scheduled events, income templates, expense templates, receivables, payables
+  const [eErr, iErr, exErr, rErr, pErr] = await Promise.all([
+    admin.from('scheduled_events').delete().eq('workspace_id', input.workspaceId),
+    admin.from('income_templates').delete().eq('workspace_id', input.workspaceId),
+    admin.from('expense_templates').delete().eq('workspace_id', input.workspaceId),
+    admin.from('receivables').delete().eq('workspace_id', input.workspaceId),
+    admin.from('payables').delete().eq('workspace_id', input.workspaceId),
+  ]);
+
+  const firstError = eErr.error || iErr.error || exErr.error || rErr.error || pErr.error;
+  if (firstError) {
+    throw new Error(`No se pudieron limpiar los eventos futuros: ${firstError.message}`);
+  }
+
+  await audit(admin, {
+    actorUserId: context.profile.id,
+    workspaceId: input.workspaceId,
+    action: 'reset_future_events',
+    previous: {},
+    next: { status: 'future_events_cleared' },
+    note: input.note || 'Limpieza de compromisos e ingresos futuros',
+  });
+
+  revalidatePath('/app');
+  return { ok: true };
+}
+
+export async function adminFullFactoryReset(input: { workspaceId: string; note?: string }) {
+  const { context, admin } = await requireSuperAdmin();
+
+  // Complete factory reset: deletes all workspace operational data
+  await Promise.all([
+    admin.from('transactions').delete().eq('workspace_id', input.workspaceId),
+    admin.from('scheduled_events').delete().eq('workspace_id', input.workspaceId),
+    admin.from('income_templates').delete().eq('workspace_id', input.workspaceId),
+    admin.from('expense_templates').delete().eq('workspace_id', input.workspaceId),
+    admin.from('receivables').delete().eq('workspace_id', input.workspaceId),
+    admin.from('payables').delete().eq('workspace_id', input.workspaceId),
+    admin.from('savings_goals').delete().eq('workspace_id', input.workspaceId),
+    admin.from('credit_cards').delete().eq('workspace_id', input.workspaceId),
+    admin.from('income_sources').delete().eq('workspace_id', input.workspaceId),
+    admin.from('expense_categories').delete().eq('workspace_id', input.workspaceId),
+    admin.from('business_units').delete().eq('workspace_id', input.workspaceId),
+    admin.from('accounts').delete().eq('workspace_id', input.workspaceId),
+  ]);
+
+  await audit(admin, {
+    actorUserId: context.profile.id,
+    workspaceId: input.workspaceId,
+    action: 'full_factory_reset',
+    previous: {},
+    next: { status: 'factory_reset_completed' },
+    note: input.note || 'Restauración completa de fábrica',
+  });
+
+  revalidatePath('/app');
+  return { ok: true };
+}

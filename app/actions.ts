@@ -3317,7 +3317,7 @@ export async function deleteIncomeSource(id: string) {
 
 export async function resolveReceivable(
   id: string,
-  payload: { action: "pay" | "postpone" | "cancel"; amount?: number; accountId?: string; days?: number }
+  payload: { action: "pay" | "postpone" | "cancel" | "delete"; amount?: number; accountId?: string; days?: number }
 ) {
   const context = await requireWorkspaceContext();
   const admin = await createSupabaseServerComponentClient();
@@ -3336,7 +3336,14 @@ export async function resolveReceivable(
 
   const receivable = rawReceivable as any;
 
-  if (payload.action === "cancel") {
+  if (payload.action === "delete") {
+    const { error } = await admin
+      .from("receivables")
+      .delete()
+      .eq("id", id)
+      .eq("workspace_id", context.workspace.id);
+    if (error) throw new Error(error.message);
+  } else if (payload.action === "cancel") {
     const { error } = await admin
       .from("receivables")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })

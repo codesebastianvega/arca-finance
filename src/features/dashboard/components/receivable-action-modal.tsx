@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { CheckCircle2, AlertTriangle, X, MoreVertical, Building2, PencilLine, CircleSlash2, Clock } from "lucide-react";
+import { CheckCircle2, AlertTriangle, X, MoreVertical, Building2, PencilLine, CircleSlash2, Clock, Trash2 } from "lucide-react";
 import { haptics } from "@/src/lib/haptics";
 import type { TodayReceivable } from "@/src/lib/today-data";
 import { resolveReceivable } from "@/app/actions";
@@ -68,8 +68,25 @@ export function ReceivableActionModal({ receivable, accounts, onClose, onRefresh
     });
   };
 
+  const handleDeleteReceivable = () => {
+    if (!confirm("¿Seguro que deseas eliminar este ingreso por recibir / préstamo? Esta acción borrará el registro por completo.")) return;
+    
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await resolveReceivable(receivable.id, { action: "delete" });
+        haptics.success();
+        onRefresh();
+        onClose();
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Error al eliminar");
+        haptics.error();
+      }
+    });
+  };
+
   const handleCancelReceivable = () => {
-    if (!confirm("¿Seguro que quieres cancelar (condonar o borrar) este préstamo? No se generará ningún ingreso.")) return;
+    if (!confirm("¿Seguro que quieres cancelar (condonar) este préstamo? No se generará ningún ingreso.")) return;
     
     setActionError(null);
     startTransition(async () => {
@@ -157,19 +174,25 @@ export function ReceivableActionModal({ receivable, accounts, onClose, onRefresh
                   initial={{ opacity: 0, scale: 0.95, y: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                  className="absolute right-0 top-12 w-48 bg-arca-surface-1 border border-arca-border rounded-xl shadow-xl overflow-hidden z-50"
+                  className="absolute right-0 top-12 w-52 bg-arca-surface-1 border border-arca-border rounded-xl shadow-xl overflow-hidden z-50 divide-y divide-arca-border"
                 >
                   <button 
                     onClick={handlePostpone}
-                    className="w-full px-4 py-3 text-sm font-bold text-left text-arca-text-primary hover:bg-arca-surface-2 transition-colors flex items-center gap-2 border-b border-arca-border"
+                    className="w-full px-4 py-3 text-sm font-bold text-left text-arca-text-primary hover:bg-arca-surface-2 transition-colors flex items-center gap-2"
                   >
                     <Clock size={16} /> Posponer (7 días)
                   </button>
                   <button 
                     onClick={handleCancelReceivable}
-                    className="w-full px-4 py-3 text-sm font-bold text-left text-arca-alert hover:bg-arca-alert/10 transition-colors flex items-center gap-2"
+                    className="w-full px-4 py-3 text-sm font-bold text-left text-amber-500 hover:bg-amber-500/10 transition-colors flex items-center gap-2"
                   >
                     <CircleSlash2 size={16} /> Condonar
+                  </button>
+                  <button 
+                    onClick={handleDeleteReceivable}
+                    className="w-full px-4 py-3 text-sm font-bold text-left text-arca-alert hover:bg-arca-alert/10 transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 size={16} /> Eliminar préstamo
                   </button>
                 </motion.div>
               )}

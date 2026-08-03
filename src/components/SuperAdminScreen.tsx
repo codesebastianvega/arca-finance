@@ -22,6 +22,9 @@ import {
   UserRound,
   UsersRound,
   X,
+  RotateCcw,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { ConfirmDialog } from './ui-kit';
 import {
@@ -32,6 +35,8 @@ import {
   adminUpdateBillingPlan,
   adminConfirmSubscriptionPayment,
   adminRejectSubscriptionPayment,
+  adminResetFutureEvents,
+  adminFullFactoryReset,
 } from '@/app/superadmin-actions';
 import type { AdminPlanCode, AdminSubscriptionInvoice, AdminSubscriptionStatus, BetaFeedbackItem, SuperAdminClient, SuperAdminViewModel } from '@/src/lib/superadmin-types';
 import type { BillingPlan } from '@/src/lib/billing';
@@ -480,6 +485,59 @@ function ClientAdminSheet({ client, pending, onClose, onRun }: { client: SuperAd
                 }
               });
             }} className="rounded-xl border border-arca-border bg-arca-surface-2 py-3 text-[10px] font-black text-arca-text-secondary">{client.workspaceStatus === 'paused' ? 'Activar cuenta' : 'Suspender cuenta'}</button>
+          </div>
+        </section>
+
+        {/* SuperAdmin Reset Tools */}
+        <section className="mt-3 space-y-3 rounded-3xl border border-red-500/30 bg-red-500/[0.04] p-4">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-red-400">Herramientas de Limpieza Avanzada (SuperAdmin)</p>
+            <p className="mt-0.5 text-[10px] text-arca-text-dim">Mantenimiento de datos y reseteo de espacio</p>
+          </div>
+          <div className="space-y-2">
+            <button
+              disabled={pending}
+              onClick={() => {
+                setConfirmState({
+                  isOpen: true,
+                  title: 'Limpiar compromisos e ingresos futuros',
+                  description: 'Esto borrará todos los eventos programados futuros, plantillas de ingresos y préstamos pendientes. MANTENDRÁ intactos los saldos de tus cuentas y las transacciones ya confirmadas.',
+                  summaryData: [{ label: 'Usuario', value: client.fullName }],
+                  onConfirm: () => {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                    onRun(
+                      adminResetFutureEvents({ workspaceId: client.workspaceId, note }),
+                      `Compromisos e ingresos futuros limpiados para ${client.fullName}`
+                    );
+                  }
+                });
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 py-3 text-xs font-black text-amber-400 hover:bg-amber-500/20 transition-all disabled:opacity-40"
+            >
+              <RotateCcw size={15} /> Limpiar Ingresos / Compromisos Futuros
+            </button>
+
+            <button
+              disabled={pending}
+              onClick={() => {
+                setConfirmState({
+                  isOpen: true,
+                  title: '⚠️ Restauración completa de fábrica',
+                  description: '¡ATENCIÓN! Esto BORRARÁ DEFINITIVAMENTE todos los datos de este espacio (cuentas, saldos, transacciones, presupuestos e historial) para empezar de cero desde un estado 100% limpio.',
+                  summaryData: [{ label: 'Usuario', value: client.fullName }],
+                  onConfirm: () => {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                    onRun(
+                      adminFullFactoryReset({ workspaceId: client.workspaceId, note }),
+                      `Restauración completa de fábrica ejecutada para ${client.fullName}`
+                    );
+                  }
+                });
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/40 bg-red-500/15 py-3 text-xs font-black text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-40"
+            >
+              <Trash2 size={15} /> Restauración Completa de Fábrica (Reset a 0)
+            </button>
           </div>
         </section>
       </motion.section>

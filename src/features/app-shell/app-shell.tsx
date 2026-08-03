@@ -42,25 +42,34 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   const [defaultIncomeStatus, setDefaultIncomeStatus] = useState<'received' | 'expected'>('received');
 
   const openOverlay = useCallback((overlay: 'quick-add' | 'register' | 'nova') => {
-    const nextState = { ...window.history.state, arcaOverlay: overlay };
-    if (window.history.state?.arcaOverlay) {
-      window.history.replaceState(nextState, '', window.location.href);
-    } else {
-      window.history.pushState(nextState, '', window.location.href);
+    if (overlay === 'quick-add') setIsQuickAddOpen(true);
+    if (overlay === 'register') setIsRegisterOpen(true);
+    if (overlay === 'nova') setIsAiChatOpen(true);
+
+    try {
+      const nextState = { ...window.history.state, arcaOverlay: overlay };
+      if (window.history.state?.arcaOverlay === overlay) {
+        window.history.replaceState(nextState, '', window.location.href);
+      } else {
+        window.history.pushState(nextState, '', window.location.href);
+      }
+    } catch {
+      // Ignore history state errors
     }
-    setIsQuickAddOpen(overlay === 'quick-add');
-    setIsRegisterOpen(overlay === 'register');
-    setIsAiChatOpen(overlay === 'nova');
   }, []);
 
   const closeOverlay = useCallback((overlay: 'quick-add' | 'register' | 'nova') => {
-    if (window.history.state?.arcaOverlay === overlay) {
-      window.history.back();
-      return;
-    }
     if (overlay === 'quick-add') setIsQuickAddOpen(false);
     if (overlay === 'register') setIsRegisterOpen(false);
     if (overlay === 'nova') setIsAiChatOpen(false);
+
+    try {
+      if (window.history.state?.arcaOverlay === overlay) {
+        window.history.back();
+      }
+    } catch {
+      // Ignore history state errors
+    }
   }, []);
 
   useEffect(() => {
