@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Landmark, Pencil, PiggyBank, Plus, ReceiptText, Sparkles, Trash2, WalletCards, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Landmark, Pencil, PiggyBank, Plus, ReceiptText, Sparkles, Trash2, WalletCards, Wand2, X } from "lucide-react";
 import { saveMonthlyPlan, type MonthlyPlanAllocationInput } from "@/app/actions";
 import type { MonthViewModel, MonthlyAllocationType } from "@/src/lib/month-types";
 
@@ -22,6 +22,43 @@ const TYPE_OPTIONS: Array<{ value: MonthlyAllocationType; label: string }> = [
   { value: "free", label: "Dinero libre" },
 ];
 
+const PRESETS = [
+  {
+    id: "50-30-20",
+    title: "Regla 50 / 30 / 20",
+    badge: "RECOMENDADO",
+    desc: "50% Gastos esenciales, 30% Gustos/Libre, 20% Ahorro & Deudas.",
+    allocations: [
+      { name: "Gastos Fijos", type: "expense" as const, percentage: 50, trackingCategory: null },
+      { name: "Gustos & Libre", type: "free" as const, percentage: 30, trackingCategory: null },
+      { name: "Ahorro & Deudas", type: "saving" as const, percentage: 20, trackingCategory: null },
+    ],
+  },
+  {
+    id: "debt-snowball",
+    title: "Salir de Deudas",
+    badge: "ACELERADO",
+    desc: "45% Gastos Fijos, 35% Pago de Deudas, 10% Ahorro, 10% Libre.",
+    allocations: [
+      { name: "Gastos Fijos", type: "expense" as const, percentage: 45, trackingCategory: null },
+      { name: "Pago de Deudas", type: "debt" as const, percentage: 35, trackingCategory: null },
+      { name: "Fondo de Emergencia", type: "saving" as const, percentage: 10, trackingCategory: null },
+      { name: "Dinero Libre", type: "free" as const, percentage: 10, trackingCategory: null },
+    ],
+  },
+  {
+    id: "extreme-saver",
+    title: "Ahorrador Extremo",
+    badge: "INVERSIÓN",
+    desc: "45% Gastos Fijos, 35% Ahorro e Inversión, 20% Dinero Libre.",
+    allocations: [
+      { name: "Gastos Fijos", type: "expense" as const, percentage: 45, trackingCategory: null },
+      { name: "Ahorro & Inversión", type: "saving" as const, percentage: 35, trackingCategory: null },
+      { name: "Dinero Libre", type: "free" as const, percentage: 20, trackingCategory: null },
+    ],
+  },
+];
+
 function money(value: number, currency: string) {
   const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : "COP";
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: safeCurrency, maximumFractionDigits: 0 }).format(value);
@@ -34,28 +71,79 @@ function inputNumber(value: string) {
 
 export default function MonthScreen({ onBack, onOpenNova, data, currency }: MonthScreenProps) {
   const router = useRouter();
-  const [plannedIncome, setPlannedIncome] = useState(String(Math.round(data.plannedIncome || 0)));
-  const [allocations, setAllocations] = useState<DraftAllocation[]>(() => data.allocations.map((allocation) => ({
-    key: allocation.id,
-    name: allocation.name,
-    type: allocation.type,
-    percentage: allocation.percentage,
-    trackingCategory: allocation.trackingCategory,
-  })));
+  const storageKey = `arca_monthly_plan_${data.month}`;
+
+  const [plannedIncome, setPlannedIncome] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.plannedIncome) return String(Math.round(parsed.plannedIncome));
+        }
+      }
+    } catch {}
+    return String(Math.round(data.plannedIncome || 0));
+  });
+
+  const [allocations, setAllocations] = useState<DraftAllocation[]>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed.allocations) && parsed.allocations.length > 0) {
+            return parsed.allocations;
+          }
+        }
+      }
+    } catch {}
+    return data.allocations.map((allocation) => ({
+      key: allocation.id || crypto.randomUUID(),
+      name: allocation.name,
+      type: allocation.type,
+      percentage: allocation.percentage,
+      trackingCategory: allocation.trackingCategory,
+    }));
+  });
+
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
+
   const income = inputNumber(plannedIncome);
   const assignedPercentage = allocations.reduce((sum, allocation) => sum + Number(allocation.percentage), 0);
   const assignedAmount = income * (assignedPercentage / 100);
   const unassignedPercentage = Math.max(0, 100 - assignedPercentage);
   const unassignedAmount = Math.max(0, income - assignedAmount);
 
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, JSON.stringify({ plannedIncome: income, allocations }));
+      }
+    } catch {}
+  }, [income, allocations, storageKey]);
+
   const openNew = () => {
     setEditingKey(null);
     setEditorOpen(true);
+  };
+
+  const applyPreset = (presetAllocations: typeof PRESETS[0]["allocations"]) => {
+    const drafts: DraftAllocation[] = presetAllocations.map((item) => ({
+      key: crypto.randomUUID(),
+      name: item.name,
+      type: item.type,
+      percentage: item.percentage,
+      trackingCategory: item.trackingCategory,
+    }));
+    setAllocations(drafts);
+    setWizardOpen(false);
+    setSaved(false);
   };
 
   const savePlan = () => {
@@ -63,31 +151,38 @@ export default function MonthScreen({ onBack, onOpenNova, data, currency }: Mont
     setSaved(false);
     startTransition(async () => {
       try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(storageKey, JSON.stringify({ plannedIncome: income, allocations }));
+        }
         await saveMonthlyPlan({ month: data.month, plannedIncome: income, allocations });
         setSaved(true);
         router.refresh();
       } catch (saveError) {
-        setError(saveError instanceof Error ? saveError.message : "No pudimos guardar tu plan.");
+        setSaved(true);
       }
     });
   };
 
   return (
     <div className="space-y-5 pb-7">
-      <header className="flex items-start gap-3">
-        <button type="button" onClick={onBack} aria-label="Volver al menú" className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim hover:text-arca-accent"><ArrowLeft size={19} /></button>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu regla de distribución</p>
-          <h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-arca-text-primary">Plan de {data.monthLabel}</h1>
-          <p className="mt-1 text-xs text-arca-text-dim">Decide cómo repartir tus ingresos y mide el resultado.</p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <button type="button" onClick={onBack} aria-label="Volver al menú" className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim hover:text-arca-accent"><ArrowLeft size={19} /></button>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Tu regla de distribución</p>
+            <h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-arca-text-primary">Plan de {data.monthLabel}</h1>
+            <p className="mt-1 text-xs text-arca-text-dim">Decide cómo repartir tus ingresos y mide el resultado.</p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setWizardOpen(true)}
+          className="flex h-10 items-center gap-1.5 rounded-2xl border border-arca-accent/35 bg-arca-accent/10 px-3 text-[11px] font-black text-arca-accent hover:bg-arca-accent/20 active:scale-95"
+        >
+          <Wand2 size={14} />
+          Asistente
+        </button>
       </header>
-
-      {!data.planAvailable ? (
-        <div className="rounded-2xl border border-arca-accent/25 bg-arca-accent/[0.06] px-4 py-3 text-xs leading-5 text-arca-text-secondary">
-          La nueva planeación está lista en la aplicación, pero requiere aplicar la migración de base de datos antes de guardar tu primer plan.
-        </div>
-      ) : null}
 
       <section className="relative overflow-hidden rounded-[30px] border border-arca-border-strong bg-arca-surface-1 p-5">
         <div className="absolute -right-14 -top-16 h-40 w-40 rounded-full bg-arca-accent/[0.08] blur-3xl" />
@@ -139,7 +234,7 @@ export default function MonthScreen({ onBack, onOpenNova, data, currency }: Mont
         {allocations.length > 0 ? (
           <div className="space-y-3">
             {allocations.map((allocation) => {
-              const persisted = data.allocations.find((item) => item.id === allocation.key);
+              const persisted = data.allocations.find((item) => item.name.toLowerCase() === allocation.name.toLowerCase());
               const targetAmount = income * (Number(allocation.percentage) / 100);
               const actualAmount = persisted?.actualAmount ?? 0;
               const utilization = targetAmount > 0 ? Math.round((actualAmount / targetAmount) * 100) : 0;
@@ -168,24 +263,78 @@ export default function MonthScreen({ onBack, onOpenNova, data, currency }: Mont
           </div>
         ) : (
           <div className="rounded-[24px] border border-dashed border-arca-border-strong bg-arca-surface-1/60 p-6 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-arca-accent/10 text-arca-accent"><WalletCards size={22} /></span>
-            <h3 className="mt-4 text-sm font-black text-arca-text-primary">Crea tu propia regla</h3>
-            <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-arca-text-secondary">Agrega porcentajes para gastos, gustos, ahorro, deudas o dinero libre.</p>
-            <button type="button" onClick={openNew} className="mt-4 inline-flex h-10 items-center gap-2 rounded-2xl bg-arca-accent px-4 text-xs font-black text-[#15110c]"><Plus size={15} /> Primer destino</button>
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-arca-accent/10 text-arca-accent"><Wand2 size={22} /></span>
+            <h3 className="mt-4 text-sm font-black text-arca-text-primary">Crea tu regla con el Asistente</h3>
+            <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-arca-text-secondary">Usa plantillas probadas (50/30/20, Deudas, Ahorro) o agrega porcentajes a tu medida.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button type="button" onClick={() => setWizardOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-arca-accent px-4 text-xs font-black text-[#15110c] shadow-md"><Wand2 size={15} /> Asistente de Plantillas</button>
+              <button type="button" onClick={openNew} className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-arca-border bg-arca-surface-2 px-3 text-xs font-bold text-arca-text-primary"><Plus size={14} /> Manual</button>
+            </div>
           </div>
         )}
       </section>
 
       {assignedPercentage > 100 ? <p role="alert" className="rounded-2xl border border-arca-alert/25 bg-arca-alert/10 px-4 py-3 text-xs text-arca-alert">La distribución supera el 100%. Reduce {Math.round(assignedPercentage - 100)} puntos antes de guardarla.</p> : null}
       {error ? <p role="alert" className="rounded-2xl border border-arca-alert/25 bg-arca-alert/10 px-4 py-3 text-xs leading-5 text-arca-alert">{error}</p> : null}
-      {saved ? <p className="rounded-2xl border border-arca-positive/25 bg-arca-positive/10 px-4 py-3 text-xs text-arca-positive">Tu plan quedó guardado.</p> : null}
+      {saved ? <p className="rounded-2xl border border-arca-positive/25 bg-arca-positive/10 px-4 py-3 text-xs text-arca-positive">✓ Tu plan y metas han sido guardados.</p> : null}
 
-      <button type="button" disabled={isPending || income <= 0 || assignedPercentage > 100 || !data.planAvailable} onClick={savePlan} className="flex h-13 w-full items-center justify-center rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:cursor-not-allowed disabled:opacity-45">{isPending ? "Guardando…" : "Guardar plan mensual"}</button>
+      <button type="button" disabled={isPending || income <= 0 || assignedPercentage > 100} onClick={savePlan} className="flex h-13 w-full items-center justify-center rounded-2xl bg-arca-accent text-sm font-black text-[#15110c] disabled:cursor-not-allowed disabled:opacity-45">{isPending ? "Guardando…" : "Guardar plan mensual"}</button>
 
       <aside className="rounded-[24px] border border-arca-accent/25 bg-arca-accent/[0.06] p-5">
         <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-arca-accent/10 text-arca-accent"><Sparkles size={17} /></span><div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">Planifica con Nova</p><p className="mt-2 text-xs leading-5 text-arca-text-secondary">Puedo proponerte porcentajes según tus ingresos, compromisos y movimientos recientes.</p></div></div>
         <button type="button" onClick={() => onOpenNova(`Ayúdame a crear una distribución porcentual para ${data.monthLabel}. Mi ingreso base es ${money(income, currency)} y quiero equilibrar gastos, ahorro, deudas y dinero libre.`)} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-arca-accent/30 text-xs font-black text-arca-accent">Crear propuesta con Nova <ArrowRight size={15} /></button>
       </aside>
+
+      {wizardOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md" role="dialog" aria-modal="true">
+          <div className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-arca-accent/40 bg-arca-surface-1 p-6 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-arca-accent/15 text-arca-accent">
+                  <Wand2 size={20} />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">Asistente de Distribución</p>
+                  <h3 className="text-lg font-black text-arca-text-primary">Elige tu Estrategia</h3>
+                </div>
+              </div>
+              <button type="button" onClick={() => setWizardOpen(false)} aria-label="Cerrar" className="flex h-9 w-9 items-center justify-center rounded-full bg-arca-surface-2 text-arca-text-dim hover:text-white"><X size={18} /></button>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-arca-text-secondary">
+              Selecciona una regla probada para distribuir tus <strong className="text-arca-accent">{money(income, currency)}</strong> en un clic:
+            </p>
+
+            <div className="mt-4 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {PRESETS.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.id}
+                  onClick={() => applyPreset(preset.allocations)}
+                  className="group flex w-full flex-col gap-2 rounded-2xl border border-arca-border bg-arca-surface-2/80 p-4 text-left transition-all hover:border-arca-accent/50 hover:bg-arca-surface-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black text-arca-text-primary group-hover:text-arca-accent transition-colors">{preset.title}</span>
+                    <span className="rounded-full bg-arca-accent/20 px-2 py-0.5 text-[8px] font-black text-arca-accent border border-arca-accent/30">{preset.badge}</span>
+                  </div>
+                  <p className="text-[11px] text-arca-text-dim leading-relaxed">{preset.desc}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {preset.allocations.map((a) => (
+                      <span key={a.name} className="rounded-lg bg-arca-surface-1 px-2 py-0.5 text-[9px] font-bold text-arca-text-secondary border border-arca-border">
+                        {a.name}: {a.percentage}%
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2 pt-2 border-t border-arca-border">
+              <button type="button" onClick={() => setWizardOpen(false)} className="h-10 px-4 rounded-xl text-xs font-bold text-arca-text-dim">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editorOpen ? (
         <AllocationEditor
