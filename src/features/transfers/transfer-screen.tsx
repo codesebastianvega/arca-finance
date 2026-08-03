@@ -507,3 +507,12 @@ function BalanceResult({ label, value, align = 'left' }: { label: string; value:
     </div>
   );
 }
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-arca-text-dim">{label}</label>
+      {children}
+    </div>
+  );
+}
