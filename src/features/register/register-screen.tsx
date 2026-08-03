@@ -51,6 +51,7 @@ import { haptics } from '../../lib/haptics';
 import { ItemizedExpenseForm } from './itemized-expense-form';
 import { TransactionItem } from '@/src/types';
 import { useActionFeedback } from '../feedback/action-feedback-provider';
+import { CategoryManagerModal } from '../categories/category-manager-modal';
 
 
 const AVAILABLE_ICONS = [
@@ -270,6 +271,8 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
   const [bcNotes, setBcNotes] = useState('');
   
   const [selectedCategoryValue, setSelectedCategoryValue] = useState('');
+  const [applyTax4x1000, setApplyTax4x1000] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [tags, setTags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -588,6 +591,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
               ? data.incomeSources.find((item) => item.id === movementIncomeSourceId)?.label ?? null 
               : (expenseSourceId ? data.incomeSources.find((item) => item.id === expenseSourceId)?.label ?? null : null),
             items: type === 'gasto' ? transactionItems : undefined,
+            applyTax4x1000: type === 'gasto' && applyTax4x1000,
           });
         }
         resetMovementForm();
@@ -845,13 +849,22 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-bold text-arca-text-dim uppercase tracking-widest ml-1">Categoría</label>
-              <button
-                type="button"
-                onClick={() => { haptics.light(); setShowQuickCategoryForm(!showQuickCategoryForm); }}
-                className="text-[10px] font-bold text-arca-accent uppercase tracking-widest flex items-center gap-0.5 hover:text-arca-accent-hover transition-colors"
-              >
-                {showQuickCategoryForm ? '✕ Cancelar' : '+ Nueva'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { haptics.light(); setIsCategoryManagerOpen(true); }}
+                  className="text-[10px] font-bold text-arca-accent uppercase tracking-widest flex items-center gap-1 hover:text-arca-accent-hover transition-colors"
+                >
+                  ⚙️ Gestor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { haptics.light(); setShowQuickCategoryForm(!showQuickCategoryForm); }}
+                  className="text-[10px] font-bold text-arca-accent uppercase tracking-widest flex items-center gap-0.5 hover:text-arca-accent-hover transition-colors"
+                >
+                  {showQuickCategoryForm ? '✕ Cancelar' : '+ Nueva'}
+                </button>
+              </div>
             </div>
             
             {showQuickCategoryForm && (
@@ -911,6 +924,30 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
                   <span className="text-[8px] font-bold mt-2 uppercase tracking-tighter">{cat.label}</span>
                 </button>
               ))}
+            </div>
+
+            {/* 4x1000 Toggle for Expenses */}
+            <div className="mt-3 flex items-center justify-between rounded-2xl border border-arca-border bg-arca-surface-2 p-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-arca-accent/15 text-arca-accent font-black text-[10px]">4x1000</span>
+                <div>
+                  <p className="text-xs font-bold text-arca-text-primary">Aplicar 4x1000 (+0.4%)</p>
+                  {applyTax4x1000 && Number(amount || '0') > 0 ? (
+                    <p className="text-[10px] text-arca-accent font-bold">
+                      Impuesto: +${Math.round(Number(amount || '0') * 0.004).toLocaleString('es-CO')} (Total: ${Math.round(Number(amount || '0') * 1.004).toLocaleString('es-CO')})
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-arca-text-dim">Descuenta el impuesto e ingresa la micro-transacción</p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { haptics.light(); setApplyTax4x1000(!applyTax4x1000); }}
+                className={`h-6 w-11 rounded-full p-0.5 transition-colors ${applyTax4x1000 ? 'bg-arca-accent' : 'bg-arca-surface-3'}`}
+              >
+                <div className={`h-5 w-5 rounded-full bg-white transition-transform ${applyTax4x1000 ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
             </div>
           </div>
         ) : (
@@ -2276,6 +2313,17 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
           </AnimatePresence>
         </div>
       )}
+
+      <CategoryManagerModal
+        isOpen={isCategoryManagerOpen}
+        onClose={() => setIsCategoryManagerOpen(false)}
+        categories={data.categories.map((c) => ({
+          id: c.id,
+          name: c.label,
+          parentId: c.parentId,
+          icon: c.icon,
+        }))}
+      />
     </div>
   );
 }

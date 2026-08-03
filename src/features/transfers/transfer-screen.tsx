@@ -70,6 +70,7 @@ export default function TransferScreen({
   const [amount, setAmount] = useState('');
   const [concept, setConcept] = useState('');
   const [date, setDate] = useState(todayBogota());
+  const [applyTax4x1000, setApplyTax4x1000] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [transferResult, setTransferResult] = useState<TransferResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,8 +86,11 @@ export default function TransferScreen({
   );
   const parsedAmount = Number(amount || '0');
   const validAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
-  const hasEnoughBalance = fromAccount ? validAmount <= fromAccount.balance : false;
-  const originAfter = fromAccount ? fromAccount.balance - validAmount : 0;
+  const tax4x1000Amount = applyTax4x1000 ? Math.round(validAmount * 0.004) : 0;
+  const totalDebitFromOrigin = validAmount + tax4x1000Amount;
+
+  const hasEnoughBalance = fromAccount ? totalDebitFromOrigin <= fromAccount.balance : false;
+  const originAfter = fromAccount ? fromAccount.balance - totalDebitFromOrigin : 0;
   const destinationAfter = toAccount ? toAccount.balance + validAmount : 0;
 
   const canSubmit =
@@ -144,6 +148,7 @@ export default function TransferScreen({
           amount: parsedAmount,
           concept,
           date,
+          applyTax4x1000,
         });
         setTransferResult({
           amount: parsedAmount,
@@ -188,9 +193,6 @@ export default function TransferScreen({
               Agrega una cuenta o billetera y podrás mover dinero sin registrarlo como ingreso o gasto.
             </p>
           </div>
-          <button type="button" onClick={onOpenMoney ?? onBack} className="h-12 w-full rounded-2xl bg-arca-accent font-black text-black">
-            Ir a mis cuentas
-          </button>
         </div>
       </div>
     );
@@ -314,7 +316,7 @@ export default function TransferScreen({
             <AmountShortcut label="Todo" onClick={() => useBalancePercentage(1)} subtle />
           </div>
           {!hasEnoughBalance && validAmount > 0 ? (
-            <p className="mt-3 text-xs font-semibold text-arca-alert">El saldo de la cuenta origen no alcanza para este monto.</p>
+            <p className="mt-3 text-xs font-semibold text-arca-alert">El saldo de la cuenta origen no alcanza para este monto (incluyendo el 4x1000).</p>
           ) : null}
         </div>
 
@@ -337,6 +339,30 @@ export default function TransferScreen({
             />
           </Field>
         </div>
+
+        {/* 4x1000 Toggle */}
+        <div className="flex items-center justify-between rounded-2xl border border-arca-border bg-arca-surface-2 p-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-arca-accent/15 text-arca-accent font-black text-[10px]">4x1000</span>
+            <div>
+              <p className="text-xs font-bold text-arca-text-primary">Aplicar 4x1000 (+0.4%)</p>
+              {applyTax4x1000 && validAmount > 0 ? (
+                <p className="text-[10px] text-arca-accent font-bold">
+                  Impuesto: +${tax4x1000Amount.toLocaleString('es-CO')} (Total debitado: ${totalDebitFromOrigin.toLocaleString('es-CO')})
+                </p>
+              ) : (
+                <p className="text-[10px] text-arca-text-dim">Descuenta el Gravamen a los Movimientos Financieros</p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { haptics.light(); setApplyTax4x1000(!applyTax4x1000); }}
+            className={`h-6 w-11 rounded-full p-0.5 transition-colors ${applyTax4x1000 ? 'bg-arca-accent' : 'bg-arca-surface-3'}`}
+          >
+            <div className={`h-5 w-5 rounded-full bg-white transition-transform ${applyTax4x1000 ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
       </section>
 
       <section className="card-arca overflow-hidden">
@@ -353,7 +379,7 @@ export default function TransferScreen({
         </div>
         <div className="flex items-start gap-2 border-t border-arca-border bg-arca-surface-2/50 px-5 py-3 text-[10px] leading-4 text-arca-text-secondary">
           <Info size={14} className="mt-0.5 shrink-0 text-arca-positive" />
-          Solo mueve dinero entre tus cuentas. No suma ingresos ni gastos.
+          Solo mueve dinero entre tus cuentas. No suma ingresos ni gastos salvo el 4x1000 si está activo.
         </div>
       </section>
 
@@ -366,31 +392,29 @@ export default function TransferScreen({
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-arca-accent">Decídelo con Nova</p>
               <p className="mt-1 text-xs leading-5 text-arca-text-secondary">
-                Puedo revisar tus próximos pagos y decirte cuánto conviene mover sin dejar corta la cuenta origen.
+                ¿Dudas si mover dinero ahora? Nova puede revisar tu saldo proyectado del mes antes de confirmar.
               </p>
-              <button
-                type="button"
-                onClick={() => onOpenNova(
-                  `Ayúdame a decidir cuánto transferir desde ${fromAccount?.name ?? 'mi cuenta origen'} hacia ${toAccount?.name ?? 'mi cuenta destino'}. Tengo ${money(fromAccount?.balance ?? 0, currency)} disponibles${validAmount > 0 ? ` y estoy pensando mover ${money(validAmount, currency)}` : ''}. Revisa mis próximos pagos y recomiéndame un monto seguro.`,
-                )}
-                className="mt-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-arca-accent"
-              >
-                Pedir recomendación <ArrowRight size={14} />
-              </button>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => onOpenNova(`Analiza si me conviene transferir ${amount ? money(parsedAmount, currency) : '$0'} de ${fromAccount?.name ?? 'origen'} a ${toAccount?.name ?? 'destino'}.`)}
+            className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-arca-accent/30 text-xs font-bold text-arca-accent"
+          >
+            Consultar con Nova <ArrowRight size={14} />
+          </button>
         </aside>
       ) : null}
 
-      {error ? <p className="rounded-xl border border-arca-alert/30 bg-arca-alert/10 p-3 text-xs text-arca-alert">{error}</p> : null}
+      {error ? <p role="alert" className="rounded-xl border border-arca-alert/30 bg-arca-alert/10 p-3 text-xs leading-5 text-arca-alert">{error}</p> : null}
 
       <button
         type="button"
         disabled={!canSubmit || isPending}
         onClick={handleTransfer}
-        className="h-14 w-full rounded-2xl bg-arca-accent font-black text-black shadow-[0_12px_30px_rgba(211,145,61,0.18)] disabled:cursor-not-allowed disabled:bg-arca-surface-2 disabled:text-arca-text-dim disabled:shadow-none"
+        className="h-14 w-full rounded-2xl bg-arca-accent text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {isPending ? 'Transfiriendo...' : validAmount > 0 ? `Transferir ${money(validAmount, currency)}` : 'Indica el monto'}
+        {isPending ? 'Transferiendo…' : 'Confirmar transferencia'}
       </button>
     </div>
   );
@@ -398,20 +422,20 @@ export default function TransferScreen({
 
 function ScreenHeader({ onBack }: { onBack: () => void }) {
   return (
-    <header className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
       <button
         type="button"
         onClick={onBack}
-        aria-label="Volver"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-arca-border bg-arca-surface-1 text-arca-text-secondary"
+        aria-label="Volver atrás"
+        className="flex h-10 w-10 items-center justify-center rounded-2xl border border-arca-border bg-arca-surface-1 text-arca-text-dim hover:text-arca-accent"
       >
-        <ArrowLeft size={20} />
+        <ArrowLeft size={19} />
       </button>
       <div>
-        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-arca-accent">Mover dinero</p>
-        <h1 className="text-xl font-black tracking-tight text-arca-text-primary">Transferencia entre cuentas</h1>
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">Movimiento interno</p>
+        <h1 className="text-xl font-black text-arca-text-primary">Transferir entre cuentas</h1>
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -427,45 +451,48 @@ function AccountSelector({
   label: string;
   tone: 'origin' | 'destination';
   value: string;
-  onChange: (value: string) => void;
+  onChange: (id: string) => void;
   accounts: TransferAccount[];
   selectedAccount: TransferAccount | null;
   currency: string;
 }) {
-  const isOrigin = tone === 'origin';
-
   return (
-    <label className={`min-w-0 rounded-2xl border p-3 ${isOrigin ? 'border-arca-accent/25 bg-arca-accent/[0.06]' : 'border-arca-positive/25 bg-arca-positive/[0.06]'}`}>
-      <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isOrigin ? 'text-arca-accent' : 'text-arca-positive'}`}>{label}</span>
-      <span className="mt-3 flex items-center gap-2">
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${isOrigin ? 'bg-arca-accent/15 text-arca-accent' : 'bg-arca-positive/15 text-arca-positive'}`}>
-          <Wallet size={15} />
+    <div className="rounded-[20px] border border-arca-border bg-arca-surface-2 p-3">
+      <div className="flex items-center justify-between">
+        <span className={`text-[9px] font-black uppercase tracking-wider ${tone === 'origin' ? 'text-arca-accent' : 'text-arca-positive'}`}>
+          {label}
         </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-black text-arca-text-primary">{selectedAccount?.name ?? 'Selecciona'}</span>
-          <span className="block truncate text-[10px] text-arca-text-secondary">{money(selectedAccount?.balance ?? 0, currency)}</span>
-        </span>
-      </span>
+        <Wallet size={13} className="text-arca-text-dim" />
+      </div>
       <select
-        aria-label={`Cuenta ${label.toLowerCase()}`}
+        aria-label={`Seleccionar cuenta de ${label.toLowerCase()}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 h-8 w-full rounded-lg border border-arca-border bg-arca-surface-1 px-2 text-[10px] font-bold text-arca-text-secondary outline-none"
+        className="mt-2 w-full bg-transparent text-xs font-black text-arca-text-primary outline-none"
       >
         {accounts.map((account) => (
-          <option key={account.id} value={account.id}>{account.name}</option>
+          <option key={account.id} value={account.id} className="bg-arca-base text-arca-text-primary">
+            {account.name}
+          </option>
         ))}
       </select>
-    </label>
+      <p className="mt-1.5 text-[10px] font-bold text-arca-text-dim truncate">
+        {selectedAccount ? money(selectedAccount.balance, currency) : money(0, currency)}
+      </p>
+    </div>
   );
 }
 
-function AmountShortcut({ label, onClick, subtle = false }: { label: string; onClick: () => void; subtle?: boolean }) {
+function AmountShortcut({ label, onClick, subtle }: { label: string; onClick: () => void; subtle?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`h-9 rounded-xl border text-xs font-black ${subtle ? 'border-arca-border text-arca-text-secondary' : 'border-arca-accent/25 bg-arca-accent/[0.06] text-arca-accent'}`}
+      className={`h-9 rounded-xl border text-xs font-black transition-colors ${
+        subtle
+          ? 'border-arca-accent/30 bg-arca-accent/10 text-arca-accent hover:bg-arca-accent/20'
+          : 'border-arca-border bg-arca-surface-1 text-arca-text-primary hover:border-arca-accent/40'
+      }`}
     >
       {label}
     </button>
@@ -474,18 +501,9 @@ function AmountShortcut({ label, onClick, subtle = false }: { label: string; onC
 
 function BalanceResult({ label, value, align = 'left' }: { label: string; value: string; align?: 'left' | 'right' }) {
   return (
-    <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}>
-      <p className="truncate text-[9px] font-bold uppercase tracking-wider text-arca-text-dim">{label}</p>
-      <p className="mt-1 truncate text-sm font-black text-arca-text-primary">{value}</p>
+    <div className={align === 'right' ? 'text-right' : 'text-left'}>
+      <p className="text-[9px] font-black uppercase tracking-wider text-arca-text-dim">{label}</p>
+      <p className="mt-1 text-xs font-black text-arca-text-primary">{value}</p>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block space-y-2">
-      <span className="ml-1 text-[10px] font-bold uppercase tracking-widest text-arca-text-dim">{label}</span>
-      {children}
-    </label>
   );
 }
