@@ -114,7 +114,6 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
     return () => window.clearInterval(interval);
   }, []);
 
-  const [novaInitialPrompt, setNovaInitialPrompt] = useState<string | null>(null);
   const [novaTriggerCamera, setNovaTriggerCamera] = useState(false);
   const [novaTriggerVoice, setNovaTriggerVoice] = useState(false);
 
