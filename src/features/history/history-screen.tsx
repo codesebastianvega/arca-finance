@@ -145,8 +145,11 @@ export default function HistoryScreen({
 
   const totals = useMemo(() => filteredHistory.reduce(
     (summary, item) => {
-      if (isPositiveKind(item.kind)) summary.income += item.amount;
-      else summary.expenses += item.amount;
+      if (item.kind === 'income') {
+        summary.income += item.amount;
+      } else if (item.kind !== 'transfer_in' && item.kind !== 'transfer_out') {
+        summary.expenses += item.amount;
+      }
       return summary;
     },
     { income: 0, expenses: 0 },
