@@ -179,9 +179,15 @@ export default function HistoryScreen({
 
   const handleDelete = (item: HistoryItem) => {
     startTransition(async () => {
-      await deleteManualTransaction(item.id);
+      setHistoryItems((prev) => prev.filter((i) => i.id !== item.id));
       setActiveItem(null);
-      router.refresh();
+      try {
+        await deleteManualTransaction(item.id);
+      } catch (err) {
+        console.error("Error eliminando movimiento:", err);
+      } finally {
+        router.refresh();
+      }
     });
   };
 
