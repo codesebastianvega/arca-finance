@@ -39,9 +39,8 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
 
   const start = (title: string, detail?: string) => {
     clearTimer();
-    setShowPending(false);
+    setShowPending(true);
     setState({ phase: "pending", title, detail });
-    timerRef.current = window.setTimeout(() => setShowPending(true), 180);
   };
 
   const finish = (phase: "success" | "error", title: string, detail?: string) => {
@@ -61,6 +60,16 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
   return (
     <ActionFeedbackContext.Provider value={value}>
       {children}
+      {state.phase === "pending" ? (
+        <div className="fixed top-0 left-0 right-0 z-[10000] flex flex-col items-center pointer-events-none">
+          <div className="h-1 w-full bg-gradient-to-r from-arca-accent/20 via-arca-accent to-arca-accent/20 animate-pulse shadow-[0_0_12px_rgba(253,218,36,0.6)]" />
+          <div className="mt-2.5 flex items-center gap-2 rounded-full border border-arca-accent/40 bg-arca-base/90 px-4 py-1.5 backdrop-blur-md shadow-2xl text-arca-accent text-xs font-black">
+            <LoaderCircle className="animate-spin text-arca-accent" size={14} />
+            <span>{state.title || "Procesando..."}</span>
+          </div>
+        </div>
+      ) : null}
+
       {state.phase === "pending" && showPending ? (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm" role="status" aria-live="polite">
           <div className="w-full max-w-xs rounded-[26px] border border-arca-accent/25 bg-arca-surface-1 p-6 text-center shadow-2xl">

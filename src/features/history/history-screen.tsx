@@ -25,6 +25,7 @@ import { deleteManualTransaction, updateManualTransaction, fetchPaginatedHistory
 import { haptics } from '@/src/lib/haptics';
 import type { HistoryItem, HistoryViewModel } from '@/src/lib/history-types';
 import { generateMonthlyReportPDF } from '@/src/lib/pdf';
+import { useActionFeedback } from '../feedback/action-feedback-provider';
 
 type PeriodFilter = 'today' | '7days' | 'month' | 'previous' | 'custom' | 'all';
 type KindFilter = 'all' | 'income' | 'expense' | 'transfer' | 'payment' | 'saving';
@@ -70,6 +71,7 @@ export default function HistoryScreen({
   currency: string;
 }) {
   const router = useRouter();
+  const feedback = useActionFeedback();
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<PeriodFilter>('month');
   const [kind, setKind] = useState<KindFilter>('all');
@@ -178,13 +180,15 @@ export default function HistoryScreen({
   };
 
   const handleDelete = (item: HistoryItem) => {
+    feedback.start("Eliminando movimiento…", "Actualizando tu saldo e historial.");
     startTransition(async () => {
       setHistoryItems((prev) => prev.filter((i) => i.id !== item.id));
       setActiveItem(null);
       try {
         await deleteManualTransaction(item.id);
+        feedback.succeed("Movimiento eliminado", "El saldo de tu cuenta fue ajustado.");
       } catch (err) {
-        console.error("Error eliminando movimiento:", err);
+        feedback.fail("No pudimos eliminar", err instanceof Error ? err.message : "Ocurrió un error.");
       } finally {
         router.refresh();
       }
