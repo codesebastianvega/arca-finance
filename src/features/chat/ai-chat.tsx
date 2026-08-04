@@ -108,9 +108,17 @@ export default function AiChat({
   });
   const isLoading = status === 'submitted' || status === 'streaming';
   const [inputValue, setInputValue] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 140)}px`;
+    }
+  }, [inputValue]);
   const [quotaInfo, setQuotaInfo] = useState<NovaQuotaInfo | null>(null);
   const [selectedImage, setSelectedImage] = useState<{ file: File; previewUrl: string; base64: string } | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -658,7 +666,7 @@ export default function AiChat({
                                 onApproval={(id, approved) => {
                                   void addToolApprovalResponse({ id, approved });
                                 }}
-                                onContinue={() => inputRef.current?.focus()}
+                                onContinue={() => textareaRef.current?.focus()}
                                 onViewChanges={onViewChanges}
                                 part={actionPart}
                               />
@@ -750,7 +758,7 @@ export default function AiChat({
                 </div>
               )}
 
-              <form onSubmit={onSubmit} className="relative flex items-center">
+              <form ref={formRef} onSubmit={onSubmit} className="relative flex items-end">
                 {/* 1. Galería / Archivos del dispositivo (sin capture) */}
                 <input
                   ref={fileInputRef}
@@ -769,69 +777,78 @@ export default function AiChat({
                   className="hidden"
                 />
 
-                {/* Botón 1: Subir desde Galería / Archivos */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    haptics.medium();
-                    fileInputRef.current?.click();
-                  }}
-                  aria-label="Subir foto o archivo desde el dispositivo"
-                  title="Subir archivo o foto de galería"
-                  className="absolute left-2.5 z-10 w-9 h-9 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
-                >
-                  <Paperclip size={17} />
-                </button>
+                {/* Acciones a la izquierda */}
+                <div className="absolute left-2.5 bottom-2.5 z-10 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptics.medium();
+                      fileInputRef.current?.click();
+                    }}
+                    aria-label="Subir foto o archivo desde el dispositivo"
+                    title="Subir archivo o foto de galería"
+                    className="w-9 h-9 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
+                  >
+                    <Paperclip size={17} />
+                  </button>
 
-                {/* Botón 2: Tomar foto con Cámara */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    haptics.medium();
-                    cameraInputRef.current?.click();
-                  }}
-                  aria-label="Tomar foto con la cámara"
-                  title="Tomar foto con la cámara"
-                  className="absolute left-[46px] z-10 w-9 h-9 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
-                >
-                  <Camera size={17} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptics.medium();
+                      cameraInputRef.current?.click();
+                    }}
+                    aria-label="Tomar foto con la cámara"
+                    title="Tomar foto con la cámara"
+                    className="w-9 h-9 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
+                  >
+                    <Camera size={17} />
+                  </button>
 
-                {/* Botón 3: Dictado por Voz */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isListening) {
-                      stopListening();
-                    } else {
-                      startListening();
-                    }
-                  }}
-                  aria-label={isListening ? "Detener dictado por voz" : "Dictar por voz"}
-                  title="Dictar mensaje por voz"
-                  className={`absolute left-[90px] z-10 w-9 h-9 rounded-full border flex items-center justify-center transition-all ${
-                    isListening
-                      ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]'
-                      : 'bg-arca-surface-1 border-arca-border text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40'
-                  }`}
-                >
-                  {isListening ? <MicOff size={17} /> : <Mic size={17} />}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isListening) {
+                        stopListening();
+                      } else {
+                        startListening();
+                      }
+                    }}
+                    aria-label={isListening ? "Detener dictado por voz" : "Dictar por voz"}
+                    title="Dictar mensaje por voz"
+                    className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all ${
+                      isListening
+                        ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                        : 'bg-arca-surface-1 border-arca-border text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40'
+                    }`}
+                  >
+                    {isListening ? <MicOff size={17} /> : <Mic size={17} />}
+                  </button>
+                </div>
 
-                <input
-                  ref={inputRef}
-                  type="text"
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
                   autoFocus
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!isLoading && (inputValue.trim() || selectedImage)) {
+                        formRef.current?.requestSubmit();
+                      }
+                    }
+                  }}
                   placeholder={isListening ? "Habla ahora..." : selectedImage ? "Añade notas (opcional)..." : "Pregúntale o díctale..."}
-                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-[136px] pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
+                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-[24px] pl-[134px] pr-14 py-3.5 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all resize-none max-h-36 overflow-y-auto leading-relaxed"
                 />
+
                 <button
                   type="submit"
                   disabled={isLoading || (!inputValue.trim() && !selectedImage)}
                   aria-label="Enviar mensaje"
-                  className="absolute right-2 z-10 w-10 h-10 rounded-full bg-arca-accent flex items-center justify-center text-[#15110c] hover:bg-arca-accent-hover disabled:opacity-30 transition-all disabled:shadow-none"
+                  className="absolute right-2 bottom-2.5 z-10 w-10 h-10 rounded-full bg-arca-accent flex items-center justify-center text-[#15110c] hover:bg-arca-accent-hover disabled:opacity-30 transition-all disabled:shadow-none"
                 >
                   <Send size={18} className="ml-0.5" />
                 </button>
