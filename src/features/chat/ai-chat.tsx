@@ -5,7 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Sparkles, User, Bot, ArrowRight, Check, Camera, Mic, MicOff } from 'lucide-react';
+import { X, Send, Sparkles, User, Bot, ArrowRight, Check, Camera, Paperclip, Mic, MicOff } from 'lucide-react';
 import { MessageResponse } from '@/src/components/ai-elements/message';
 import {
   FinancialActionCard,
@@ -110,6 +110,7 @@ export default function AiChat({
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [quotaInfo, setQuotaInfo] = useState<NovaQuotaInfo | null>(null);
   const [selectedImage, setSelectedImage] = useState<{ file: File; previewUrl: string; base64: string } | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -750,26 +751,53 @@ export default function AiChat({
               )}
 
               <form onSubmit={onSubmit} className="relative flex items-center">
+                {/* 1. Galería / Archivos del dispositivo (sin capture) */}
                 <input
                   ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                {/* 2. Cámara en vivo (con capture) */}
+                <input
+                  ref={cameraInputRef}
                   type="file"
                   accept="image/*"
                   capture="environment"
                   onChange={handleImageSelect}
                   className="hidden"
                 />
+
+                {/* Botón 1: Subir desde Galería / Archivos */}
                 <button
                   type="button"
                   onClick={() => {
                     haptics.medium();
                     fileInputRef.current?.click();
                   }}
-                  aria-label="Tomar foto o subir recibo"
-                  className="absolute left-2.5 z-10 w-10 h-10 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
+                  aria-label="Subir foto o archivo desde el dispositivo"
+                  title="Subir archivo o foto de galería"
+                  className="absolute left-2.5 z-10 w-9 h-9 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
                 >
-                  <Camera size={19} />
+                  <Paperclip size={17} />
                 </button>
 
+                {/* Botón 2: Tomar foto con Cámara */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.medium();
+                    cameraInputRef.current?.click();
+                  }}
+                  aria-label="Tomar foto con la cámara"
+                  title="Tomar foto con la cámara"
+                  className="absolute left-[46px] z-10 w-9 h-9 rounded-full bg-arca-surface-1 border border-arca-border flex items-center justify-center text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40 transition-all"
+                >
+                  <Camera size={17} />
+                </button>
+
+                {/* Botón 3: Dictado por Voz */}
                 <button
                   type="button"
                   onClick={() => {
@@ -780,13 +808,14 @@ export default function AiChat({
                     }
                   }}
                   aria-label={isListening ? "Detener dictado por voz" : "Dictar por voz"}
-                  className={`absolute left-[54px] z-10 w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
+                  title="Dictar mensaje por voz"
+                  className={`absolute left-[90px] z-10 w-9 h-9 rounded-full border flex items-center justify-center transition-all ${
                     isListening
                       ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]'
                       : 'bg-arca-surface-1 border-arca-border text-arca-text-secondary hover:text-arca-accent hover:border-arca-accent/40'
                   }`}
                 >
-                  {isListening ? <MicOff size={19} /> : <Mic size={19} />}
+                  {isListening ? <MicOff size={17} /> : <Mic size={17} />}
                 </button>
 
                 <input
@@ -796,7 +825,7 @@ export default function AiChat({
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder={isListening ? "Habla ahora..." : selectedImage ? "Añade notas (opcional)..." : "Pregúntale o díctale..."}
-                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-[102px] pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
+                  className="w-full bg-arca-surface-2 border border-arca-border text-arca-text-primary placeholder:text-arca-text-dim rounded-full pl-[136px] pr-14 py-4 focus:outline-none focus:ring-1 focus:ring-arca-accent/50 focus:border-arca-accent/40 text-sm transition-all"
                 />
                 <button
                   type="submit"
