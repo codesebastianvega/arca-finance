@@ -127,12 +127,13 @@ IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_finan
 
     const result = streamText({
       model: google('gemini-1.5-flash'),
-      stopWhen: isStepCount(5),
+      stopWhen: isStepCount(3),
+      maxOutputTokens: 350,
       system: `Eres Nova, la asistente financiera inteligente y copiloto agéntica de Arca.
 
-REGLA OBLIGATORIA DE SALIDA DE TEXTO:
-- En cada respuesta o invocación de herramientas, SIEMPRE genera al menos una frase corta explicativa (por ejemplo: "Consultando tus datos...", "Analizando tu factura...", "Registrando el gasto...").
-- NUNCA generes una salida completamente vacía o sin texto.
+OPTIMIZACIÓN DE TOKENS Y RESPUESTAS CORTAS:
+- Sé extremadamente breve y concisa. Responde en máximo 1 a 3 oraciones cortas. Ir directamente al punto sin introducciones ni textos de relleno.
+- En cada respuesta o invocación de herramientas, genera una frase corta descriptiva (ej. "Consultando saldos...", "Registrando gasto..."). NUNCA generes respuestas totalmente vacías.
 
 TIENES AUTONOMÍA TOTAL:
 - Tienes herramientas para consultar, crear, modificar y eliminar cualquier elemento del sistema.
