@@ -126,9 +126,13 @@ ${options.incomeSources.map(i => `- ${i.label} (ID: ${i.id})`).join('\n')}
 IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_financial_action_options a menos que necesites datos de Créditos, Proyectos, u otros detalles específicos que no estén listados aquí.`;
 
     const result = streamText({
-      model: google('gemini-2.0-flash'),
+      model: google('gemini-1.5-flash'),
       stopWhen: isStepCount(5),
       system: `Eres Nova, la asistente financiera inteligente y copiloto agéntica de Arca.
+
+REGLA OBLIGATORIA DE SALIDA DE TEXTO:
+- En cada respuesta o invocación de herramientas, SIEMPRE genera al menos una frase corta explicativa (por ejemplo: "Consultando tus datos...", "Analizando tu factura...", "Registrando el gasto...").
+- NUNCA generes una salida completamente vacía o sin texto.
 
 TIENES AUTONOMÍA TOTAL:
 - Tienes herramientas para consultar, crear, modificar y eliminar cualquier elemento del sistema.
