@@ -24,6 +24,8 @@ import {
 import type { TodayViewModel } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
 import { AnimatedNumber } from "@/src/components/animated-number";
+import { updateScheduledEventDate } from "@/app/actions";
+import { useRouter } from "next/navigation";
 
 function formatMoney(amount: number, currency: string) {
   const normalizedCurrency = currency?.trim().toUpperCase();
@@ -79,10 +81,30 @@ export default function NovaHome({
   onOpenSummary,
   onOpenFeedback,
 }: NovaHomeProps) {
+  const router = useRouter();
   const [showExamples, setShowExamples] = useState(false);
   const [showUpcomingModal, setShowUpcomingModal] = useState(false);
   const [showIncomesModal, setShowIncomesModal] = useState(false);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState<string>("");
+  const [isSavingReschedule, setIsSavingReschedule] = useState(false);
+
+  const handleSaveReschedule = async (eventId: string) => {
+    if (!rescheduleDate) return;
+    try {
+      setIsSavingReschedule(true);
+      haptics.light();
+      await updateScheduledEventDate({ eventId, newDueDate: rescheduleDate });
+      setReschedulingId(null);
+      setRescheduleDate("");
+      router.refresh();
+    } catch (e: any) {
+      alert(e?.message || "No se pudo reprogramar la fecha");
+    } finally {
+      setIsSavingReschedule(false);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -650,14 +672,57 @@ export default function NovaHome({
               <div className="mt-4 space-y-2.5">
                 {thisMonthIncomes.length > 0 ? (
                   thisMonthIncomes.map((inc) => (
-                    <div key={inc.id} className="flex items-center justify-between rounded-xl border border-arca-border bg-arca-surface-1 p-3">
-                      <div>
-                        <p className="text-xs font-bold text-arca-text-primary">{inc.title}</p>
-                        <p className="text-[10px] text-arca-positive font-semibold">{inc.dueLabel}</p>
+                    <div key={inc.id} className="flex flex-col gap-2 rounded-xl border border-arca-border bg-arca-surface-1 p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-arca-text-primary">{inc.title}</p>
+                          <p className="text-[10px] text-arca-positive font-semibold">{inc.dueLabel} ({inc.dueDate})</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-arca-positive">+{formatMoney(inc.amount, currency)}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-arca-positive">+{formatMoney(inc.amount, currency)}</p>
-                      </div>
+
+                      {reschedulingId === inc.id ? (
+                        <div className="mt-1 flex items-center gap-2 pt-2 border-t border-arca-border/50">
+                          <input
+                            type="date"
+                            value={rescheduleDate}
+                            onChange={(e) => setRescheduleDate(e.target.value)}
+                            className="flex-1 rounded-lg border border-arca-border bg-arca-surface-2 px-2 py-1 text-xs text-arca-text-primary"
+                          />
+                          <button
+                            type="button"
+                            disabled={isSavingReschedule}
+                            onClick={() => handleSaveReschedule(inc.id)}
+                            className="rounded-lg bg-arca-accent px-2.5 py-1 text-xs font-bold text-black disabled:opacity-50"
+                          >
+                            {isSavingReschedule ? "..." : "Guardar"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReschedulingId(null)}
+                            className="rounded-lg bg-arca-surface-2 px-2 py-1 text-xs text-arca-text-dim"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end pt-1 border-t border-arca-border/30">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              haptics.light();
+                              setReschedulingId(inc.id);
+                              setRescheduleDate(inc.dueDate);
+                            }}
+                            className="flex items-center gap-1 text-[10px] font-bold text-arca-accent hover:underline"
+                          >
+                            <CalendarClock size={12} />
+                            Reprogramar fecha
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (

@@ -164,6 +164,77 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
   };
 }
 
+export async function updateScheduledEventDate(input: {
+  eventId: string;
+  newDueDate: string;
+  accountId?: string | null;
+  amount?: number | null;
+}) {
+  const context = await requireWorkspaceContext();
+  const admin = await createSupabaseServerComponentClient();
+
+  if (!admin) throw new Error("Supabase client no disponible.");
+
+  const updateData: Record<string, any> = {
+    due_date: input.newDueDate.trim(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.accountId !== undefined) updateData.account_id = input.accountId;
+  if (input.amount !== undefined && input.amount !== null && input.amount > 0) {
+    updateData.amount = input.amount;
+  }
+
+  const { error } = await admin
+    .from("scheduled_events")
+    .update(updateData)
+    .eq("id", input.eventId)
+    .eq("workspace_id", context.workspace.id);
+
+  if (error) {
+    throw new Error(`No se pudo reprogramar la fecha: ${error.message}`);
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function autoConfirmDueIncomes() {
+  const context = await requireWorkspaceContext();
+  const admin = await createSupabaseServerComponentClient();
+
+  if (!admin) return { processed: 0 };
+
+  const today = todayDateInBogota();
+  const { data: dueIncomes } = await admin
+    .from("scheduled_events")
+    .select("id, due_date, status, kind, account_id, title")
+    .eq("workspace_id", context.workspace.id)
+    .eq("kind", "income")
+    .lte("due_date", today)
+    .not("account_id", "is", null);
+
+  const pendingIncomes = (dueIncomes ?? []).filter(
+    (item) => item.status !== "confirmed" && item.status !== "paid" && item.status !== "cancelled"
+  );
+
+  let processedCount = 0;
+  for (const item of pendingIncomes) {
+    try {
+      await confirmScheduledEventNow(item.id);
+      processedCount++;
+    } catch (e) {
+      console.error(`Auto confirm error for event ${item.id}:`, e);
+    }
+  }
+
+  if (processedCount > 0) {
+    revalidatePath("/app");
+  }
+
+  return { processed: processedCount };
+}
+
 export async function adjustAndConfirmScheduledEvent(input: {
   eventId: string;
   amount: number;

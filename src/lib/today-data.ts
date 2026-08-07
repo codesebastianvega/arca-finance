@@ -222,6 +222,13 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
   const today = startOfTodayInBogota();
   const monthBounds = monthBoundsInBogota();
 
+  try {
+    const { autoConfirmDueIncomes } = await import("@/app/actions");
+    await autoConfirmDueIncomes();
+  } catch (e) {
+    console.error("Auto confirm expected incomes error:", e);
+  }
+
   const [accountsResult, savingsResult, scheduledResult, transactionsResult, budgetsResult, receivablesResult] = await Promise.all([
     supabase.from("accounts").select("id, name, entity, type, balance, color, active").eq("workspace_id", workspaceId).eq("active", true),
     supabase.from("savings_goals").select("id, current").eq("workspace_id", workspaceId).eq("archived", false),

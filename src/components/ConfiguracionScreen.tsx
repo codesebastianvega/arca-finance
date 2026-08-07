@@ -558,6 +558,13 @@ export default function ConfiguracionScreen({ onBack, theme, setTheme, data, use
             checked={novaPreferences.dueReminders}
             onChange={() => updateNovaPreferences({ dueReminders: !novaPreferences.dueReminders })}
           />
+          <PreferenceToggle
+            icon={BadgeDollarSign}
+            label="Auto-confirmar ingresos esperados"
+            description="Ingresa el dinero automáticamente el día del cobro previsto"
+            checked={novaPreferences.autoConfirmIncomes}
+            onChange={() => updateNovaPreferences({ autoConfirmIncomes: !novaPreferences.autoConfirmIncomes })}
+          />
           <div className="flex items-center justify-between border-t border-arca-border px-4 py-3.5">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-arca-surface-2 text-arca-text-secondary"><BadgeDollarSign size={17} /></div>
