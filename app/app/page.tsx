@@ -14,10 +14,18 @@ import { loadSubscriptionsViewModel } from "@/src/lib/subscriptions-data";
 import { loadAnalyticsViewModel } from "@/src/lib/analytics-data";
 import { loadSuperAdminViewModel } from "@/src/lib/superadmin-data";
 import { loadBillingNotice, loadBillingPlans, loadNovaAllowance } from "@/src/lib/billing-data";
+import { autoConfirmDueIncomes } from "@/app/actions";
 
 export default async function AuthenticatedAppPage() {
   const context = await requireWorkspaceContext();
   if (context.workspace.status === "paused" && !context.profile.isSuperAdmin) redirect("/account-paused");
+
+  try {
+    await autoConfirmDueIncomes();
+  } catch (e) {
+    console.error("Auto confirm expected incomes error:", e);
+  }
+
   const [
     initialTodayData,
     initialMoneyData,
