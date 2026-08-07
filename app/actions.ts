@@ -869,154 +869,164 @@ export async function createMovement(input: {
   items?: Partial<TransactionItem>[];
   applyTax4x1000?: boolean;
 }) {
-  const context = await requireWorkspaceContext();
-  const admin = await createSupabaseServerComponentClient();
+  try {
+    const context = await requireWorkspaceContext();
+    const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) throw new Error("Supabase client no disponible.");
+    if (!admin) return { ok: false, error: "Supabase client no disponible." };
 
-  createTransactionSchema.parse({
-    concept: input.concept,
-    amount: Number(input.amount ?? 0),
-    date: input.date?.trim() || todayDateInBogota(),
-    kind: input.kind,
-    category: input.category?.trim() || (input.kind === "income" ? "ingreso" : "general"),
-    unit: input.unit?.trim() || "general",
-    accountId: input.accountId,
-  });
-
-  const kind = input.kind;
-  const amount = Number(input.amount ?? 0);
-  const concept = input.concept.trim();
-  const accountId = input.accountId.trim();
-  const category = input.category.trim() || (kind === "income" ? "ingreso" : "general");
-  const unit = input.unit.trim() || "general";
-  const date = input.date?.trim() || todayDateInBogota();
-  const sourceId = input.sourceId?.trim() || null;
-  const sourceLabel = input.sourceLabel?.trim() || null;
-
-  if (kind !== "income" && kind !== "expense") throw new Error("Tipo de movimiento invalido.");
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("El monto debe ser mayor a cero.");
-  if (!concept) throw new Error("El movimiento necesita un concepto.");
-  if (!accountId) throw new Error("Debes elegir una cuenta.");
-
-  const { data: account, error: accountError } = await admin
-    .from("accounts")
-    .select("id, name, workspace_id")
-    .eq("id", accountId)
-    .eq("workspace_id", context.workspace.id)
-    .maybeSingle();
-
-  if (accountError || !account) {
-    throw new Error(`No se pudo leer la cuenta del movimiento: ${accountError?.message ?? "sin respuesta"}`);
-  }
-
-  const delta = kind === "income" ? amount : -amount;
-
-  // @ts-expect-error - RPC is not in generated types yet
-  const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
-    p_account_id: accountId,
-    p_amount: delta,
-    p_allow_negative: false
-  });
-
-  if (accountUpdateError) {
-    if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
-      throw new Error("La cuenta elegida no tiene saldo suficiente.");
-    }
-    throw new Error(`No se pudo actualizar la cuenta: ${accountUpdateError.message}`);
-  }
-
-  const { data: transaction, error: transactionError } = await admin
-    .from("transactions")
-    .insert({
-      workspace_id: context.workspace.id,
-      kind,
-      status: "confirmed",
-      amount,
-      concept,
-      account_id: accountId,
-      category,
-      unit,
-      date: `${date}T00:00:00-05:00`,
-      posted_at: new Date().toISOString(),
-      source_type: sourceId ? "income_source" : "manual",
-      source_id: sourceId,
-      metadata: {
-        account_name: account.name,
-        income_source_name: sourceLabel,
-      },
-    })
-    .select("id")
-    .single();
-
-  if (transactionError || !transaction) {
-    // @ts-expect-error - RPC is not in generated types yet
-    await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -delta, p_allow_negative: true });
-    throw new Error(`No se pudo crear el movimiento: ${transactionError?.message ?? "sin respuesta"}`);
-  }
-
-  if (input.items && input.items.length > 0) {
-    const itemsToInsert = input.items.map(item => ({
-      transaction_id: transaction.id,
-      category_id: item.categoryId || null,
-      item_name: item.itemName || 'Item sin nombre',
-      quantity: item.quantity || 1,
-      unit_of_measure: item.unitOfMeasure || 'Unidad',
-      unit_price: item.unitPrice || 0,
-      total_price: item.totalPrice || 0,
-    }));
-
-    const { error: itemsError } = await admin
-      .from("transaction_items")
-      .insert(itemsToInsert);
-
-    if (itemsError) {
-      console.error("Error inserting transaction items:", itemsError);
-    }
-  }
-
-  if (input.applyTax4x1000 && kind === "expense") {
     try {
-      const taxAmount = Math.round(amount * 0.004);
-      if (taxAmount > 0) {
-        const taxCategoryName = await ensureTax4x1000Category(admin, context.workspace.id);
-        // @ts-expect-error
-        await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -taxAmount, p_allow_negative: true });
-        await admin.from("transactions").insert({
-          workspace_id: context.workspace.id,
-          kind: "expense",
-          status: "confirmed",
-          amount: taxAmount,
-          concept: `4x1000 - ${concept}`,
-          account_id: accountId,
-          category: taxCategoryName,
-          unit,
-          date: `${date}T00:00:00-05:00`,
-          posted_at: new Date().toISOString(),
-          source_type: "manual",
-          metadata: {
-            is_auto_tax: true,
-            parent_transaction_id: transaction.id,
-            tax_rate: "0.4%",
-          },
-        });
-      }
-    } catch (taxError) {
-      console.error("Error al registrar micro-impuesto 4x1000:", taxError);
+      createTransactionSchema.parse({
+        concept: input.concept,
+        amount: Number(input.amount ?? 0),
+        date: input.date?.trim() || todayDateInBogota(),
+        kind: input.kind,
+        category: input.category?.trim() || (input.kind === "income" ? "ingreso" : "general"),
+        unit: input.unit?.trim() || "general",
+        accountId: input.accountId,
+      });
+    } catch (parseError: any) {
+      const msg = parseError?.errors?.[0]?.message || "Datos del movimiento no válidos.";
+      return { ok: false, error: msg };
     }
-  }
 
-  revalidatePath("/app");
-  return {
-    ok: true,
-    transactionId: String(transaction.id),
-    accountId: String(account.id),
-    accountName: String(account.name),
-    balanceBefore: (nextBalance as number) - delta,
-    balanceAfter: nextBalance as number,
-    effect: delta,
-    date,
-  };
+    const kind = input.kind;
+    const amount = Number(input.amount ?? 0);
+    const concept = input.concept.trim();
+    const accountId = input.accountId.trim();
+    const category = input.category.trim() || (kind === "income" ? "ingreso" : "general");
+    const unit = input.unit.trim() || "general";
+    const date = input.date?.trim() || todayDateInBogota();
+    const sourceId = input.sourceId?.trim() || null;
+    const sourceLabel = input.sourceLabel?.trim() || null;
+
+    if (kind !== "income" && kind !== "expense") return { ok: false, error: "Tipo de movimiento inválido." };
+    if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "El monto debe ser mayor a cero." };
+    if (!concept) return { ok: false, error: "El movimiento necesita un concepto." };
+    if (!accountId) return { ok: false, error: "Debes elegir una cuenta." };
+
+    const { data: account, error: accountError } = await admin
+      .from("accounts")
+      .select("id, name, workspace_id")
+      .eq("id", accountId)
+      .eq("workspace_id", context.workspace.id)
+      .maybeSingle();
+
+    if (accountError || !account) {
+      return { ok: false, error: `No se pudo leer la cuenta del movimiento: ${accountError?.message ?? "sin respuesta"}` };
+    }
+
+    const delta = kind === "income" ? amount : -amount;
+
+    // @ts-expect-error - RPC is not in generated types yet
+    const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
+      p_account_id: accountId,
+      p_amount: delta,
+      p_allow_negative: false
+    });
+
+    if (accountUpdateError) {
+      if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
+        return { ok: false, error: "La cuenta elegida no tiene saldo suficiente." };
+      }
+      return { ok: false, error: `No se pudo actualizar la cuenta: ${accountUpdateError.message}` };
+    }
+
+    const { data: transaction, error: transactionError } = await admin
+      .from("transactions")
+      .insert({
+        workspace_id: context.workspace.id,
+        kind,
+        status: "confirmed",
+        amount,
+        concept,
+        account_id: accountId,
+        category,
+        unit,
+        date: `${date}T00:00:00-05:00`,
+        posted_at: new Date().toISOString(),
+        source_type: sourceId ? "income_source" : "manual",
+        source_id: sourceId,
+        metadata: {
+          account_name: account.name,
+          income_source_name: sourceLabel,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (transactionError || !transaction) {
+      // @ts-expect-error - RPC is not in generated types yet
+      await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -delta, p_allow_negative: true });
+      return { ok: false, error: `No se pudo crear el movimiento: ${transactionError?.message ?? "sin respuesta"}` };
+    }
+
+    if (input.items && input.items.length > 0) {
+      const itemsToInsert = input.items.map(item => ({
+        transaction_id: transaction.id,
+        category_id: item.categoryId || null,
+        item_name: item.itemName || 'Item sin nombre',
+        quantity: item.quantity || 1,
+        unit_of_measure: item.unitOfMeasure || 'Unidad',
+        unit_price: item.unitPrice || 0,
+        total_price: item.totalPrice || 0,
+      }));
+
+      const { error: itemsError } = await admin
+        .from("transaction_items")
+        .insert(itemsToInsert);
+
+      if (itemsError) {
+        console.error("Error inserting transaction items:", itemsError);
+      }
+    }
+
+    if (input.applyTax4x1000 && kind === "expense") {
+      try {
+        const taxAmount = Math.round(amount * 0.004);
+        if (taxAmount > 0) {
+          const taxCategoryName = await ensureTax4x1000Category(admin, context.workspace.id);
+          // @ts-expect-error
+          await admin.rpc("increment_account_balance", { p_account_id: accountId, p_amount: -taxAmount, p_allow_negative: true });
+          await admin.from("transactions").insert({
+            workspace_id: context.workspace.id,
+            kind: "expense",
+            status: "confirmed",
+            amount: taxAmount,
+            concept: `4x1000 - ${concept}`,
+            account_id: accountId,
+            category: taxCategoryName,
+            unit,
+            date: `${date}T00:00:00-05:00`,
+            posted_at: new Date().toISOString(),
+            source_type: "manual",
+            metadata: {
+              is_auto_tax: true,
+              parent_transaction_id: transaction.id,
+              tax_rate: "0.4%",
+            },
+          });
+        }
+      } catch (taxError) {
+        console.error("Error al registrar micro-impuesto 4x1000:", taxError);
+      }
+    }
+
+    revalidatePath("/app");
+    return {
+      ok: true,
+      transactionId: String(transaction.id),
+      accountId: String(account.id),
+      accountName: String(account.name),
+      balanceBefore: (nextBalance as number) - delta,
+      balanceAfter: nextBalance as number,
+      effect: delta,
+      date,
+    };
+  } catch (err: any) {
+    console.error("Unhandled error in createMovement:", err);
+    return { ok: false, error: err?.message || "No se pudo crear el movimiento." };
+  }
 }
 
 export async function createExpectedIncome(input: {

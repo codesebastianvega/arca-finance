@@ -1055,6 +1055,10 @@ export function createFinancialTools(context: WorkspaceContext) {
           sourceLabel: input.sourceLabel || null,
         });
 
+        if (!result.ok) {
+          throw new Error(result.error || "No se pudo registrar la transacción.");
+        }
+
         return {
           success: true,
           action: "transaction_recorded",

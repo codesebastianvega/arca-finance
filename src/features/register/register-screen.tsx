@@ -578,7 +578,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             recurrenceCount: recurrenceCount ? Number(recurrenceCount) : null,
           });
         } else {
-          await createMovement({
+          const res = await createMovement({
             kind: type === 'ingreso' ? 'income' : 'expense',
             amount: Number(amount || '0'),
             concept: description,
@@ -593,6 +593,14 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
             items: type === 'gasto' ? transactionItems : undefined,
             applyTax4x1000: type === 'gasto' && applyTax4x1000,
           });
+
+          if (res && res.ok === false) {
+            const errorMsg = res.error || 'No se pudo registrar el movimiento.';
+            setSubmitError(errorMsg);
+            feedback.fail('No pudimos guardar el movimiento', errorMsg);
+            haptics.error();
+            return;
+          }
         }
         resetMovementForm();
       } else if (activeSegment === 'Cuenta') {
