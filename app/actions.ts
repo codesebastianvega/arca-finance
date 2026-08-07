@@ -922,13 +922,10 @@ export async function createMovement(input: {
     const { data: nextBalance, error: accountUpdateError } = await admin.rpc("increment_account_balance", {
       p_account_id: accountId,
       p_amount: delta,
-      p_allow_negative: false
+      p_allow_negative: true
     });
 
     if (accountUpdateError) {
-      if (accountUpdateError.message.includes("INSUFFICIENT_FUNDS")) {
-        return { ok: false, error: "La cuenta elegida no tiene saldo suficiente." };
-      }
       return { ok: false, error: `No se pudo actualizar la cuenta: ${accountUpdateError.message}` };
     }
 
@@ -3195,13 +3192,10 @@ export async function createTransfer(input: {
   const { data: fromNextBalance, error: debitError } = await admin.rpc("increment_account_balance", {
     p_account_id: fromAccount.id,
     p_amount: -input.amount,
-    p_allow_negative: false
+    p_allow_negative: true
   });
 
   if (debitError) {
-    if (debitError.message.includes("INSUFFICIENT_FUNDS")) {
-      throw new Error("La cuenta origen no tiene saldo suficiente.");
-    }
     throw new Error(`No se pudo actualizar la cuenta origen: ${debitError.message}`);
   }
 

@@ -38,6 +38,20 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
+function getAccountAccentColor(name: string, entity?: string | null): string {
+  const norm = `${name} ${entity || ""}`.toLowerCase();
+  if (norm.includes("nequi")) return "#8235E6";
+  if (norm.includes("daviplata")) return "#E51C1A";
+  if (norm.includes("bancolombia")) return "#FDDA24";
+  if (norm.includes("nu")) return "#820AD1";
+  if (norm.includes("efectivo") || norm.includes("cash")) return "#22C55E";
+  if (norm.includes("davivienda")) return "#ED1C24";
+  if (norm.includes("bbva")) return "#004481";
+  if (norm.includes("falabella")) return "#7CB342";
+  if (norm.includes("bogota") || norm.includes("bogotá")) return "#D71920";
+  return "#FDDA24";
+}
+
 type NovaHomeProps = {
   data: TodayViewModel;
   currency: string;
@@ -288,6 +302,34 @@ export default function NovaHome({
             <p className="mt-1.5 text-[38px] font-black leading-none tracking-[-0.055em] text-arca-text-primary light:text-arca-light-text-primary">
               <AnimatedNumber value={data.cash.safeToSpend} />
             </p>
+            {data.accounts && data.accounts.length > 0 ? (
+              <div className="mt-3.5 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {data.accounts.map((acc) => {
+                  const color = acc.color || getAccountAccentColor(acc.name, acc.entity);
+                  const isZero = acc.balance === 0;
+                  return (
+                    <div
+                      key={acc.id}
+                      className="flex shrink-0 items-center gap-2 rounded-xl border bg-arca-surface-2/60 px-3 py-1.5 backdrop-blur-md transition-all light:bg-arca-light-surface-2"
+                      style={{ borderColor: color ? `${color}70` : "var(--arca-border)" }}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: color || "#fdda24" }}
+                      />
+                      <div className="flex items-center gap-1.5 text-xs font-semibold">
+                        <span className="text-arca-text-secondary light:text-arca-light-text-secondary font-bold">
+                          {acc.name}:
+                        </span>
+                        <span className={isZero ? "text-arca-text-dim light:text-arca-light-text-secondary font-normal" : "text-arca-text-primary light:text-arca-light-text-primary font-black"}>
+                          {formatMoney(acc.balance, currency)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           {/* METRIC CARDS WITH BREAKDOWN MODALS */}

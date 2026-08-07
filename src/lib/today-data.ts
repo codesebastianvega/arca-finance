@@ -85,6 +85,14 @@ export type TodayViewModel = {
     id: string;
     label: string;
   }>;
+  accounts: Array<{
+    id: string;
+    name: string;
+    entity: string | null;
+    type: string;
+    balance: number;
+    color: string | null;
+  }>;
 };
 
 type ScheduledEventRow = {
@@ -215,7 +223,7 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
   const monthBounds = monthBoundsInBogota();
 
   const [accountsResult, savingsResult, scheduledResult, transactionsResult, budgetsResult, receivablesResult] = await Promise.all([
-    supabase.from("accounts").select("id, name, type, balance, active").eq("workspace_id", workspaceId).eq("active", true),
+    supabase.from("accounts").select("id, name, entity, type, balance, color, active").eq("workspace_id", workspaceId).eq("active", true),
     supabase.from("savings_goals").select("id, current").eq("workspace_id", workspaceId).eq("archived", false),
     supabase
       .from("scheduled_events")
@@ -433,6 +441,14 @@ export async function loadTodayViewModel(context: WorkspaceContext): Promise<Tod
     accountOptions: (accountsResult.data ?? []).map((row) => ({
       id: String(row.id),
       label: `${String(row.name)} · cuenta`,
+    })),
+    accounts: (accountsResult.data ?? []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      entity: row.entity ? String(row.entity) : null,
+      type: String(row.type),
+      balance: numberValue(row.balance),
+      color: row.color ? String(row.color) : null,
     })),
   };
 }
