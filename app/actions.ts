@@ -221,7 +221,7 @@ export async function autoConfirmDueIncomes() {
   let processedCount = 0;
   for (const item of pendingIncomes) {
     try {
-      await confirmScheduledEventNow(item.id);
+      await confirmScheduledEventNow(String(item.id));
       processedCount++;
     } catch (e) {
       console.error(`Auto confirm error for event ${item.id}:`, e);
