@@ -42,7 +42,7 @@ function transactionDelta(kind: string, amount: number) {
   return -amount;
 }
 
-export async function confirmScheduledEventNow(eventId: string, overrideAmount?: number) {
+export async function confirmScheduledEventNow(eventId: string, overrideAmount?: number, options?: { skipRevalidate?: boolean }) {
   const context = await requireWorkspaceContext();
   const admin = await createSupabaseServerComponentClient();
 
@@ -62,7 +62,7 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
   }
 
   if (event.confirmed_transaction_id || event.status === "confirmed" || event.status === "confirmado") {
-    revalidatePath("/app");
+    if (!options?.skipRevalidate) revalidatePath("/app");
     return { ok: true, alreadyConfirmed: true };
   }
 
@@ -151,7 +151,9 @@ export async function confirmScheduledEventNow(eventId: string, overrideAmount?:
     throw new Error(`Se creó la transacción, pero no se pudo cerrar el evento: ${eventUpdateError.message}`);
   }
 
-  revalidatePath("/app");
+  if (!options?.skipRevalidate) {
+    revalidatePath("/app");
+  }
   return {
     ok: true,
     transactionId: String(transaction.id),
@@ -199,7 +201,7 @@ export async function updateScheduledEventDate(input: {
   return { ok: true };
 }
 
-export async function autoConfirmDueIncomes() {
+export async function autoConfirmDueIncomes(options?: { skipRevalidate?: boolean }) {
   const context = await requireWorkspaceContext();
   const admin = await createSupabaseServerComponentClient();
 
@@ -221,14 +223,14 @@ export async function autoConfirmDueIncomes() {
   let processedCount = 0;
   for (const item of pendingIncomes) {
     try {
-      await confirmScheduledEventNow(String(item.id));
+      await confirmScheduledEventNow(String(item.id), undefined, { skipRevalidate: options?.skipRevalidate });
       processedCount++;
     } catch (e) {
       console.error(`Auto confirm error for event ${item.id}:`, e);
     }
   }
 
-  if (processedCount > 0) {
+  if (processedCount > 0 && !options?.skipRevalidate) {
     revalidatePath("/app");
   }
 

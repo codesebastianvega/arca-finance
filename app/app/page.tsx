@@ -21,7 +21,7 @@ export default async function AuthenticatedAppPage() {
   if (context.workspace.status === "paused" && !context.profile.isSuperAdmin) redirect("/account-paused");
 
   try {
-    await autoConfirmDueIncomes();
+    await autoConfirmDueIncomes({ skipRevalidate: true });
   } catch (e) {
     console.error("Auto confirm expected incomes error:", e);
   }

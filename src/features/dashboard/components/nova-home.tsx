@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -90,20 +90,26 @@ export default function NovaHome({
   const [rescheduleDate, setRescheduleDate] = useState<string>("");
   const [isSavingReschedule, setIsSavingReschedule] = useState(false);
 
-  const handleSaveReschedule = async (eventId: string) => {
+  const [isPending, startTransition] = useTransition();
+
+  const handleSaveReschedule = (eventId: string) => {
     if (!rescheduleDate) return;
-    try {
-      setIsSavingReschedule(true);
-      haptics.light();
-      await updateScheduledEventDate({ eventId, newDueDate: rescheduleDate });
-      setReschedulingId(null);
-      setRescheduleDate("");
-      router.refresh();
-    } catch (e: any) {
-      alert(e?.message || "No se pudo reprogramar la fecha");
-    } finally {
-      setIsSavingReschedule(false);
-    }
+    haptics.light();
+    setIsSavingReschedule(true);
+    startTransition(() => {
+      void updateScheduledEventDate({ eventId, newDueDate: rescheduleDate })
+        .then(() => {
+          setReschedulingId(null);
+          setRescheduleDate("");
+          router.refresh();
+        })
+        .catch((e: Error) => {
+          alert(e?.message || "No se pudo reprogramar la fecha");
+        })
+        .finally(() => {
+          setIsSavingReschedule(false);
+        });
+    });
   };
 
   useEffect(() => {
