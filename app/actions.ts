@@ -201,17 +201,21 @@ export async function updateScheduledEventDate(input: {
   return { ok: true };
 }
 
-export async function autoConfirmDueIncomes(options?: { skipRevalidate?: boolean }) {
-  const context = await requireWorkspaceContext();
+export async function autoConfirmDueIncomes(workspaceIdInput?: string, options?: { skipRevalidate?: boolean }) {
+  let workspaceId = workspaceIdInput;
+  if (!workspaceId) {
+    const context = await requireWorkspaceContext();
+    workspaceId = context.workspace.id;
+  }
   const admin = await createSupabaseServerComponentClient();
 
-  if (!admin) return { processed: 0 };
+  if (!admin || !workspaceId) return { processed: 0 };
 
   const today = todayDateInBogota();
   const { data: dueIncomes } = await admin
     .from("scheduled_events")
     .select("id, due_date, status, kind, account_id, title")
-    .eq("workspace_id", context.workspace.id)
+    .eq("workspace_id", workspaceId)
     .eq("kind", "income")
     .lte("due_date", today)
     .not("account_id", "is", null);
