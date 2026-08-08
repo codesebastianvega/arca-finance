@@ -67,6 +67,28 @@ type AiChatProps = {
   userAvatarUrl?: string;
 };
 
+function UserAvatar({ avatarUrl }: { avatarUrl?: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (avatarUrl && !hasError) {
+    return (
+      <img
+        src={avatarUrl}
+        alt="Usuario"
+        referrerPolicy="no-referrer"
+        onError={() => setHasError(true)}
+        className="w-8 h-8 rounded-full object-cover border border-arca-border-strong"
+      />
+    );
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-arca-surface-2 border border-arca-border-strong flex items-center justify-center">
+      <User size={16} className="text-arca-text-secondary" />
+    </div>
+  );
+}
+
 export default function AiChat({
   isOpen,
   onClose,
@@ -551,13 +573,7 @@ export default function AiChat({
                     <div className={`flex items-end space-x-2 max-w-[92%] ${m.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
                       <div className="flex-shrink-0">
                         {m.role === 'user' ? (
-                          userAvatarUrl ? (
-                            <img src={userAvatarUrl} alt="Usuario" className="w-8 h-8 rounded-full object-cover border border-arca-border-strong" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-arca-surface-2 border border-arca-border-strong flex items-center justify-center">
-                              <User size={16} className="text-arca-text-secondary" />
-                            </div>
-                          )
+                          <UserAvatar avatarUrl={userAvatarUrl} />
                         ) : (
                           <NovaLiquidOrb size={32} isThinking={isStreamingMessage} />
                         )}
@@ -712,10 +728,8 @@ export default function AiChat({
                   className="flex justify-start"
                 >
                   <div className="flex items-end space-x-2 max-w-[92%] flex-row">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border transition-all duration-300 ${
-                      status === 'submitted' ? 'bg-neutral-800/80 border-neutral-700 text-neutral-400' : 'bg-arca-accent/10 border-arca-accent/30 text-arca-accent'
-                    }`}>
-                      <Bot size={16} />
+                    <div className="flex-shrink-0">
+                      <NovaLiquidOrb size={32} isThinking={true} />
                     </div>
                     <div className="flex min-w-0 flex-col gap-2 items-start">
                       <div className={`p-4 rounded-[20px] text-sm leading-relaxed border rounded-bl-sm transition-all duration-300 ${
