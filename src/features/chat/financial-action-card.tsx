@@ -75,9 +75,17 @@ export type FinancialActionPart = {
   approval?: ConfirmationProps['approval'];
 };
 
+export function getToolActionType(part: unknown): string {
+  if (!part || typeof part !== 'object') return '';
+  const rawType = 'type' in part ? String((part as any).type) : '';
+  if (rawType.startsWith('tool-') && rawType !== 'tool-call') return rawType;
+  const toolName = 'toolName' in part ? String((part as any).toolName) : '';
+  if (toolName) return `tool-${toolName}`;
+  return rawType;
+}
+
 export function isFinancialActionPart(part: unknown): part is FinancialActionPart {
-  if (!part || typeof part !== 'object') return false;
-  const type = 'type' in part ? String(part.type) : '';
+  const type = getToolActionType(part);
   return ACTION_TYPES.has(type);
 }
 
@@ -196,10 +204,11 @@ function recurrenceSummaryFromInput(input: Record<string, unknown>) {
 }
 
 function actionPresentation(part: FinancialActionPart, currencyCode: string) {
-  const input = part.input ?? {};
-  const output = part.output ?? {};
+  const actionType = getToolActionType(part);
+  const input = part.input ?? (part as any).args ?? {};
+  const output = part.output ?? (part as any).result ?? {};
 
-  if (part.type === 'tool-navigate_to_screen') {
+  if (actionType === 'tool-navigate_to_screen') {
     const screen = firstText(output, input, 'screen');
     return {
       icon: ArrowRight,
@@ -599,7 +608,7 @@ function actionPresentation(part: FinancialActionPart, currencyCode: string) {
 }
 
 function completionMessage(part: FinancialActionPart) {
-  const output = part.output ?? {};
+  const output = part.output ?? (part as any).result ?? {};
   const action = value(output, 'action');
 
   const messages: Record<string, string> = {
@@ -647,22 +656,23 @@ export function FinancialActionCard({
   onContinue?: () => void;
   onViewChanges?: () => void;
 }) {
-  const input = part.input ?? {};
-  const output = part.output ?? {};
+  const actionType = getToolActionType(part);
+  const input = part.input ?? (part as any).args ?? {};
+  const output = part.output ?? (part as any).result ?? {};
   const presentation = actionPresentation(part, currencyCode);
   const Icon = presentation.icon;
   const amount = moneyDetail(output, input, currencyCode, 'amount', 'initialBalance');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (part.type === 'tool-navigate_to_screen') {
-      const screen = firstText(part.output ?? {}, part.input ?? {}, 'screen');
+    if (actionType === 'tool-navigate_to_screen') {
+      const screen = firstText(output, input, 'screen');
       if (screen) window.dispatchEvent(new CustomEvent('navigate-screen', { detail: { screen } }));
-    } else if (part.type === 'tool-change_app_theme') {
-      const theme = firstText(part.output ?? {}, part.input ?? {}, 'theme');
+    } else if (actionType === 'tool-change_app_theme') {
+      const theme = firstText(output, input, 'theme');
       if (theme) window.dispatchEvent(new CustomEvent('change-theme', { detail: { theme } }));
     }
-  }, [part.type, part.input, part.output]);
+  }, [actionType, input, output]);
 
   if (part.state === 'input-streaming' || part.state === 'input-available') {
     return (
