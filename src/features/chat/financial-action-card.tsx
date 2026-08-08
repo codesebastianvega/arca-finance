@@ -34,6 +34,7 @@ import {
 } from '@/src/components/ai-elements/confirmation';
 import type { ConfirmationProps } from '@/src/components/ai-elements/confirmation';
 import { summarizeRecurrence } from '@/src/lib/recurrence-summary';
+import { haptics } from '@/src/lib/haptics';
 
 const ACTION_TYPES = new Set([
   'tool-record_transaction',
