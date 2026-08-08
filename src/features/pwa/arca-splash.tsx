@@ -5,16 +5,18 @@ import { useEffect, useState } from "react";
 const SPLASH_SESSION_KEY = "arca:splash:v2";
 
 export function ArcaSplash() {
-  const [visible, setVisible] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return !window.sessionStorage.getItem(SPLASH_SESSION_KEY);
-    } catch {
-      return true;
-    }
-  });
-
+  const [visible, setVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (!window.sessionStorage.getItem(SPLASH_SESSION_KEY)) {
+        setVisible(true);
+      }
+    } catch {
+      setVisible(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
