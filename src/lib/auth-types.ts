@@ -2,6 +2,7 @@ export interface Profile {
   id: string;
   email?: string;
   fullName?: string;
+  avatarUrl?: string;
   isSuperAdmin: boolean;
   createdAt?: string;
 }

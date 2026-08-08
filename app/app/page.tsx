@@ -97,6 +97,7 @@ export default async function AuthenticatedAppPage() {
       userSummary={{
         fullName: context.profile.fullName || context.profile.email?.split("@")[0] || "Usuario de Arca",
         email: context.profile.email || "",
+        avatarUrl: context.profile.avatarUrl,
         planLabel,
         planCode: context.subscription?.planCode ?? "free",
         trialDaysRemaining,

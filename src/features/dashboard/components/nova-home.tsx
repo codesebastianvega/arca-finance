@@ -24,6 +24,7 @@ import {
 import type { TodayViewModel } from "@/src/lib/today-data";
 import { haptics } from "@/src/lib/haptics";
 import { AnimatedNumber } from "@/src/components/animated-number";
+import { NovaLiquidOrb } from "@/src/components/nova-liquid-orb";
 import { updateScheduledEventDate } from "@/app/actions";
 import { useRouter } from "next/navigation";
 
@@ -253,14 +254,36 @@ export default function NovaHome({
           type="button"
           onClick={() => { haptics.medium(); onOpenNova(); }}
           aria-label="Abrir Nova AI"
-          className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-arca-accent/35 bg-arca-accent/10 text-arca-accent shadow-[0_0_12px_rgba(245,158,11,0.2)] transition-all hover:bg-arca-accent/20 active:scale-95 light:bg-arca-light-surface-2"
+          className="relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all active:scale-95"
         >
-          <Sparkles size={20} />
-          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-arca-accent text-[8px] font-black text-black">
-            ✦
-          </span>
+          <NovaLiquidOrb size={40} isThinking={false} />
         </button>
       </header>
+
+      {/* --- NOVA AI QUICK ENTRY BAR --- */}
+      <button
+        type="button"
+        onClick={() => { haptics.medium(); onOpenNova(); }}
+        className="group relative flex w-full items-center gap-3.5 overflow-hidden rounded-2xl border border-arca-accent/40 bg-gradient-to-r from-amber-500/15 via-arca-surface-1 to-purple-600/15 p-3.5 text-left shadow-[0_8px_25px_-10px_rgba(245,158,11,0.25)] transition-all hover:border-arca-accent hover:shadow-[0_12px_30px_-8px_rgba(245,158,11,0.35)] active:scale-[0.985]"
+      >
+        <NovaLiquidOrb size={40} isThinking={false} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">
+              Nova Copiloto AI
+            </span>
+            <span className="rounded-full bg-arca-accent/20 px-2 py-0.5 text-[9px] font-extrabold text-arca-accent">
+              En línea ✦
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs font-extrabold text-arca-text-primary">
+            ¿Qué registramos, analizamos o simulamos hoy?
+          </p>
+        </div>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-arca-accent text-black font-black shadow-md transition-transform group-hover:scale-105">
+          <ArrowRight size={16} />
+        </div>
+      </button>
 
       {/* --- BETA TESTER CARD --- */}
       <button

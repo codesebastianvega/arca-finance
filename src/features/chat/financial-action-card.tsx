@@ -674,6 +674,10 @@ export function FinancialActionCard({
     }
   }, [actionType, input, output]);
 
+  const accountName = firstText(output, input, 'accountName', 'account') || null;
+  const category = firstText(output, input, 'category', 'categoryName') || null;
+  const date = firstText(output, input, 'date', 'dueDate') || 'Hoy';
+
   if (part.state === 'input-streaming' || part.state === 'input-available') {
     return (
       <div className="w-full rounded-2xl border border-arca-border bg-arca-surface-1 p-4 text-arca-text-secondary">
@@ -703,47 +707,67 @@ export function FinancialActionCard({
     <Confirmation
       approval={part.approval}
       state={part.state}
-      className="w-full gap-0 overflow-hidden rounded-2xl border-arca-accent/35 bg-arca-surface-1 p-0 text-arca-text-primary shadow-[0_14px_35px_-25px_rgba(198,138,69,0.65)]"
+      className="w-full gap-0 overflow-hidden rounded-[24px] border border-arca-accent/40 bg-gradient-to-b from-arca-surface-1 via-arca-surface-1 to-arca-base p-0 text-arca-text-primary shadow-[0_16px_40px_-20px_rgba(245,158,11,0.25)]"
     >
-      <ConfirmationTitle className="block p-4 text-arca-text-primary">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-arca-accent/30 bg-arca-accent/10">
-            <Icon className="text-arca-accent" size={20} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-arca-accent">
+      <ConfirmationTitle className="block p-5 text-arca-text-primary">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-arca-accent/15 border border-arca-accent/30 text-arca-accent">
+              <Icon size={18} />
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-arca-accent">
               {presentation.eyebrow}
-            </p>
-            <p className="mt-1 break-words text-base font-bold leading-tight text-arca-text-primary">
-              {presentation.title}
-            </p>
-            {amount && <p className="mt-2 text-2xl font-black tracking-tight">{amount}</p>}
+            </span>
           </div>
+          <span className="text-[10px] font-bold tracking-wider uppercase text-arca-text-dim/70 bg-arca-surface-2 px-2 py-0.5 rounded-full">
+            Nova Ticket
+          </span>
+        </div>
+
+        {/* Concept / Title */}
+        <h4 className="mt-3 text-lg font-black leading-snug text-arca-text-primary">
+          {presentation.title}
+        </h4>
+
+        {/* Big Clean Amount Display */}
+        {amount && (
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black tracking-tight text-white">{amount}</span>
+          </div>
+        )}
+
+        {/* High-Impact Visual Pill Badges */}
+        <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+          {accountName && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-surface-2 px-3 py-1 text-xs font-bold text-arca-text-primary border border-arca-border-strong">
+              💳 {accountName}
+            </span>
+          )}
+          {category && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-accent/10 px-3 py-1 text-xs font-bold text-arca-accent border border-arca-accent/25">
+              🏷️ {category}
+            </span>
+          )}
+          {date && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-surface-2 px-3 py-1 text-xs font-semibold text-arca-text-secondary border border-arca-border">
+              📅 {date}
+            </span>
+          )}
         </div>
       </ConfirmationTitle>
 
       <ConfirmationRequest>
-        <div className="border-y border-arca-border bg-arca-base/35 px-4 py-3">
-          <dl className="space-y-2">
-            {presentation.details.map(([label, detail]) =>
-              detail ? (
-                <div className="flex items-start justify-between gap-4 text-xs" key={label}>
-                  <dt className="text-arca-text-dim">{label}</dt>
-                  <dd className="text-right font-semibold text-arca-text-secondary">{detail}</dd>
-                </div>
-              ) : null,
-            )}
-          </dl>
-          <div className="mt-3 flex items-center gap-2 rounded-xl bg-arca-accent/[0.08] px-3 py-2 text-xs text-arca-text-secondary">
-            <ShieldCheck className="shrink-0 text-arca-accent" size={16} />
-            Nada cambiará hasta que confirmes.
-          </div>
+        <div className="border-t border-arca-border/60 bg-arca-surface-2/40 px-5 py-3 flex items-center justify-between text-xs">
+          <span className="flex items-center gap-1.5 text-arca-text-secondary font-medium">
+            <ShieldCheck size={16} className="text-arca-accent shrink-0" />
+            {accountName ? `Afectará tu cuenta ${accountName}` : "Confirmación rápida de 1-clic"}
+          </span>
         </div>
       </ConfirmationRequest>
 
       <ConfirmationAccepted>
         <div className="border-t border-arca-border px-4 py-3">
-          <div className="flex items-center gap-2 text-sm text-arca-positive">
+          <div className="flex items-center gap-2 text-sm text-arca-positive font-bold">
             <CheckCircle2 size={18} />
             <span>{part.state === 'output-available' ? completionMessage(part) : 'Aprobado, procesando…'}</span>
           </div>
@@ -752,14 +776,14 @@ export function FinancialActionCard({
               <button
                 type="button"
                 onClick={onContinue}
-                className="h-10 rounded-xl border border-arca-border-strong px-3 text-xs font-bold text-arca-text-secondary transition-colors hover:bg-arca-surface-2 hover:text-arca-text-primary"
+                className="h-10 rounded-xl border border-arca-border-strong px-3 text-xs font-bold text-arca-text-secondary transition-colors hover:bg-arca-surface-2 hover:text-arca-text-primary active:scale-[0.98]"
               >
                 Seguir con Nova
               </button>
               <button
                 type="button"
                 onClick={onViewChanges}
-                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-arca-accent px-3 text-xs font-black text-[#15110c] transition-colors hover:bg-arca-accent-hover"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-arca-accent px-3 text-xs font-black text-[#15110c] transition-colors hover:bg-arca-accent-hover active:scale-[0.98]"
               >
                 Ver cambios
                 <ArrowRight size={15} />
@@ -776,17 +800,23 @@ export function FinancialActionCard({
         </div>
       </ConfirmationRejected>
 
-      <ConfirmationActions className="w-full justify-stretch border-t border-arca-border p-3">
+      <ConfirmationActions className="w-full justify-stretch border-t border-arca-border/80 p-3 gap-2.5 bg-arca-surface-1">
         <ConfirmationAction
-          className="h-10 flex-1 rounded-xl border border-arca-border-strong bg-transparent text-arca-text-secondary hover:bg-arca-surface-2 hover:text-arca-text-primary"
-          onClick={() => part.approval && onApproval(part.approval.id, false)}
+          className="h-11 flex-1 rounded-2xl border border-arca-border-strong bg-arca-surface-2 text-arca-text-secondary hover:bg-arca-surface-2/80 hover:text-arca-text-primary text-xs font-bold active:scale-[0.98]"
+          onClick={() => {
+            haptics.light();
+            part.approval && onApproval(part.approval.id, false);
+          }}
           variant="outline"
         >
           Cancelar
         </ConfirmationAction>
         <ConfirmationAction
-          className="h-10 flex-1 rounded-xl bg-arca-accent font-bold text-[#15110c] hover:bg-arca-accent-hover"
-          onClick={() => part.approval && onApproval(part.approval.id, true)}
+          className="h-11 flex-1 rounded-2xl bg-gradient-to-r from-amber-400 via-arca-accent to-amber-500 font-black text-[#15110c] hover:brightness-110 text-xs shadow-lg shadow-arca-accent/20 active:scale-[0.98]"
+          onClick={() => {
+            haptics.medium();
+            part.approval && onApproval(part.approval.id, true);
+          }}
         >
           Confirmar
         </ConfirmationAction>

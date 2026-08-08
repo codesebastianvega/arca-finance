@@ -47,10 +47,18 @@ async function readProfile(userId: string) {
     return null;
   }
 
+  const { data: authData } = await supabase.auth.getUser();
+  const avatarUrl = typeof authData?.user?.user_metadata?.avatar_url === "string"
+    ? authData.user.user_metadata.avatar_url
+    : typeof authData?.user?.user_metadata?.picture === "string"
+      ? authData.user.user_metadata.picture
+      : undefined;
+
   const profile: Profile = {
     id: String(data.id),
     email: data.email ? String(data.email) : undefined,
     fullName: data.full_name ? String(data.full_name) : undefined,
+    avatarUrl,
     isSuperAdmin: Boolean(data.is_superadmin),
     createdAt: data.created_at ? String(data.created_at) : undefined,
   };

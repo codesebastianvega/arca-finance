@@ -19,6 +19,7 @@ import { YieldsScannerCard, type YieldsScannerOutput } from './yields-scanner-ca
 import { TripPlannerCard, type TripPlannerOutput } from './trip-planner-card';
 import { VehiclePlannerCard, type VehiclePlannerOutput } from './vehicle-planner-card';
 import { HomePurchaseCard, type HomePurchaseOutput } from './home-purchase-card';
+import { NovaLiquidOrb } from '@/src/components/nova-liquid-orb';
 import {
   DEFAULT_NOVA_PREFERENCES,
   NOVA_PREFERENCES_KEY,
@@ -63,6 +64,7 @@ type AiChatProps = {
   monthlyLimit: number | null;
   initialUsed: number;
   onViewPlans?: () => void;
+  userAvatarUrl?: string;
 };
 
 export default function AiChat({
@@ -79,6 +81,7 @@ export default function AiChat({
   monthlyLimit,
   initialUsed,
   onViewPlans,
+  userAvatarUrl,
 }: AiChatProps) {
   const router = useRouter();
   const [errorToast, setErrorToast] = useState<string | null>(null);
@@ -375,9 +378,7 @@ export default function AiChat({
             {/* Header */}
             <div className="shrink-0 relative z-10 flex items-center justify-between p-4 sm:p-5 border-b border-arca-border bg-arca-surface-1/90 backdrop-blur-md pt-[max(1rem,env(safe-area-inset-top))]">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-arca-accent/10 border border-arca-accent/25 flex items-center justify-center">
-                  <Sparkles className="text-arca-accent" size={20} />
-                </div>
+                <NovaLiquidOrb size={40} isThinking={isLoading} />
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-black text-arca-text-primary tracking-wide">Nova</h3>
@@ -548,8 +549,18 @@ export default function AiChat({
                     className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`flex items-end space-x-2 max-w-[92%] ${m.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${m.role === 'user' ? 'bg-arca-surface-2 border-arca-border-strong' : 'bg-arca-accent/10 border-arca-accent/30'}`}>
-                        {m.role === 'user' ? <User size={16} className="text-arca-text-secondary" /> : <Bot size={16} className="text-arca-accent" />}
+                      <div className="flex-shrink-0">
+                        {m.role === 'user' ? (
+                          userAvatarUrl ? (
+                            <img src={userAvatarUrl} alt="Usuario" className="w-8 h-8 rounded-full object-cover border border-arca-border-strong" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-arca-surface-2 border border-arca-border-strong flex items-center justify-center">
+                              <User size={16} className="text-arca-text-secondary" />
+                            </div>
+                          )
+                        ) : (
+                          <NovaLiquidOrb size={32} isThinking={isStreamingMessage} />
+                        )}
                       </div>
                       <div className={`flex min-w-0 flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                         {m.parts.map((part, index) => {

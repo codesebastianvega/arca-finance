@@ -27,9 +27,10 @@ interface AppShellProps {
   novaMonthlyLimit: number | null;
   novaUsed: number;
   billingNotice: BillingNotice | null;
+  userAvatarUrl?: string;
 }
 
-export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode, canUseNova, novaMonthlyLimit, novaUsed, billingNotice }: AppShellProps) {
+export default function AppShell({ currentScreen, setCurrentScreen, children, registerData, currencyCode, canUseNova, novaMonthlyLimit, novaUsed, billingNotice, userAvatarUrl }: AppShellProps) {
   const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -310,6 +311,7 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
           currencyCode={currencyCode}
           monthlyLimit={novaMonthlyLimit}
           initialUsed={novaUsed}
+          userAvatarUrl={userAvatarUrl}
           onViewPlans={() => {
             closeOverlay('nova');
             window.setTimeout(() => setCurrentScreen('configuracion'), 0);

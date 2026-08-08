@@ -49,6 +49,7 @@ export type { ThemeId } from './lib/themes';
 export type AppUserSummary = {
   fullName: string;
   email: string;
+  avatarUrl?: string;
   planLabel: string;
   planCode: 'free' | 'personal_pro' | 'business';
   trialDaysRemaining?: number;
@@ -350,7 +351,7 @@ export default function App({
 
   return (
     <LoaderProvider>
-      <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData} canUseNova={userSummary.canUseNova} novaMonthlyLimit={userSummary.novaMonthlyLimit} novaUsed={userSummary.novaUsed} billingNotice={initialBillingNotice}>
+      <AppShell currencyCode={currencyCode} currentScreen={currentScreen} setCurrentScreen={handleSetCurrentScreen} registerData={initialRegisterData} canUseNova={userSummary.canUseNova} novaMonthlyLimit={userSummary.novaMonthlyLimit} novaUsed={userSummary.novaUsed} billingNotice={initialBillingNotice} userAvatarUrl={userSummary.avatarUrl}>
         {renderScreen()}
       </AppShell>
       {showOnboarding ? (
