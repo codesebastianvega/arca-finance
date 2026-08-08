@@ -737,22 +737,29 @@ export function FinancialActionCard({
           </div>
         )}
 
-        {/* High-Impact Visual Pill Badges */}
-        <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+        {/* Structured High-Legibility Glass Grid Tiles */}
+        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
           {accountName && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-surface-2 px-3 py-1 text-xs font-bold text-arca-text-primary border border-arca-border-strong">
-              💳 {accountName}
-            </span>
+            <div className="flex flex-col gap-0.5 rounded-xl bg-white/[0.04] p-2.5 border border-white/10 backdrop-blur-md">
+              <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400">Cuenta de origen</span>
+              <span className="font-bold text-zinc-100 flex items-center gap-1.5 truncate">
+                <span>💳</span> {accountName}
+              </span>
+            </div>
           )}
           {category && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-accent/10 px-3 py-1 text-xs font-bold text-arca-accent border border-arca-accent/25">
-              🏷️ {category}
-            </span>
+            <div className="flex flex-col gap-0.5 rounded-xl bg-amber-500/10 p-2.5 border border-amber-500/25 backdrop-blur-md">
+              <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400">Categoría</span>
+              <span className="font-bold text-amber-200 flex items-center gap-1.5 truncate">
+                <span>🏷️</span> {category}
+              </span>
+            </div>
           )}
           {date && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-arca-surface-2 px-3 py-1 text-xs font-semibold text-arca-text-secondary border border-arca-border">
-              📅 {date}
-            </span>
+            <div className="col-span-2 flex items-center justify-between rounded-xl bg-white/[0.03] px-3 py-2 border border-white/5 backdrop-blur-sm">
+              <span className="text-[10px] font-bold text-zinc-400">📅 Fecha de movimiento</span>
+              <span className="text-xs font-semibold text-zinc-300">{date}</span>
+            </div>
           )}
         </div>
       </ConfirmationTitle>

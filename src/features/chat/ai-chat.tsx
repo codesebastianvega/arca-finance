@@ -593,7 +593,11 @@ export default function AiChat({
                             return (
                               <div
                                 key={`${m.id}-text-${index}`}
-                                className={`p-4 rounded-[20px] text-sm leading-relaxed border ${m.role === 'user' ? 'whitespace-pre-wrap bg-arca-surface-2 border-arca-border-strong text-arca-text-primary rounded-br-sm' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary rounded-bl-sm shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'}`}
+                                className={`p-4 rounded-[22px] text-sm leading-relaxed border ${
+                                  m.role === 'user'
+                                    ? 'whitespace-pre-wrap bg-amber-500/15 backdrop-blur-xl border-amber-500/30 text-amber-50 rounded-br-xs shadow-[0_4px_20px_rgba(245,158,11,0.12)]'
+                                    : 'bg-zinc-900/70 backdrop-blur-2xl border-white/10 text-zinc-100 rounded-bl-xs shadow-[0_8px_32px_rgba(0,0,0,0.4)]'
+                                }`}
                               >
                                 {m.role === 'assistant' ? (
                                   <MessageResponse
