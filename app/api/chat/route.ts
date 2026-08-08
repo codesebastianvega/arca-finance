@@ -125,7 +125,7 @@ ${options.incomeSources.map(i => `- ${i.label} (ID: ${i.id})`).join('\n')}
 
 IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_financial_action_options a menos que necesites datos de Créditos, Proyectos, u otros detalles específicos que no estén listados aquí.`;
 
-    const modelName = process.env.GOOGLE_AI_MODEL || 'gemini-flash-latest';
+    const modelName = process.env.GOOGLE_AI_MODEL || 'gemini-1.5-flash';
     const result = streamText({
       model: google(modelName),
       stopWhen: isStepCount(3),
@@ -135,7 +135,6 @@ IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_finan
 OPTIMIZACIÓN DE TOKENS Y RESPUESTAS CORTAS:
 - Sé extremadamente breve y concisa. Responde en máximo 1 a 3 oraciones cortas. Ir directamente al punto sin introducciones ni textos de relleno.
 - Cuando vayas a invocar una herramienta que requiere aprobación (como record_transaction, transfer_between_accounts, create_personal_loan, schedule_expected_income, etc.), INVOCA LA HERRAMIENTA DIRECTAMENTE Y NO GENERES TEXTO PREVIO. La interfaz de la app mostrará automáticamente la tarjeta interactiva de confirmación de 1-clic con los montos, cuenta y botones para el usuario.
-- Si el usuario escribe una orden de gasto o ingreso rápida (ej: "un gasto de 17400", "gaste 50k en comida"), selecciona la cuenta disponible (o la primera) y la categoría adecuada, e INVOCA DE INMEDIATO \`record_transaction\` para mostrar la tarjeta de confirmación de 1-clic sin hacer preguntas innecesarias.
 
 TIENES AUTONOMÍA TOTAL:
 - Tienes herramientas para consultar, crear, modificar y eliminar cualquier elemento del sistema.
