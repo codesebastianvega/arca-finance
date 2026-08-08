@@ -97,9 +97,19 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   useEffect(() => {
     const handleOpen = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const segment = customEvent.detail?.segment || 'Grid';
+      const rawSegment = customEvent.detail?.segment || 'Movimiento';
+      let segment = rawSegment;
+      let type = customEvent.detail?.type || 'gasto';
+
+      if (rawSegment === 'Gasto') {
+        segment = 'Movimiento';
+        type = 'gasto';
+      } else if (rawSegment === 'Ingreso') {
+        segment = 'Movimiento';
+        type = 'ingreso';
+      }
+
       const goalType = customEvent.detail?.goalType || 'goal';
-      const type = customEvent.detail?.type || 'gasto';
       const date = customEvent.detail?.date || '';
       const incomeStatus = customEvent.detail?.incomeStatus === 'expected' ? 'expected' : 'received';
       setDefaultSegment(segment);

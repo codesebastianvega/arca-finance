@@ -486,7 +486,11 @@ export default function DecisionDashboard({
           type="button"
           onClick={() => {
             haptics.medium();
-            window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Gasto" } }));
+            window.dispatchEvent(
+              new CustomEvent("open-register", {
+                detail: { segment: "Movimiento", type: "gasto", incomeStatus: "received" },
+              })
+            );
           }}
           className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-amber-500/60 hover:shadow-md active:scale-95"
         >
@@ -500,7 +504,11 @@ export default function DecisionDashboard({
           type="button"
           onClick={() => {
             haptics.medium();
-            window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ingreso" } }));
+            window.dispatchEvent(
+              new CustomEvent("open-register", {
+                detail: { segment: "Movimiento", type: "ingreso", incomeStatus: "received" },
+              })
+            );
           }}
           className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-emerald-500/60 hover:shadow-md active:scale-95"
         >
@@ -514,7 +522,11 @@ export default function DecisionDashboard({
           type="button"
           onClick={() => {
             haptics.medium();
-            window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Obligacion" } }));
+            window.dispatchEvent(
+              new CustomEvent("open-register", {
+                detail: { segment: "Obligacion", type: "gasto" },
+              })
+            );
           }}
           className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-gradient-to-b from-indigo-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-indigo-500/60 hover:shadow-md active:scale-95"
         >
