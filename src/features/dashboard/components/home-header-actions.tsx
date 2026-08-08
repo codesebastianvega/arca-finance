@@ -7,6 +7,7 @@ import type { ObligationFilter } from "@/src/lib/obligations-types";
 import type { Screen } from "@/src/types";
 import { haptics } from "@/src/lib/haptics";
 import { PushNotificationSettings } from "@/src/features/pwa/push-notification-settings";
+import { NovaLiquidOrb } from "@/src/components/nova-liquid-orb";
 
 type Icon = ComponentType<{ size?: number; className?: string }>;
 
@@ -142,9 +143,10 @@ export function HomeHeaderActions({
 
   return (
     <>
-      <div className="flex space-x-2">
+      <div className="flex items-center space-x-2">
         <button type="button" onClick={() => setShowSearch(true)} aria-label="Buscar en Arca" className="flex h-10 w-10 items-center justify-center rounded-full border border-arca-border bg-arca-surface-2"><Search size={18} className="text-arca-text-secondary" /></button>
         <button type="button" onClick={() => setShowAlerts(true)} aria-label={`Notificaciones${unreadCount ? `, ${unreadCount} nuevas` : ""}`} className="relative flex h-10 w-10 items-center justify-center rounded-full border border-arca-border bg-arca-surface-2"><Bell size={18} className="text-arca-text-secondary" />{unreadCount ? <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-arca-base bg-arca-alert px-0.5 text-[7px] font-black text-white">{unreadCount > 9 ? "9+" : unreadCount}</span> : null}</button>
+        <button type="button" onClick={() => { haptics.medium(); onOpenNova(); }} aria-label="Abrir Nova AI" className="relative flex h-10 w-10 items-center justify-center rounded-full active:scale-95 transition-transform"><NovaLiquidOrb size={36} isThinking={false} /></button>
       </div>
 
       {showSearch ? <Overlay title="Buscar en Arca" subtitle="Encuentra una función, cuenta o compromiso" onClose={() => { setShowSearch(false); setQuery(""); }}>

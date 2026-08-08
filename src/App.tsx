@@ -255,19 +255,7 @@ export default function App({
     }
     
     switch (currentScreen) {
-      case 'hoy': return <NovaHome
-        data={initialTodayData}
-        currency={currencyCode}
-        onOpenNova={openNova}
-        onOpenObligations={() => {
-          setObligationsInitialMode('gastos');
-          setObligationsInitialFilter('todo');
-          setCurrentScreen('obligaciones');
-        }}
-        onOpenMovements={() => setCurrentScreen('movimientos')}
-        onOpenSummary={() => setCurrentScreen('resumen')}
-        onOpenFeedback={() => setCurrentScreen('feedback')}
-      />;
+      case 'hoy':
       case 'resumen': return <DecisionDashboard
         data={initialTodayData} 
         onOpenNova={openNova}
@@ -281,6 +269,7 @@ export default function App({
         onOpenRegister={() => setCurrentScreen('registrar')}
         onOpenBusiness={() => setCurrentScreen('negocios')}
         onOpenMonthPlan={() => setCurrentScreen('planeacion_mes')}
+        onOpenFeedback={() => setCurrentScreen('feedback')}
         onNavigate={handleSetCurrentScreen}
       />;
       case 'dinero_cuentas': return <AccountsScreen defaultTab="cuentas" data={initialMoneyData} onOpenMovements={() => setCurrentScreen('movimientos')} />;
