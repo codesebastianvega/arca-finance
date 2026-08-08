@@ -195,17 +195,8 @@ export default function DecisionDashboard({
       </header>
 
       {/* --- POSITION #1: SUBTLE NOVA AI INPUT TRIGGER BAR --- */}
-      <div className="relative flex w-full items-center gap-2 overflow-hidden rounded-2xl border border-arca-border bg-arca-surface-1 p-2 pl-3 shadow-sm transition-all focus-within:border-arca-accent/60 focus-within:shadow-[0_4px_20px_rgba(245,158,11,0.15)]">
-        <button
-          type="button"
-          onClick={() => {
-            haptics.medium();
-            onOpenNova();
-          }}
-          className="flex shrink-0 items-center justify-center cursor-pointer active:scale-95 transition-transform"
-        >
-          <NovaLiquidOrb size={32} isThinking={false} />
-        </button>
+      <div className="relative flex w-full items-center gap-2.5 overflow-hidden rounded-2xl border border-arca-border bg-arca-surface-1 p-2 pl-3.5 shadow-sm transition-all focus-within:border-arca-accent/60 focus-within:shadow-[0_4px_20px_rgba(245,158,11,0.15)]">
+        <Sparkles size={16} className="text-arca-accent shrink-0" />
 
         <input
           type="text"
@@ -523,7 +514,7 @@ export default function DecisionDashboard({
           type="button"
           onClick={() => {
             haptics.medium();
-            onOpenObligations?.("semana");
+            window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Obligacion" } }));
           }}
           className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-gradient-to-b from-indigo-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-indigo-500/60 hover:shadow-md active:scale-95"
         >

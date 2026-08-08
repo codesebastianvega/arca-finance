@@ -43,8 +43,14 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
   const [defaultIncomeStatus, setDefaultIncomeStatus] = useState<'received' | 'expected'>('received');
 
   const openOverlay = useCallback((overlay: 'quick-add' | 'register' | 'nova') => {
-    if (overlay === 'quick-add') setIsQuickAddOpen(true);
-    if (overlay === 'register') setIsRegisterOpen(true);
+    if (overlay === 'quick-add') {
+      setIsQuickAddOpen(true);
+      setIsRegisterOpen(false);
+    }
+    if (overlay === 'register') {
+      setIsRegisterOpen(true);
+      setIsQuickAddOpen(false);
+    }
     if (overlay === 'nova') setIsAiChatOpen(true);
 
     try {
@@ -61,7 +67,10 @@ export default function AppShell({ currentScreen, setCurrentScreen, children, re
 
   const closeOverlay = useCallback((overlay: 'quick-add' | 'register' | 'nova') => {
     if (overlay === 'quick-add') setIsQuickAddOpen(false);
-    if (overlay === 'register') setIsRegisterOpen(false);
+    if (overlay === 'register') {
+      setIsRegisterOpen(false);
+      setIsQuickAddOpen(false);
+    }
     if (overlay === 'nova') setIsAiChatOpen(false);
 
     try {

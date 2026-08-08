@@ -697,7 +697,7 @@ export default function RegisterScreen({ data, onSuccess, defaultSegment = 'Movi
       haptics.success();
       router.refresh();
       if (onSuccess) {
-        setTimeout(() => onSuccess(), 700);
+        setTimeout(() => onSuccess(), 200);
       }
       setTimeout(() => setIsSuccess(false), 2000);
     } catch (error) {
