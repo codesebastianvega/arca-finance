@@ -11,6 +11,7 @@ import {
   Target,
   Receipt,
   TrendingUp,
+  TrendingDown,
   AlertCircle,
   ChevronRight,
   X,
@@ -276,7 +277,129 @@ export default function DecisionDashboard({
         </div>
       )}
 
-      {/* --- POSITION #2: MASTER CARD (CAJA LIBRE & SALUD FINANCIERA) --- */}
+      {/* --- PRESUPUESTO DEL MES (RESTAURADO COMPLETO) --- */}
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-between items-center px-1">
+          <span className="text-[11px] font-black tracking-wider text-arca-text-secondary uppercase">
+            PRESUPUESTO DEL MES
+          </span>
+          <span
+            className="text-[10px] font-bold text-arca-positive uppercase cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={onOpenMonthPlan}
+          >
+            {budget.hasBudget ? "LÍMITE DEFINIDO" : "CONFIGURAR"}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowMonthlyBudget(true)}
+          className="relative overflow-hidden rounded-[24px] p-4 border border-white/10 shadow-lg shadow-black/20 flex w-full flex-col gap-3 text-left transition-transform active:scale-[0.99]"
+          style={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.25) 100%)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          {/* Decorative glows */}
+          <div className="absolute -right-20 -top-20 w-40 h-40 bg-arca-positive rounded-full opacity-10 blur-3xl pointer-events-none" />
+          <div className="absolute -left-20 -bottom-20 w-40 h-40 bg-arca-accent rounded-full opacity-10 blur-3xl pointer-events-none" />
+
+          <div className="flex gap-4 relative z-10">
+            {/* Ingresos (Left) */}
+            <div className="flex-1 flex flex-col gap-1.5">
+              <span className="text-[9px] font-extrabold text-arca-text-dim uppercase tracking-widest">
+                INGRESOS
+              </span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Recibidos</span>
+                <span className="font-semibold text-arca-positive drop-shadow-sm">
+                  {formatCOP(monthlyBudget.receivedIncomes)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Esperados</span>
+                <span className="font-semibold text-arca-text-dim">
+                  {formatCOP(monthlyBudget.expectedIncomes)}
+                </span>
+              </div>
+            </div>
+
+            {/* Vertical Divider */}
+            <div className="w-[1px] bg-white/10 my-1" />
+
+            {/* Obligaciones (Right) */}
+            <div className="flex-1 flex flex-col gap-1.5">
+              <span className="text-[9px] font-extrabold text-arca-text-dim uppercase tracking-widest">
+                OBLIGACIONES
+              </span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Pagadas</span>
+                <span className="font-semibold text-arca-text-primary">
+                  {formatCOP(monthlyBudget.paidObligations)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-arca-text-secondary">Pendientes</span>
+                <span className="font-semibold text-arca-text-dim">
+                  {formatCOP(monthlyBudget.pendingObligations)}
+                </span>
+              </div>
+              <span className="text-[8px] leading-3 text-arca-text-dim mt-0.5">
+                {metrics.overdue} vencidos · {metrics.today + metrics.upcoming} por vencer
+              </span>
+            </div>
+          </div>
+
+          <div className="w-full h-[1px] bg-white/10 my-0.5 relative z-10" />
+
+          {/* Saldo estimado al cierre */}
+          <div className="flex justify-between items-center font-bold relative z-10">
+            <span className="text-xs text-arca-text-secondary">Saldo estimado al cierre</span>
+            <span
+              className={cn(
+                "text-base drop-shadow-sm tracking-tight font-black",
+                projectedClosingBalance >= 0 ? "text-arca-positive" : "text-arca-alert"
+              )}
+            >
+              {formatCOP(projectedClosingBalance)}
+            </span>
+          </div>
+
+          {/* Barra de Consumo de Límite (si hay presupuesto definido) */}
+          {budget.hasBudget && (
+            <div className="flex flex-col gap-2 mt-1 pt-3 border-t border-white/10">
+              <div className="flex justify-between items-center text-[10px] font-bold text-arca-text-dim">
+                <span>CONSUMIDO: {formatCOP(budget.consumed)}</span>
+                <span>LÍMITE: {formatCOP(budget.limit)}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-arca-surface-2 overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full transition-all",
+                    (budget.utilization ?? 0) > 90 ? "bg-arca-alert" : "bg-arca-positive"
+                  )}
+                  style={{ width: `${Math.min(budget.utilization ?? 0, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <span className="relative z-10 flex items-center justify-end gap-1 text-[9px] font-black uppercase tracking-wider text-arca-accent">
+            Ver detalle <ChevronRight size={13} />
+          </span>
+        </button>
+      </div>
+
+      <div className="px-1">
+        <CalculationHelper
+          title="Saldo estimado al cierre"
+          description="Estimamos cuánto dinero disponible quedaría después de recibir los ingresos esperados y cubrir todas las obligaciones pendientes del mes."
+          formula="Saldo disponible actual + ingresos esperados − obligaciones pendientes"
+          includes={["Saldo de cuentas activas", "Ingresos pendientes del mes", "Pagos vencidos y próximos"]}
+          excludes={["Ingresos ya recibidos", "Pagos ya realizados", "Ahorro protegido"]}
+        />
+      </div>
+
+      {/* --- POSITION #2: MASTER CARD (CAJA LIBRE & DISPONIBLE REAL) --- */}
       <div
         className="relative overflow-hidden rounded-[26px] p-5 border border-arca-border/60 shadow-xl"
         style={{
@@ -292,7 +415,7 @@ export default function DecisionDashboard({
         <div className="flex justify-between items-start mb-3 relative z-10">
           <div>
             <span className="text-[9px] font-black tracking-[0.2em] text-arca-accent uppercase">
-              Caja Libre & Salud
+              Caja Libre
             </span>
             <span className="block text-xs font-semibold text-arca-text-secondary">
               Disponible para gastar
@@ -364,52 +487,22 @@ export default function DecisionDashboard({
             </span>
           </div>
         </div>
-
-        {/* Subtle Month Closing Franja */}
-        <button
-          type="button"
-          onClick={() => setShowMonthlyBudget(true)}
-          className="w-full mt-3.5 pt-3 border-t border-white/5 flex items-center justify-between text-xs transition-colors hover:text-arca-accent group relative z-10"
-        >
-          <span className="text-[10px] font-bold text-arca-text-secondary">
-            Saldo estimado al cierre del mes:
-          </span>
-          <span
-            className={cn(
-              "text-xs font-black tracking-tight flex items-center gap-1",
-              projectedClosingBalance >= 0 ? "text-arca-positive" : "text-arca-alert"
-            )}
-          >
-            {formatCOP(projectedClosingBalance)}
-            <ChevronRight size={13} className="text-arca-text-dim transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </button>
       </div>
 
-      <div className="px-1">
-        <CalculationHelper
-          title="Saldo estimado al cierre"
-          description="Estimamos cuánto dinero disponible quedaría después de recibir los ingresos esperados y cubrir todas las obligaciones pendientes del mes."
-          formula="Saldo disponible actual + ingresos esperados − obligaciones pendientes"
-          includes={["Saldo de cuentas activas", "Ingresos pendientes del mes", "Pagos vencidos y próximos"]}
-          excludes={["Ingresos ya recibidos", "Pagos ya realizados", "Ahorro protegido"]}
-        />
-      </div>
-
-      {/* --- POSITION #3: QUICK ACTIONS BAR (GASTO, INGRESO, PROGRAMAR) --- */}
-      <div className="grid grid-cols-3 gap-2.5">
+      {/* --- POSITION #3: BARRA DE ACCIONES RÁPIDAS (LUCIDE ICONS, SIN EMOJIS) --- */}
+      <div className="grid grid-cols-3 gap-3">
         <button
           type="button"
           onClick={() => {
             haptics.medium();
             window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Gasto" } }));
           }}
-          className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-amber-500/25 bg-gradient-to-b from-amber-500/15 to-amber-500/5 p-3 text-amber-200 shadow-sm backdrop-blur-md transition-all hover:border-amber-500/50 hover:shadow-md active:scale-95"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-amber-500/60 hover:shadow-md active:scale-95"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 font-bold text-base shadow-inner group-hover:scale-105 transition-transform">
-            💸
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 group-hover:scale-110 transition-transform">
+            <TrendingDown size={20} />
           </span>
-          <span className="text-[11px] font-extrabold tracking-tight text-amber-100">+ Gasto</span>
+          <span className="text-xs font-black text-amber-300 tracking-tight">+ Gasto</span>
         </button>
 
         <button
@@ -418,12 +511,12 @@ export default function DecisionDashboard({
             haptics.medium();
             window.dispatchEvent(new CustomEvent("open-register", { detail: { segment: "Ingreso" } }));
           }}
-          className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/25 bg-gradient-to-b from-emerald-500/15 to-emerald-500/5 p-3 text-emerald-200 shadow-sm backdrop-blur-md transition-all hover:border-emerald-500/50 hover:shadow-md active:scale-95"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-emerald-500/60 hover:shadow-md active:scale-95"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 font-bold text-base shadow-inner group-hover:scale-105 transition-transform">
-            💰
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 group-hover:scale-110 transition-transform">
+            <TrendingUp size={20} />
           </span>
-          <span className="text-[11px] font-extrabold tracking-tight text-emerald-100">+ Ingreso</span>
+          <span className="text-xs font-black text-emerald-300 tracking-tight">+ Ingreso</span>
         </button>
 
         <button
@@ -432,12 +525,12 @@ export default function DecisionDashboard({
             haptics.medium();
             onOpenObligations?.("semana");
           }}
-          className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-indigo-500/25 bg-gradient-to-b from-indigo-500/15 to-indigo-500/5 p-3 text-indigo-200 shadow-sm backdrop-blur-md transition-all hover:border-indigo-500/50 hover:shadow-md active:scale-95"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-gradient-to-b from-indigo-500/15 via-arca-surface-1 to-arca-surface-1 p-3.5 text-center shadow-sm backdrop-blur-md transition-all hover:border-indigo-500/60 hover:shadow-md active:scale-95"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 font-bold text-base shadow-inner group-hover:scale-105 transition-transform">
-            📅
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 group-hover:scale-110 transition-transform">
+            <CalendarClock size={20} />
           </span>
-          <span className="text-[11px] font-extrabold tracking-tight text-indigo-100">Programar</span>
+          <span className="text-xs font-black text-indigo-300 tracking-tight">Programar</span>
         </button>
       </div>
 
