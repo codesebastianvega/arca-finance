@@ -31,6 +31,7 @@ import ProjectionScreen from './features/planning/projection-screen';
 import TransferScreen from './features/transfers/transfer-screen';
 import RegisterScreen from './features/register/register-screen';
 import ConfiguracionScreen from './components/ConfiguracionScreen';
+import { NovaSettingsScreen } from './features/chat/nova-settings-screen';
 import SuperAdminScreen from './components/SuperAdminScreen';
 import MasScreen from './components/MasScreen';
 import SubscriptionsScreen from './features/more/subscriptions-screen';
@@ -295,6 +296,7 @@ export default function App({
       );
       case 'movimientos': return <HistoryScreen onBack={backToMas} onOpenNova={openNova} data={initialHistoryData} currency={currencyCode} />;
       case 'configuracion': return <ConfiguracionScreen onBack={backFromSettings} theme={theme} setTheme={setTheme} data={initialRegisterData} user={userSummary} plans={initialBillingPlans} />;
+      case 'configuracion_nova': return <NovaSettingsScreen onBack={backToMas} onOpenNova={openNova} />;
       case 'calendario': return <CalendarScreen onBack={backToMas} onOpenNova={openNova} data={initialCalendarData} accounts={initialTodayData.accountOptions} currency={currencyCode} />;
       case 'transferir': return (
         <TransferScreen

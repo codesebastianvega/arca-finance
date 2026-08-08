@@ -12,6 +12,7 @@ export type Screen =
   | 'negocios' 
   | 'movimientos' 
   | 'configuracion' 
+  | 'configuracion_nova'
   | 'registrar' 
   | 'transferir' 
   | 'mas' 

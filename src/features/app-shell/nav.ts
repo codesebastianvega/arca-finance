@@ -19,7 +19,8 @@ import {
   Flame,
   BookOpen,
   MessageSquareHeart,
-  Compass
+  Compass,
+  Sparkles
 } from 'lucide-react';
 import { Screen } from '../../types';
 
@@ -38,6 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'mas', label: 'Menú', icon: Menu, category: 'primary' },
 
   // Secondary (Mas Menu)
+  { id: 'configuracion_nova', label: 'Nova AI & Herramientas', icon: Sparkles, category: 'secondary' },
   { id: 'metas_vida', label: 'Metas de Vida (Viajes/Carro/Casa)', icon: Compass, category: 'secondary' },
   { id: 'dashboard', label: 'Historial financiero', icon: LayoutDashboard, category: 'secondary' },
   { id: 'planeacion_mes', label: 'Plan del mes', icon: Target, category: 'secondary' },

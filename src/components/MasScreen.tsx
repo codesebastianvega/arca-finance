@@ -46,7 +46,7 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     title: "Tu Arca",
     subtitle: "Personaliza y protege tu espacio",
-    items: ["configuracion", "feedback"],
+    items: ["configuracion_nova", "configuracion", "feedback"],
   },
 ];
 
