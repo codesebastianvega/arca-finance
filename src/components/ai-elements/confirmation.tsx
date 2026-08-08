@@ -67,7 +67,7 @@ export const Confirmation = ({
 }: ConfirmationProps) => {
   const contextValue = useMemo(() => ({ approval, state }), [approval, state]);
 
-  if (!approval || state === "input-streaming" || state === "input-available") {
+  if (state === "input-streaming" || state === "input-available") {
     return null;
   }
 

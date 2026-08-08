@@ -89,6 +89,59 @@ function UserAvatar({ avatarUrl }: { avatarUrl?: string }) {
   );
 }
 
+function MorphingDots({ isSubmitting = false }: { isSubmitting?: boolean }) {
+  const dotClass = isSubmitting ? 'bg-neutral-400' : 'bg-gradient-to-r from-amber-400 to-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]';
+
+  return (
+    <div className="flex items-center justify-center space-x-1.5 h-4 px-1 py-0.5 relative overflow-visible">
+      <motion.div
+        className={`w-2.5 h-2.5 rounded-full ${dotClass}`}
+        animate={{
+          x: [0, 5, 0, -3, 0],
+          scaleX: [1, 1.4, 0.9, 1.25, 1],
+          scaleY: [1, 0.75, 1.1, 0.8, 1],
+        }}
+        transition={{
+          duration: 1.3,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          times: [0, 0.3, 0.5, 0.8, 1],
+        }}
+      />
+      <motion.div
+        className={`w-2.5 h-2.5 rounded-full ${dotClass}`}
+        animate={{
+          x: [-2, 3, -2, 2, -2],
+          scaleX: [1, 1.3, 1, 1.3, 1],
+          scaleY: [1, 0.8, 1, 0.75, 1],
+        }}
+        transition={{
+          duration: 1.3,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: 0.18,
+          times: [0, 0.3, 0.5, 0.8, 1],
+        }}
+      />
+      <motion.div
+        className={`w-2.5 h-2.5 rounded-full ${dotClass}`}
+        animate={{
+          x: [-3, 0, 4, -2, -3],
+          scaleX: [1, 1.35, 0.85, 1.2, 1],
+          scaleY: [1, 0.75, 1.15, 0.85, 1],
+        }}
+        transition={{
+          duration: 1.3,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: 0.36,
+          times: [0, 0.3, 0.5, 0.8, 1],
+        }}
+      />
+    </div>
+  );
+}
+
 export default function AiChat({
   isOpen,
   onClose,
@@ -707,11 +760,7 @@ export default function AiChat({
                           <div className={`p-4 rounded-[20px] text-sm leading-relaxed border rounded-bl-sm transition-colors ${
                             status === 'submitted' ? 'bg-neutral-900/70 border-neutral-800 text-neutral-400' : 'bg-arca-surface-1 border-arca-border text-arca-text-primary'
                           }`}>
-                            <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
-                              <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
-                              <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
-                              <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
-                            </div>
+                            <MorphingDots isSubmitting={status === 'submitted'} />
                           </div>
                         )}
                       </div>
@@ -735,11 +784,7 @@ export default function AiChat({
                       <div className={`p-4 rounded-[20px] text-sm leading-relaxed border rounded-bl-sm transition-all duration-300 ${
                         status === 'submitted' ? 'bg-neutral-900/80 border-neutral-800 shadow-none' : 'bg-arca-surface-1 border-arca-border shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]'
                       }`}>
-                        <div className="flex space-x-1.5 items-center h-4 mt-1 mb-1 mx-1">
-                          <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
-                          <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
-                          <motion.div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${status === 'submitted' ? 'bg-neutral-400' : 'bg-arca-accent'}`} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
-                        </div>
+                        <MorphingDots isSubmitting={status === 'submitted'} />
                       </div>
                     </div>
                   </div>

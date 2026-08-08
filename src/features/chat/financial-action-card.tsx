@@ -704,9 +704,11 @@ export function FinancialActionCard({
     );
   }
 
+  const synthesizedApproval = part.approval ?? { id: (part as any).toolCallId ?? 'approval-1' };
+
   return (
     <Confirmation
-      approval={part.approval}
+      approval={synthesizedApproval}
       state={part.state}
       className="w-full gap-0 overflow-hidden rounded-[24px] border border-arca-accent/40 bg-gradient-to-b from-arca-surface-1 via-arca-surface-1 to-arca-base p-0 text-arca-text-primary shadow-[0_16px_40px_-20px_rgba(245,158,11,0.25)]"
     >
