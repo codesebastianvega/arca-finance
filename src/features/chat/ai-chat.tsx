@@ -127,6 +127,15 @@ export default function AiChat({
         if (monthlyLimit !== null) setUsed(monthlyLimit);
         return;
       }
+      const isGoogleRateLimit = error.message.toLowerCase().includes('quota')
+        || error.message.toLowerCase().includes('429')
+        || error.message.toLowerCase().includes('resource_exhausted')
+        || error.message.toLowerCase().includes('exceeded');
+      if (isGoogleRateLimit) {
+        setErrorToast("⚠️ Límite de peticiones de Google alcanzado (20 req/min). Por favor espera 10 segundos e intenta de nuevo.");
+        setTimeout(() => setErrorToast(null), 8000);
+        return;
+      }
       setErrorToast("Nova no pudo responder ahora. Intenta de nuevo en un momento.");
       setTimeout(() => setErrorToast(null), 5000);
     }
