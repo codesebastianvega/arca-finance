@@ -682,27 +682,9 @@ export default function DecisionDashboard({
       {actionSheetIncome ? (
         <ObligationActionModal
           obligation={mappedIncomeObligation}
+          accounts={data.accountOptions}
           onClose={() => setActionSheetIncome(null)}
-          onConfirmPayment={async (obligationId, options) => {
-            haptics.medium();
-            if (actionSheetIncome?.templateId && options.kind === "series") {
-              await cancelIncomeTemplate(actionSheetIncome.templateId);
-            } else {
-              await confirmScheduledEventNow(obligationId, {
-                kind: "income",
-                paymentAccountId: options.accountId,
-              });
-            }
-            router.refresh();
-            setActionSheetIncome(null);
-          }}
-          onDeleteObligation={async (obligationId, options) => {
-            haptics.medium();
-            if (actionSheetIncome?.templateId && options?.kind === "series") {
-              await cancelIncomeTemplate(actionSheetIncome.templateId);
-            } else {
-              await cancelScheduledEvent(obligationId);
-            }
+          onRefresh={() => {
             router.refresh();
             setActionSheetIncome(null);
           }}
@@ -712,8 +694,9 @@ export default function DecisionDashboard({
       {actionSheetReceivable ? (
         <ReceivableActionModal
           receivable={actionSheetReceivable}
+          accounts={data.accountOptions}
           onClose={() => setActionSheetReceivable(null)}
-          onSuccess={() => {
+          onRefresh={() => {
             router.refresh();
             setActionSheetReceivable(null);
           }}
@@ -723,19 +706,9 @@ export default function DecisionDashboard({
       {selectedCriticalPayment ? (
         <ObligationActionModal
           obligation={mappedObligation}
+          accounts={data.accountOptions}
           onClose={() => setSelectedCriticalPayment(null)}
-          onConfirmPayment={async (obligationId, options) => {
-            haptics.medium();
-            await confirmScheduledEventNow(obligationId, {
-              kind: (selectedCriticalPayment.kind as any) || "expense",
-              paymentAccountId: options.accountId,
-            });
-            router.refresh();
-            setSelectedCriticalPayment(null);
-          }}
-          onDeleteObligation={async (obligationId) => {
-            haptics.medium();
-            await cancelScheduledEvent(obligationId);
+          onRefresh={() => {
             router.refresh();
             setSelectedCriticalPayment(null);
           }}
