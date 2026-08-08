@@ -17,10 +17,10 @@ export async function getNovaDailyTokenQuota(): Promise<NovaQuotaInfo> {
   const context = await requireWorkspaceContext();
   const admin = getSupabaseAdminClient() || (await createSupabaseServerComponentClient());
 
-  const FREE_DAILY_LIMIT = 100000;
-  const INTERMEDIATE_DAILY_LIMIT = 500000;
-  const PRO_DAILY_LIMIT = 2000000;
-  const GLOBAL_DAILY_LIMIT = 10000000;
+  const FREE_DAILY_LIMIT = 50000;
+  const INTERMEDIATE_DAILY_LIMIT = 200000;
+  const PRO_DAILY_LIMIT = 500000;
+  const GLOBAL_DAILY_LIMIT = 1000000;
 
   const vipExpiresAt = typeof context.subscription?.metadata?.vip_expires_at === "string"
     ? new Date(context.subscription.metadata.vip_expires_at).getTime()
@@ -34,8 +34,8 @@ export async function getNovaDailyTokenQuota(): Promise<NovaQuotaInfo> {
   let planName = "Plan Gratuito";
 
   if (isSuperAdmin) {
-    limitTokens = 10000000;
-    planName = "Super Admin (Ilimitado ♾️)";
+    limitTokens = 1000000;
+    planName = "Super Admin (1M ⚡)";
   } else if (hasVipAccess || planCode === "business" || planCode === "pro") {
     limitTokens = PRO_DAILY_LIMIT;
     planName = "Plan Pro / VIP";
