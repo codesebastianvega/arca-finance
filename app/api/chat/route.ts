@@ -125,7 +125,7 @@ ${options.incomeSources.map(i => `- ${i.label} (ID: ${i.id})`).join('\n')}
 
 IMPORTANTE: Ya tienes las categorías y cuentas arriba. NUNCA llames a get_financial_action_options a menos que necesites datos de Créditos, Proyectos, u otros detalles específicos que no estén listados aquí.`;
 
-    const modelName = process.env.GOOGLE_AI_MODEL || 'gemini-1.5-flash';
+    const modelName = process.env.GOOGLE_AI_MODEL || 'gemini-3.5-flash-lite';
     const result = streamText({
       model: google(modelName),
       stopWhen: isStepCount(3),
